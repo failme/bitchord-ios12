@@ -320,6 +320,10 @@ final class YouTubeBridge: NSObject, WKScriptMessageHandler {
           postCommand('setVolume', [vol * 100]);
         }
 
+        function setPlaybackRate(rate) {
+          postCommand('setPlaybackRate', [rate]);
+        }
+
         window.addEventListener('message', function(event) {
           try {
             var data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
@@ -447,6 +451,10 @@ final class YouTubeBridge: NSObject, WKScriptMessageHandler {
 
     func setVolume(_ volume: Float) {
         webView?.evaluateJavaScript("setVolume(\(volume));", completionHandler: nil)
+    }
+
+    func setPlaybackRate(_ rate: Double) {
+        webView?.evaluateJavaScript("setPlaybackRate(\(rate));", completionHandler: nil)
     }
 
     func refreshSession() {

@@ -17,6 +17,10 @@ final class HomeViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         title = "Home"
+        navigationItem.rightBarButtonItem = UIBarButtonItem(title: "Settings",
+                                                            style: .plain,
+                                                            target: self,
+                                                            action: #selector(openSettings))
         view.backgroundColor = Theme.background
 
         tableView.translatesAutoresizingMaskIntoConstraints = false
@@ -68,6 +72,17 @@ final class HomeViewController: UIViewController {
             self.remoteQuickPicks = Array(tracks.prefix(20))
             self.rebuild()
         }
+    }
+
+    @objc private func openSettings() {
+        let settings = SettingsViewController()
+        let navigation = UINavigationController(rootViewController: settings)
+        navigation.navigationBar.barTintColor = Theme.background
+        navigation.navigationBar.tintColor = Theme.accent
+        navigation.navigationBar.isTranslucent = false
+        navigation.navigationBar.titleTextAttributes = [.foregroundColor: UIColor.white]
+        settings.modalPresentationStyle = .fullScreen
+        present(navigation, animated: true, completion: nil)
     }
 
     @objc private func rebuild() {

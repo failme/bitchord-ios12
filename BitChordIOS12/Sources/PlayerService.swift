@@ -35,6 +35,7 @@ final class PlayerService: NSObject {
     private var unshuffledQueue: [Track] = []
     private var observers: [NSObjectProtocol] = []
     private var consecutiveErrors = 0
+    private var sleepTimer: Timer?
 
     var currentTrack: Track? {
         guard currentIndex >= 0, currentIndex < queue.count else { return nil }
@@ -47,6 +48,7 @@ final class PlayerService: NSObject {
         configureBridge()
         configureRemoteCommands()
         observeInterruptions()
+        observeSettings()
     }
 
     deinit {
@@ -168,6 +170,37 @@ final class PlayerService: NSObject {
             // Re-assert the session so the web audio thread is not torn down.
             try? AVAudioSession.sharedInstance().setActive(true)
         })
+    }
+
+    // MARK: - Settings
+
+    private func observeSettings() {
+        observers.append(NotificationCenter.default.addObserver(
+            forName: .settingsDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.applySettings()
+        })
+        applySettings()
+    }
+
+    private func applySettings() {
+        let store = SettingsStore.shared
+        YouTubeBridge.shared.setPlaybackRate(store.playbackRate)
+        scheduleSleepTimer(minutes: store.sleepTimerMinutes)
+    }
+
+    private func scheduleSleepTimer(minutes: Double) {
+        sleepTimer?.invalidate()
+        sleepTimer = nil
+        guard minutes > 0 else { return }
+        sleepTimer = Timer.scheduledTimer(withTimeInterval: minutes * 60, repeats: false) { [weak self] _ in
+            guard let self = self else { return }
+            self.pause()
+            self.statusText = "Sleep timer ended playback."
+            self.postChange()
+        }
     }
 
     // MARK: - Queue
