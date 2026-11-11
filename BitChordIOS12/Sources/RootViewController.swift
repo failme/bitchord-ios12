@@ -62,6 +62,9 @@ final class RootViewController: UIViewController {
             navigation.navigationBar.titleTextAttributes = [.foregroundColor: UIColor.white]
             navigation.navigationBar.largeTitleTextAttributes = [.foregroundColor: UIColor.white]
             navigation.navigationBar.prefersLargeTitles = true
+            // Flat black bars: upstream draws no hairline under the header.
+            navigation.navigationBar.shadowImage = UIImage()
+            navigation.navigationBar.setBackgroundImage(UIImage(), for: .any, barMetrics: .default)
 
             addChild(navigation)
             navigation.view.translatesAutoresizingMaskIntoConstraints = false

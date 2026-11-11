@@ -5,6 +5,8 @@ final class MiniPlayerBar: UIView {
 
     private let blurView = UIVisualEffectView(effect: UIBlurEffect(style: .dark))
     private let artworkView = UIImageView()
+    private let progressView = UIView()
+    private var progressWidth: NSLayoutConstraint!
     private let titleLabel = UILabel()
     private let subtitleLabel = UILabel()
     private let playButton = UIButton(type: .system)
@@ -26,6 +28,10 @@ final class MiniPlayerBar: UIView {
         blurView.translatesAutoresizingMaskIntoConstraints = false
         blurView.isUserInteractionEnabled = false
         addSubview(blurView)
+
+        progressView.translatesAutoresizingMaskIntoConstraints = false
+        progressView.backgroundColor = Theme.accent
+        addSubview(progressView)
 
         artworkView.translatesAutoresizingMaskIntoConstraints = false
         artworkView.contentMode = .scaleAspectFill
@@ -52,7 +58,13 @@ final class MiniPlayerBar: UIView {
         playButton.addTarget(self, action: #selector(togglePlayback), for: .touchUpInside)
         addSubview(playButton)
 
+        progressWidth = progressView.widthAnchor.constraint(equalToConstant: 0)
         NSLayoutConstraint.activate([
+            progressView.topAnchor.constraint(equalTo: topAnchor),
+            progressView.leadingAnchor.constraint(equalTo: leadingAnchor),
+            progressView.heightAnchor.constraint(equalToConstant: 1.5),
+            progressWidth,
+
             blurView.topAnchor.constraint(equalTo: topAnchor),
             blurView.leadingAnchor.constraint(equalTo: leadingAnchor),
             blurView.trailingAnchor.constraint(equalTo: trailingAnchor),
@@ -80,11 +92,36 @@ final class MiniPlayerBar: UIView {
         let tap = UITapGestureRecognizer(target: self, action: #selector(handleTap))
         addGestureRecognizer(tap)
 
+        let swipe = UISwipeGestureRecognizer(target: self, action: #selector(handleTap))
+        swipe.direction = .up
+        addGestureRecognizer(swipe)
+
+        NotificationCenter.default.addObserver(self,
+                                              selector: #selector(updateProgress),
+                                              name: .playerTimeDidChange,
+                                              object: nil)
+
         refresh()
     }
 
     @objc private func handleTap() {
         onTap?()
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    @objc private func updateProgress() {
+        let service = PlayerService.shared
+        let total = service.duration
+        let fraction = total > 0 ? max(0, min(1, service.currentTime / total)) : 0
+        progressWidth.constant = bounds.width * CGFloat(fraction)
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        updateProgress()
     }
 
     @objc private func togglePlayback() {

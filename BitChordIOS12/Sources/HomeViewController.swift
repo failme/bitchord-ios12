@@ -1,18 +1,15 @@
 import UIKit
 
-/// Home shelves built from what the library already knows. Upstream additionally pulls the
-/// YouTube Music browse feed (mood chips, quick-pick grid, mixes); that arrives with the browse
-/// client, and these shelves are the part that works offline today.
+/// Home, shaped like upstream's: large title, then full-width shelves of square
+/// artwork cards that scroll sideways, instead of one long table of rows.
 final class HomeViewController: UIViewController {
-    private struct Shelf {
-        let title: String
-        let tracks: [Track]
-    }
-
-    private let tableView = UITableView(frame: .zero, style: .plain)
+    private let scrollView = UIScrollView()
+    private let stack = UIStackView()
     private let emptyLabel = UILabel()
-    private var shelves: [Shelf] = []
+    private let greetingLabel = UILabel()
+
     private var remoteQuickPicks: [Track] = []
+    private var shelfViews: [String: ShelfRowView] = [:]
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -22,29 +19,44 @@ final class HomeViewController: UIViewController {
                                                             target: self,
                                                             action: #selector(openSettings))
         view.backgroundColor = Theme.background
+        navigationItem.largeTitleDisplayMode = .always
 
-        tableView.translatesAutoresizingMaskIntoConstraints = false
-        tableView.backgroundColor = Theme.background
-        tableView.dataSource = self
-        tableView.delegate = self
-        tableView.rowHeight = 64
-        tableView.tableFooterView = UIView()
-        tableView.register(TrackCell.self, forCellReuseIdentifier: TrackCell.reuseIdentifier)
-        view.addSubview(tableView)
+        scrollView.translatesAutoresizingMaskIntoConstraints = false
+        scrollView.alwaysBounceVertical = true
+        scrollView.showsVerticalScrollIndicator = false
+        view.addSubview(scrollView)
 
-        emptyLabel.translatesAutoresizingMaskIntoConstraints = false
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        stack.axis = .vertical
+        stack.spacing = 28
+        stack.alignment = .fill
+        scrollView.addSubview(stack)
+
+        greetingLabel.text = greeting()
+        greetingLabel.font = Theme.font(15)
+        greetingLabel.textColor = Theme.secondaryText
+        greetingLabel.numberOfLines = 2
+        stack.addArrangedSubview(greetingLabel)
+
         emptyLabel.text = "Play something and it will show up here."
         emptyLabel.textColor = Theme.secondaryText
         emptyLabel.font = Theme.font(14)
         emptyLabel.textAlignment = .center
         emptyLabel.numberOfLines = 0
         view.addSubview(emptyLabel)
+        emptyLabel.translatesAutoresizingMaskIntoConstraints = false
 
         NSLayoutConstraint.activate([
-            tableView.topAnchor.constraint(equalTo: view.topAnchor),
-            tableView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            tableView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            tableView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            scrollView.topAnchor.constraint(equalTo: view.topAnchor),
+            scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+
+            stack.topAnchor.constraint(equalTo: scrollView.topAnchor, constant: 4),
+            stack.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor),
+            stack.trailingAnchor.constraint(equalTo: scrollView.trailingAnchor),
+            stack.bottomAnchor.constraint(equalTo: scrollView.bottomAnchor, constant: -28),
+            stack.widthAnchor.constraint(equalTo: scrollView.widthAnchor),
 
             emptyLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             emptyLabel.centerYAnchor.constraint(equalTo: view.centerYAnchor),
@@ -62,6 +74,18 @@ final class HomeViewController: UIViewController {
 
     deinit {
         NotificationCenter.default.removeObserver(self)
+    }
+
+    private func greeting() -> String {
+        let hour = Calendar.current.component(.hour, from: Date())
+        let part: String
+        switch hour {
+        case 5..<12: part = "Good morning"
+        case 12..<17: part = "Good afternoon"
+        case 17..<22: part = "Good evening"
+        default: part = "Good night"
+        }
+        return part
     }
 
     /// Live catalog shelf, so Home is not empty on a first launch with no local history.
@@ -87,62 +111,56 @@ final class HomeViewController: UIViewController {
 
     @objc private func rebuild() {
         let store = LibraryStore.shared
-        var built: [Shelf] = []
+        var shelves: [(String, [Track])] = []
         if !remoteQuickPicks.isEmpty {
-            built.append(Shelf(title: "Quick picks", tracks: remoteQuickPicks))
+            shelves.append(("Quick picks", remoteQuickPicks))
         }
         if let continueTrack = store.continueListeningTrack {
-            built.append(Shelf(title: "Continue listening", tracks: [continueTrack]))
+            shelves.append(("Continue listening", [continueTrack]))
         }
         if !store.recentTracks.isEmpty {
-            built.append(Shelf(title: "Recently played", tracks: store.recentTracks))
+            shelves.append(("Recently played", store.recentTracks))
         }
-        let picks = store.quickPicks
-        if !picks.isEmpty {
-            built.append(Shelf(title: "Your picks", tracks: picks))
+        if !store.quickPicks.isEmpty {
+            shelves.append(("Your picks", store.quickPicks))
         }
         if !store.likedTracks.isEmpty {
-            built.append(Shelf(title: "Liked songs", tracks: store.likedTracks))
+            shelves.append(("Liked songs", store.likedTracks))
         }
-        shelves = built
-        emptyLabel.isHidden = !built.isEmpty
-        tableView.reloadData()
-    }
-}
 
-extension HomeViewController: UITableViewDataSource, UITableViewDelegate {
-    func numberOfSections(in tableView: UITableView) -> Int {
-        return shelves.count
-    }
-
-    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return shelves[section].tracks.count
-    }
-
-    func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-        return shelves[section].title
-    }
-
-    func tableView(_ tableView: UITableView, willDisplayHeaderView view: UIView, forSection section: Int) {
-        if let header = view as? UITableViewHeaderFooterView {
-            header.textLabel?.textColor = Theme.secondaryText
-            header.textLabel?.font = Theme.font(13, weight: .semibold)
-            header.contentView.backgroundColor = Theme.background
+        // Rebuild only when the shape changed; reloading on every library event
+        // would reset each shelf's horizontal scroll position.
+        let signature = shelves.map { $0.0 + ":" + $0.1.map { $0.videoID }.joined(separator: ",") }
+        if signature == (stack.arrangedSubviews.compactMap { ($0 as? ShelfRowView)?.accessibilityIdentifier }) {
+            return
         }
-    }
 
-    func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let cell = tableView.dequeueReusableCell(withIdentifier: TrackCell.reuseIdentifier, for: indexPath)
-        if let trackCell = cell as? TrackCell {
-            trackCell.configure(with: shelves[indexPath.section].tracks[indexPath.row])
+        for view in stack.arrangedSubviews where view is ShelfRowView {
+            stack.removeArrangedSubview(view)
+            view.removeFromSuperview()
         }
-        return cell
-    }
+        shelfViews.removeAll()
 
-    func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        tableView.deselectRow(at: indexPath, animated: true)
-        let tracks = shelves[indexPath.section].tracks
-        PlayerService.shared.play(tracks: tracks, startingAt: indexPath.row)
-        presentNowPlayingFromRoot()
+        for (title, tracks) in shelves {
+            let row = ShelfRowView()
+            row.accessibilityIdentifier = title + ":" + tracks.map { $0.videoID }.joined(separator: ",")
+            row.configure(title: title, tracks: tracks)
+            row.onSelect = { [weak self] index in
+                guard let self = self else { return }
+                PlayerService.shared.play(tracks: tracks, startingAt: index)
+                self.presentNowPlayingFromRoot()
+            }
+            row.onPlayAll = { [weak self] in
+                guard !tracks.isEmpty else { return }
+                PlayerService.shared.play(tracks: tracks, startingAt: 0)
+                self?.presentNowPlayingFromRoot()
+            }
+            row.heightAnchor.constraint(equalToConstant: ShelfRowView.rowHeight).isActive = true
+            stack.addArrangedSubview(row)
+            shelfViews[title] = row
+        }
+
+        emptyLabel.isHidden = !shelves.isEmpty
+        scrollView.isHidden = shelves.isEmpty
     }
 }

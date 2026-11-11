@@ -30,7 +30,7 @@ final class TrackCell: UITableViewCell {
         artworkView.translatesAutoresizingMaskIntoConstraints = false
         artworkView.contentMode = .scaleAspectFill
         artworkView.clipsToBounds = true
-        artworkView.layer.cornerRadius = 4
+        artworkView.layer.cornerRadius = 6
         artworkView.backgroundColor = Theme.surface
         contentView.addSubview(artworkView)
 
@@ -49,8 +49,8 @@ final class TrackCell: UITableViewCell {
         NSLayoutConstraint.activate([
             artworkView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
             artworkView.centerYAnchor.constraint(equalTo: contentView.centerYAnchor),
-            artworkView.widthAnchor.constraint(equalToConstant: 44),
-            artworkView.heightAnchor.constraint(equalToConstant: 44),
+            artworkView.widthAnchor.constraint(equalToConstant: 48),
+            artworkView.heightAnchor.constraint(equalToConstant: 48),
 
             titleLabel.leadingAnchor.constraint(equalTo: artworkView.trailingAnchor, constant: 12),
             titleLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
@@ -64,7 +64,7 @@ final class TrackCell: UITableViewCell {
 
     func configure(with track: Track) {
         currentVideoID = track.videoID
-        titleLabel.text = track.title
+        titleLabel.attributedText = TrackCell.title(for: track)
         let duration = track.durationText
         if track.artist.isEmpty {
             subtitleLabel.text = duration
@@ -85,6 +85,19 @@ final class TrackCell: UITableViewCell {
             guard let self = self, self.currentVideoID == track.videoID else { return }
             self.artworkView.image = image
         }
+    }
+
+    /// The title, with Apple's explicit tile inline on flagged tracks.
+    private static func title(for track: Track) -> NSAttributedString {
+        let body = NSMutableAttributedString(string: track.title,
+                                             attributes: [.font: Theme.font(15, weight: .medium),
+                                                          .foregroundColor: Theme.primaryText])
+        guard track.isExplicit else { return body }
+        let tile = NSTextAttachment()
+        tile.image = Theme.explicitBadgeImage(side: 11, color: Theme.secondaryText)
+        tile.bounds = CGRect(x: 3, y: -2, width: 11, height: 11)
+        body.append(NSAttributedString(attachment: tile))
+        return body
     }
 
     override func prepareForReuse() {

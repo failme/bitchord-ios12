@@ -118,10 +118,13 @@ extension SearchViewController: UITableViewDataSource, UITableViewDelegate {
 
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
+        // Capture the queue first. Deactivating the search controller runs
+        // `updateSearchResults` synchronously, which empties `results`; reading it
+        // afterwards handed `play` an empty array and the tap did nothing at all.
+        let picked = results
+        guard indexPath.row < picked.count else { return }
         searchController.isActive = false
-        PlayerService.shared.play(tracks: results, startingAt: indexPath.row)
-        if let root = navigationController?.parent as? RootViewController {
-            root.presentNowPlaying()
-        }
+        PlayerService.shared.play(tracks: picked, startingAt: indexPath.row)
+        presentNowPlayingFromRoot()
     }
 }
