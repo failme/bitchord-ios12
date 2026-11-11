@@ -17,3 +17,9 @@ build.log
 
 # upstream reference clone, not part of this project
 _reference/
+
+# scratch: local test harnesses and downloads
+_noref.html
+_ref.html
+_art.zip
+_run.txt
