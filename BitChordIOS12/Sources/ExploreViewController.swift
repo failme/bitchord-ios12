@@ -1,20 +1,10 @@
 import UIKit
 
-/// Explore mirrors upstream's sections: trending songs, new albums and top chart playlists, all
-/// fetched from the same filtered InnerTube searches upstream uses, plus the mood strip.
+/// Explore, shaped like upstream's: a mood strip, then sideways shelves of
+/// trending songs, new albums and top charts instead of one long table.
 final class ExploreViewController: UIViewController {
-    private enum Row {
-        case track(Track)
-        case collection(CollectionItem)
-        case mood(String)
-    }
-
-    private struct Section {
-        let title: String
-        var rows: [Row]
-    }
-
-    private let tableView = UITableView(frame: .zero, style: .plain)
+    private let scrollView = UIScrollView()
+    private let stack = UIStackView()
     private let spinner = UIActivityIndicatorView(frame: CGRect(x: 0, y: 0, width: 20, height: 20))
 
     private let moods: [String] = [
@@ -23,44 +13,90 @@ final class ExploreViewController: UIViewController {
         "Rock", "R&B", "Jazz", "Classical", "Electronic", "Indie"
     ]
 
-    private var sections: [Section] = []
+    private let chips = ChipRowView()
+    private let trendingShelf = ShelfRowView()
+    private let albumsShelf = CardShelfView()
+    private let chartsShelf = CardShelfView()
+
+    private var trending: [Track] = []
+    private var albums: [CollectionItem] = []
+    private var charts: [CollectionItem] = []
 
     override func viewDidLoad() {
         super.viewDidLoad()
         title = "Explore"
         view.backgroundColor = Theme.background
+        navigationItem.largeTitleDisplayMode = .always
 
-        tableView.translatesAutoresizingMaskIntoConstraints = false
-        tableView.backgroundColor = Theme.background
-        tableView.dataSource = self
-        tableView.delegate = self
-        tableView.rowHeight = 64
-        tableView.tableFooterView = UIView()
-        tableView.register(TrackCell.self, forCellReuseIdentifier: TrackCell.reuseIdentifier)
-        view.addSubview(tableView)
+        scrollView.translatesAutoresizingMaskIntoConstraints = false
+        scrollView.alwaysBounceVertical = true
+        scrollView.showsVerticalScrollIndicator = false
+        view.addSubview(scrollView)
+
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        stack.axis = .vertical
+        stack.spacing = 26
+        stack.alignment = .fill
+        scrollView.addSubview(stack)
+
+        NSLayoutConstraint.activate([
+            scrollView.topAnchor.constraint(equalTo: view.topAnchor),
+            scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+
+            stack.topAnchor.constraint(equalTo: scrollView.topAnchor, constant: 4),
+            stack.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor),
+            stack.trailingAnchor.constraint(equalTo: scrollView.trailingAnchor),
+            stack.bottomAnchor.constraint(equalTo: scrollView.bottomAnchor, constant: -28),
+            stack.widthAnchor.constraint(equalTo: scrollView.widthAnchor)
+        ])
+
+        chips.configure(titles: moods)
+        chips.onSelect = { [weak self] mood in self?.openMood(mood) }
+        addShelf(chips, height: ChipRowView.rowHeight)
+
+        trendingShelf.configure(title: "Trending now", tracks: [])
+        trendingShelf.onSelect = { [weak self] index in
+            guard let self = self else { return }
+            PlayerService.shared.play(tracks: self.trending, startingAt: index)
+            self.presentNowPlayingFromRoot()
+        }
+        trendingShelf.onPlayAll = { [weak self] in
+            guard let self = self, !self.trending.isEmpty else { return }
+            PlayerService.shared.play(tracks: self.trending, startingAt: 0)
+            self.presentNowPlayingFromRoot()
+        }
+        addShelf(trendingShelf, height: ShelfRowView.rowHeight)
+
+        albumsShelf.configure(title: "New albums", items: [])
+        albumsShelf.onSelect = { [weak self] index in
+            guard let self = self, index < self.albums.count else { return }
+            self.openCollection(self.albums[index])
+        }
+        addShelf(albumsShelf, height: CardShelfView.rowHeight)
+
+        chartsShelf.configure(title: "Top charts", items: [])
+        chartsShelf.onSelect = { [weak self] index in
+            guard let self = self, index < self.charts.count else { return }
+            self.openCollection(self.charts[index])
+        }
+        addShelf(chartsShelf, height: CardShelfView.rowHeight)
 
         spinner.translatesAutoresizingMaskIntoConstraints = false
         spinner.hidesWhenStopped = true
         view.addSubview(spinner)
-
         NSLayoutConstraint.activate([
-            tableView.topAnchor.constraint(equalTo: view.topAnchor),
-            tableView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            tableView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            tableView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-
             spinner.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             spinner.centerYAnchor.constraint(equalTo: view.centerYAnchor)
         ])
 
-        sections = [
-            Section(title: "Trending now", rows: []),
-            Section(title: "New albums", rows: []),
-            Section(title: "Top charts", rows: []),
-            Section(title: "Moods & genres", rows: moods.map { Row.mood($0) })
-        ]
-
         load()
+    }
+
+    private func addShelf(_ view: UIView, height: CGFloat) {
+        view.heightAnchor.constraint(equalToConstant: height).isActive = true
+        stack.addArrangedSubview(view)
     }
 
     private func load() {
@@ -68,24 +104,23 @@ final class ExploreViewController: UIViewController {
         let year = Calendar.current.component(.year, from: Date())
 
         InnerTube.shared.search("Trending songs today \(year)", filter: .songs) { [weak self] tracks, _ in
-            guard let self = self, let tracks = tracks, !tracks.isEmpty else { return }
-            self.sections[0].rows = tracks.prefix(20).map { Row.track($0) }
-            self.tableView.reloadData()
+            guard let self = self else { return }
             self.spinner.stopAnimating()
+            guard let tracks = tracks, !tracks.isEmpty else { return }
+            self.trending = Array(tracks.prefix(20))
+            self.trendingShelf.configure(title: "Trending now", tracks: self.trending)
         }
 
         InnerTube.shared.searchCollections("New album releases \(year)", filter: .albums) { [weak self] items in
             guard let self = self, !items.isEmpty else { return }
-            self.sections[1].rows = items.prefix(20).map { Row.collection($0) }
-            self.tableView.reloadData()
-            self.spinner.stopAnimating()
+            self.albums = Array(items.prefix(20))
+            self.albumsShelf.configure(title: "New albums", items: self.cards(from: self.albums))
         }
 
         InnerTube.shared.searchCollections("Top charts \(year)", filter: .playlists) { [weak self] items in
             guard let self = self, !items.isEmpty else { return }
-            self.sections[2].rows = items.prefix(20).map { Row.collection($0) }
-            self.tableView.reloadData()
-            self.spinner.stopAnimating()
+            self.charts = Array(items.prefix(20))
+            self.chartsShelf.configure(title: "Top charts", items: self.cards(from: self.charts))
         }
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 8) { [weak self] in
@@ -93,11 +128,11 @@ final class ExploreViewController: UIViewController {
         }
     }
 
-    private func tracks(in section: Int) -> [Track] {
-        return sections[section].rows.compactMap { row in
-            if case .track(let track) = row { return track }
-            return nil
-        }
+    private func cards(from items: [CollectionItem]) -> [CardItem] {
+        return items.map { CardItem(id: $0.browseID,
+                                    title: $0.title,
+                                    subtitle: $0.subtitle,
+                                    artworkURL: $0.artworkURL) }
     }
 
     private func openCollection(_ item: CollectionItem) {
@@ -130,88 +165,5 @@ final class ExploreViewController: UIViewController {
                 list.setTracks([])
             }
         }
-    }
-
-    private func subtitleCell(_ tableView: UITableView, title: String, subtitle: String) -> UITableViewCell {
-        let identifier = "ExploreRow"
-        var cell = tableView.dequeueReusableCell(withIdentifier: identifier)
-        if cell == nil {
-            cell = UITableViewCell(style: .subtitle, reuseIdentifier: identifier)
-        }
-        guard let row = cell else { return UITableViewCell() }
-        row.backgroundColor = Theme.background
-        row.textLabel?.text = title
-        row.textLabel?.textColor = Theme.primaryText
-        row.textLabel?.font = Theme.font(15, weight: .medium)
-        row.detailTextLabel?.text = subtitle
-        row.detailTextLabel?.textColor = Theme.secondaryText
-        row.detailTextLabel?.font = Theme.font(12)
-        row.accessoryType = .disclosureIndicator
-        return row
-    }
-}
-
-extension ExploreViewController: UITableViewDataSource, UITableViewDelegate {
-    func numberOfSections(in tableView: UITableView) -> Int {
-        return sections.filter { !$0.rows.isEmpty }.count
-    }
-
-    private func visibleSection(_ index: Int) -> Section {
-        return sections.filter { !$0.rows.isEmpty }[index]
-    }
-
-    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return visibleSection(section).rows.count
-    }
-
-    func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-        return visibleSection(section).title
-    }
-
-    func tableView(_ tableView: UITableView, willDisplayHeaderView view: UIView, forSection section: Int) {
-        if let header = view as? UITableViewHeaderFooterView {
-            header.textLabel?.textColor = Theme.secondaryText
-            header.textLabel?.font = Theme.font(13, weight: .semibold)
-            header.contentView.backgroundColor = Theme.background
-        }
-    }
-
-    func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        switch visibleSection(indexPath.section).rows[indexPath.row] {
-        case .track(let track):
-            let cell = tableView.dequeueReusableCell(withIdentifier: TrackCell.reuseIdentifier,
-                                                     for: indexPath)
-            if let trackCell = cell as? TrackCell {
-                trackCell.configure(with: track)
-            }
-            return cell
-
-        case .collection(let item):
-            return subtitleCell(tableView, title: item.title, subtitle: item.subtitle)
-
-        case .mood(let mood):
-            return subtitleCell(tableView, title: mood, subtitle: "Songs, albums and playlists")
-        }
-    }
-
-    func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        tableView.deselectRow(at: indexPath, animated: true)
-        let visible = sections.filter { !$0.rows.isEmpty }
-        switch visible[indexPath.section].rows[indexPath.row] {
-        case .track:
-            let queue = tracks(in: indexOfSection(title: visible[indexPath.section].title))
-            PlayerService.shared.play(tracks: queue, startingAt: indexPath.row)
-            presentNowPlayingFromRoot()
-
-        case .collection(let item):
-            openCollection(item)
-
-        case .mood(let mood):
-            openMood(mood)
-        }
-    }
-
-    private func indexOfSection(title: String) -> Int {
-        return sections.firstIndex(where: { $0.title == title }) ?? 0
     }
 }
