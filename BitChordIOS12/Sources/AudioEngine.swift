@@ -90,6 +90,16 @@ final class AudioEngine {
         mode == .native ? native.currentVideoId : web.currentVideoId
     }
 
+    /// The catalogue that served the loaded item, for the quality badge ("" when unknown).
+    var currentSourceLabel: String {
+        mode == .native ? native.sourceLabel : ""
+    }
+
+    /// Whether the loaded item was flagged explicit (Apple-style E badge).
+    var currentIsExplicit: Bool {
+        mode == .native ? native.lastExplicit : false
+    }
+
     var lastDiagnostic: String {
         mode == .native ? native.lastDiagnostic : web.lastDiagnostic
     }

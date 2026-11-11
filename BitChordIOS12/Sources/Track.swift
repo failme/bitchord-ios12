@@ -18,6 +18,8 @@ struct Track: Codable, Hashable {
     var bitDepth: Int?
     var source: TrackSource?
     var sourceId: String?
+    /// Whether the catalogue flagged the track explicit (Apple-style E badge).
+    var isExplicit = false
 
     var id: String { return videoID }
 

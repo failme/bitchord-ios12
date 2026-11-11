@@ -13,7 +13,7 @@ enum Icons {
         case ellipsis
         case chevronDown, chevronRight, chevronLeft
         case search, close, plus
-        case musicNote
+        case musicNote, headphones
         case house, compass, library, list, gear
     }
 
@@ -191,6 +191,14 @@ enum Icons {
                 l.addLine(to: pt(0.74, y))
                 stroke(l)
             }
+        case .headphones:
+            let band = UIBezierPath(arcCenter: pt(0.50, 0.52), radius: 0.26 * s,
+                                    startAngle: .pi, endAngle: 0, clockwise: true)
+            stroke(band)
+            UIBezierPath(roundedRect: CGRect(x: 0.20 * s, y: 0.48 * s, width: 0.10 * s, height: 0.24 * s),
+                         cornerRadius: 0.05 * s).fill()
+            UIBezierPath(roundedRect: CGRect(x: 0.70 * s, y: 0.48 * s, width: 0.10 * s, height: 0.24 * s),
+                         cornerRadius: 0.05 * s).fill()
         case .gear:
             for i in 0..<8 {
                 cg.saveGState()

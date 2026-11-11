@@ -31,7 +31,8 @@ final class NativeAudioPlayer: NSObject {
     private(set) var currentVideoId: String?
     private var currentTrack: Track?
     /// Which catalogue served the loaded item ("JioSaavn 320kbps", "YouTube", or "").
-    private var sourceLabel = ""
+    private(set) var sourceLabel = ""
+    private(set) var lastExplicit = false
     private(set) var lastDiagnostic = ""
     private(set) var diagnosticsSummary = "native: idle"
     private(set) var secondsSinceProgress: TimeInterval = 0
@@ -64,6 +65,7 @@ final class NativeAudioPlayer: NSObject {
         currentVideoId = track.videoID
         currentTrack = track
         sourceLabel = ""
+        lastExplicit = false
         isPausedByUser = false
         isReady = false
         lastKnownPosition = position
@@ -82,6 +84,7 @@ final class NativeAudioPlayer: NSObject {
             guard let self = self, self.requestTicket == ticket else { return }
             if let url = url, let scheme = url.scheme, scheme.hasPrefix("http") {
                 self.sourceLabel = JioSaavnService.shared.lastQualityLabel
+                self.lastExplicit = JioSaavnService.shared.lastIsExplicit
                 self.start(url: url, at: position)
                 completion(true)
                 return
@@ -96,6 +99,7 @@ final class NativeAudioPlayer: NSObject {
                     return
                 }
                 self.sourceLabel = "YouTube"
+                self.lastExplicit = false
                 self.start(url: url, at: position)
                 completion(true)
             }

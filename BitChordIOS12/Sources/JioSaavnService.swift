@@ -16,6 +16,8 @@ final class JioSaavnService {
 
     /// Human-readable quality of the last resolved stream, e.g. "JioSaavn 320kbps".
     private(set) var lastQualityLabel = ""
+    /// Whether the last resolved stream was flagged explicit.
+    private(set) var lastIsExplicit = false
 
     private let session: URLSession
     private let endpoint = URL(string: "https://www.jiosaavn.com/api.php")!
@@ -58,11 +60,12 @@ final class JioSaavnService {
                 completion(nil, error ?? "JioSaavn returned no results.")
                 return
             }
-            guard let songId = self.pickBest(in: results, title: title, artist: artist, durationSeconds: durationSeconds) else {
+            guard let match = self.pickBest(in: results, title: title, artist: artist, durationSeconds: durationSeconds) else {
                 completion(nil, "JioSaavn had no close match.")
                 return
             }
-            self.details(for: songId, completion: completion)
+            self.lastIsExplicit = match.isExplicit
+            self.details(for: match.id, completion: completion)
         }
     }
 
@@ -72,10 +75,9 @@ final class JioSaavnService {
     private func pickBest(in results: [[String: Any]],
                           title: String,
                           artist: String,
-                          durationSeconds: Double?) -> String? {
+                          durationSeconds: Double?) -> (id: String, isExplicit: Bool)? {
         let wantTitle = normalized(title)
-        let wantArtist = normalized(artist)
-        var bestId: String?
+        let wantArtist = normalized(artist)            var best: (id: String, isExplicit: Bool)?
         // An exact title plus the artist or the duration clears this; anything less
         // than a solid title match with corroboration does not.
         var bestScore = 4
@@ -109,10 +111,11 @@ final class JioSaavnService {
             }
             if score > bestScore {
                 bestScore = score
-                bestId = songId
+                let flag = (row["explicit_content"] as? String ?? "").lowercased()
+                best = (songId, flag == "1" || flag == "true")
             }
         }
-        return bestId
+        return best
     }
 
     private func details(for songId: String, completion: @escaping (URL?, String) -> Void) {
@@ -137,9 +140,13 @@ final class JioSaavnService {
                   let url = URL(string: stream.url), url.scheme?.hasPrefix("http") == true else {
                 completion(nil, "JioSaavn had no stream URL.")
                 return
-            }
-            self.lastQualityLabel = "JioSaavn " + (stream.kbps.map { "\($0)kbps" } ?? "audio")
-            completion(url, "")
+            }                self.lastQualityLabel = "JioSaavn " + (stream.kbps.map { "\($0)kbps" } ?? "audio")
+                // The details row is authoritative; fall back to the search row otherwise.
+                let flag = (row["explicit_content"] as? String ?? "").lowercased()
+                if flag == "1" || flag == "true" || flag == "0" || flag == "false" {
+                    self.lastIsExplicit = flag == "1" || flag == "true"
+                }
+                completion(url, "")
         }
     }
 

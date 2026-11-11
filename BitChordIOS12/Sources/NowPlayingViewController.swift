@@ -5,6 +5,10 @@ import UIKit
 final class NowPlayingViewController: UIViewController {
     private let closeButton = UIButton(type: .system)
     private let artworkView = UIImageView()
+    private let backdropView = UIImageView()
+    private let blurView = UIVisualEffectView(effect: UIBlurEffect(style: .dark))
+    private let glowView = UIView()
+    private let glowLayer = CAGradientLayer()
     private let lyricsTable = UITableView(frame: .zero, style: .plain)
     private let titleLabel = UILabel()
     private let artistLabel = UILabel()
@@ -58,9 +62,32 @@ final class NowPlayingViewController: UIViewController {
         NotificationCenter.default.removeObserver(self)
     }
 
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        glowLayer.frame = glowView.bounds
+        glowLayer.cornerRadius = 30
+    }
+
     // MARK: - Layout
 
     private func buildLayout() {
+        backdropView.translatesAutoresizingMaskIntoConstraints = false
+        backdropView.contentMode = .scaleAspectFill
+        backdropView.clipsToBounds = true
+        backdropView.alpha = 0.55
+        view.addSubview(backdropView)
+
+        blurView.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(blurView)
+
+        glowView.translatesAutoresizingMaskIntoConstraints = false
+        glowView.layer.addSublayer(glowLayer)
+        glowLayer.colors = [UIColor.clear.cgColor, UIColor.clear.cgColor]
+        glowView.layer.shadowOpacity = 0.6
+        glowView.layer.shadowRadius = 28
+        glowView.layer.shadowOffset = CGSize(width: 0, height: 16)
+        view.addSubview(glowView)
+
         closeButton.translatesAutoresizingMaskIntoConstraints = false
         closeButton.setImage(Icons.image(.chevronDown, size: 22), for: .normal)
 
@@ -78,7 +105,7 @@ final class NowPlayingViewController: UIViewController {
         artworkView.translatesAutoresizingMaskIntoConstraints = false
         artworkView.contentMode = .scaleAspectFill
         artworkView.clipsToBounds = true
-        artworkView.layer.cornerRadius = 8
+        artworkView.layer.cornerRadius = 12
         artworkView.backgroundColor = Theme.surface
         artworkView.isUserInteractionEnabled = true
         artworkView.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(toggleMode)))
@@ -87,7 +114,7 @@ final class NowPlayingViewController: UIViewController {
         lyricsTable.translatesAutoresizingMaskIntoConstraints = false
         lyricsTable.dataSource = self
         lyricsTable.delegate = self
-        lyricsTable.backgroundColor = Theme.background
+        lyricsTable.backgroundColor = UIColor.clear
         lyricsTable.separatorStyle = .none
         lyricsTable.rowHeight = UITableView.automaticDimension
         lyricsTable.estimatedRowHeight = 30
@@ -128,8 +155,9 @@ final class NowPlayingViewController: UIViewController {
         view.addSubview(diagnosticsLabel)
 
         slider.translatesAutoresizingMaskIntoConstraints = false
-        slider.minimumTrackTintColor = Theme.accent
-        slider.maximumTrackTintColor = Theme.surface
+        slider.setMinimumTrackImage(Theme.trackImage(Theme.accent), for: .normal)
+        slider.setMaximumTrackImage(Theme.trackImage(Theme.outline), for: .normal)
+        slider.setThumbImage(Theme.thumbImage(), for: .normal)
         slider.addTarget(self, action: #selector(sliderDown), for: .touchDown)
         slider.addTarget(self, action: #selector(sliderUp),
                          for: [.touchUpInside, .touchUpOutside, .touchCancel])
@@ -152,7 +180,24 @@ final class NowPlayingViewController: UIViewController {
         configureTransportButton(queueButton, icon: .list, size: 20, action: #selector(showQueue))
 
         let safe = view.safeAreaLayoutGuide
+        glowLayer.startPoint = CGPoint(x: 0.5, y: 0)
+        glowLayer.endPoint = CGPoint(x: 0.5, y: 1)
         NSLayoutConstraint.activate([
+            backdropView.topAnchor.constraint(equalTo: view.topAnchor),
+            backdropView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            backdropView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            backdropView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+
+            blurView.topAnchor.constraint(equalTo: view.topAnchor),
+            blurView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            blurView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            blurView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+
+            glowView.centerXAnchor.constraint(equalTo: artworkView.centerXAnchor),
+            glowView.centerYAnchor.constraint(equalTo: artworkView.centerYAnchor),
+            glowView.widthAnchor.constraint(equalTo: artworkView.widthAnchor, constant: 72),
+            glowView.heightAnchor.constraint(equalTo: artworkView.heightAnchor, constant: 72),
+
             closeButton.topAnchor.constraint(equalTo: safe.topAnchor, constant: 4),
             closeButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
             closeButton.heightAnchor.constraint(equalToConstant: 36),
@@ -276,9 +321,25 @@ final class NowPlayingViewController: UIViewController {
             currentTrackID = track.videoID
             loadArtwork(track)
         }
-        titleLabel.text = track.title
+        if track.isExplicit || AudioEngine.shared.currentIsExplicit {
+            let body = NSMutableAttributedString(string: track.title + " ")
+            let tile = NSTextAttachment()
+            tile.image = Theme.explicitBadgeImage()
+            tile.bounds = CGRect(x: 0, y: -2, width: 13, height: 13)
+            body.append(NSAttributedString(attachment: tile))
+            titleLabel.attributedText = body
+        } else {
+            titleLabel.attributedText = nil
+            titleLabel.text = track.title
+        }
         artistLabel.text = track.artist.isEmpty ? "Unknown artist" : track.artist
-        badgeLabel.text = track.displayAudioQualityBadge.uppercased()
+        let source = AudioEngine.shared.currentSourceLabel
+        let badge = (source.isEmpty ? track.displayAudioQualityBadge : source).uppercased()
+        let styled = NSMutableAttributedString(string: badge)
+        let full = NSRange(location: 0, length: styled.length)
+        styled.addAttribute(.kern, value: 0.8, range: full)
+        styled.addAttribute(.foregroundColor, value: Theme.secondaryText, range: full)
+        badgeLabel.attributedText = styled
         statusLabel.text = service.statusText.isEmpty ? nil : service.statusText
         playButton.setImage(Icons.image(service.isPlaying ? .pause : .play, size: 34), for: .normal)
         nextButton.isEnabled = service.currentIndex + 1 < service.queue.count
@@ -309,13 +370,29 @@ final class NowPlayingViewController: UIViewController {
         artworkTask?.cancel()
         let url = track.largeArtworkURL
         if let cached = ArtworkLoader.shared.cached(url) {
-            artworkView.image = cached
+            applyArtwork(cached)
             return
         }
         artworkView.image = nil
         artworkTask = ArtworkLoader.shared.load(url) { [weak self] image in
             guard let self = self, self.currentTrackID == track.videoID else { return }
-            self.artworkView.image = image
+            self.applyArtwork(image)
+        }
+    }
+
+    /// Sets the cover and repaints everything derived from it: the blurred
+    /// backdrop and the edge-color glow the cover fades into.
+    private func applyArtwork(_ image: UIImage?) {
+        artworkView.image = image
+        UIView.transition(with: backdropView, duration: 0.4, options: .transitionCrossDissolve, animations: {
+            self.backdropView.image = image
+        }, completion: nil)
+        if let image = image, let edge = Theme.edgeColor(of: image) {
+            glowLayer.colors = [edge.withAlphaComponent(0.5).cgColor, UIColor.clear.cgColor]
+            glowView.layer.shadowColor = edge.cgColor
+        } else {
+            glowLayer.colors = [UIColor.clear.cgColor, UIColor.clear.cgColor]
+            glowView.layer.shadowColor = UIColor.black.cgColor
         }
     }
 
@@ -438,8 +515,8 @@ final class LyricCell: UITableViewCell {
 
     override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
         super.init(style: style, reuseIdentifier: reuseIdentifier)
-        backgroundColor = Theme.background
-        contentView.backgroundColor = Theme.background
+        backgroundColor = UIColor.clear
+        contentView.backgroundColor = UIColor.clear
         selectionStyle = .none
 
         label.translatesAutoresizingMaskIntoConstraints = false
