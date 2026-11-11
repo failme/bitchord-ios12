@@ -344,7 +344,7 @@ final class InnerTube {
         guard pieces.count == 2 || pieces.count == 3 else { return nil }
         var total = 0.0
         for piece in pieces {
-            guard let value = Double(piece), value >= 0 else { return nil }
+            guard let value = Double(String(piece)), value >= 0 else { return nil }
             total = total * 60 + value
         }
         return total > 0 ? total : nil

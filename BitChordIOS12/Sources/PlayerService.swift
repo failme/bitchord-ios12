@@ -70,14 +70,14 @@ final class PlayerService: NSObject {
     private func observePlayback() {
         let center = NotificationCenter.default
         observers.append(center.addObserver(
-            forName: .AVPlayerItemDidPlayToEndTime,
+            forName: AVPlayerItem.didPlayToEndTimeNotification,
             object: nil,
             queue: .main
         ) { [weak self] _ in
             self?.advance()
         })
         observers.append(center.addObserver(
-            forName: .AVPlayerItemFailedToPlayToEndTime,
+            forName: AVPlayerItem.failedToPlayToEndTimeNotification,
             object: nil,
             queue: .main
         ) { [weak self] _ in
