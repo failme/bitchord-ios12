@@ -32,11 +32,11 @@ embed bridge is the mechanism that works, and all of it is iOS 12 API.
 | Queue, next/previous, repeat, shuffle | Ported |
 | Lock screen / control centre | Ported |
 | Synced lyrics (LRCLIB + LRC parser) | Working |
-| Now Playing screen | Basic port (scrubber, transport, lyrics list) |
+| Now Playing (artwork/lyrics toggle, badge, shuffle, repeat, queue sheet) | Ported |
 | Mini player | Working |
-| Home tab | Not ported |
-| Explore tab | Not ported |
-| Library tab (liked, playlists, recents) | Not ported |
+| Home tab | Ported: local shelves + live quick picks |
+| Explore tab | Ported: trending songs, new albums, top charts, moods |
+| Library tab (liked, playlists, recents, recent searches) | Ported |
 | Settings (50+ keys) | Not ported |
 | Addon sources, downloads, scrobbling, EQ, crossfade | Not ported |
 

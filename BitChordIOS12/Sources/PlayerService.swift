@@ -239,6 +239,12 @@ final class PlayerService: NSObject {
         }
     }
 
+    func playTrack(at index: Int) {
+        guard index >= 0, index < queue.count else { return }
+        currentIndex = index
+        loadCurrent()
+    }
+
     func replayCurrent() {
         loadCurrent()
     }
