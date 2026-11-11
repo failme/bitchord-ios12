@@ -175,8 +175,8 @@ final class JioSaavnService {
         let status: CCCryptorStatus = out.withUnsafeMutableBytes { outPtr in
             data.withUnsafeBytes { dataPtr in
                 key.withUnsafeBytes { keyPtr in
-                    CCCrypt(kCCDecrypt, kCCAlgorithmDES,
-                            kCCOptionPKCS7Padding | kCCOptionECBMode,
+                    CCCrypt(CCOperation(UInt32(kCCDecrypt)), CCAlgorithm(UInt32(kCCAlgorithmDES)),
+                            CCOptions(UInt32(kCCOptionPKCS7Padding) | UInt32(kCCOptionECBMode)),
                             keyPtr.baseAddress, size_t(kCCKeySizeDES),
                             nil,
                             dataPtr.baseAddress, size_t(data.count),
