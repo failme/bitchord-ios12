@@ -14,3 +14,6 @@ BitChord-1.0.2-9-ios12-patched.ipa
 push.log
 push2.log
 build.log
+
+# upstream reference clone, not part of this project
+_reference/
