@@ -1,6 +1,6 @@
 # Port audit — what is actually ported
 
-Verdict: **not a 1:1 recreation.** 4,173 lines exist against 23,705 upstream (17.6%).
+Verdict: **not a 1:1 recreation.** 4,568 lines exist against 23,705 upstream (19.3%).
 26 upstream files have **no counterpart at all** (6,048 lines).
 
 The settings surface now exists: all 73 upstream keys are present with their key names and
@@ -96,6 +96,7 @@ Spotify (6), LocalMusic (3), Source (2), Storage (2), Performance (3), Discord (
 | ee760aa | Search filters, album/playlist browse, live Home and Explore |
 | d9fdbaa | Full Now Playing: artwork/lyrics toggle, badge, shuffle/repeat, queue sheet |
 | 4fa9943 / 97699fd | Settings surface, 73 keys; speed and sleep timer wired |
+| bbb64e8 | Playback self-healing (process-death recovery, stall watchdog) plus a drawn icon set replacing every glyph button |
 
 Every build above was verified green with `MinimumOSVersion 12.0`, `LC_BUILD_VERSION minos 12.0`,
 `arm64`. Nothing in this port has been run on a device.
