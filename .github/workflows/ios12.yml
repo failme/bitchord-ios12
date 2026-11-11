@@ -45,17 +45,16 @@ jobs:
           fi
           grep -aE "error:|xcodebuild: error|BUILD FAILED|The following build commands failed" build.log \
             | head -8 \
+            | tr -d '\r' \
             | while IFS= read -r line; do
-                line="${line%$'\r'}"
-                line="${line//%/%25}"
                 echo "::error ::${line:0:800}"
               done
           if ! grep -qaE "error:" build.log; then
-            tail -8 build.log | while IFS= read -r line; do
-              line="${line%$'\r'}"
-              line="${line//%/%25}"
-              echo "::notice ::${line:0:800}"
-            done
+            tail -8 build.log \
+              | tr -d '\r' \
+              | while IFS= read -r line; do
+                  echo "::notice ::${line:0:800}"
+                done
           fi
 
       - name: Report build diagnostics
@@ -123,16 +122,29 @@ jobs:
       - name: Build for simulator
         run: |
           set -o pipefail
-          xcodebuild             -project BitChordIOS12.xcodeproj             -scheme BitChordIOS12             -sdk iphonesimulator             -configuration Release             -arch arm64             -derivedDataPath build-sim             IPHONEOS_DEPLOYMENT_TARGET=12.0             CODE_SIGNING_ALLOWED=NO             CODE_SIGNING_REQUIRED=NO             CODE_SIGN_IDENTITY=""             build 2>&1 | tee sim.log
+          xcodebuild \
+            -project BitChordIOS12.xcodeproj \
+            -scheme BitChordIOS12 \
+            -sdk iphonesimulator \
+            -configuration Release \
+            -arch arm64 \
+            -derivedDataPath build-sim \
+            IPHONEOS_DEPLOYMENT_TARGET=12.0 \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build 2>&1 | tee sim.log
 
       - name: Report simulator build errors
         if: failure()
         run: |
           if [ -f sim.log ]; then
-            grep -aE "error:|xcodebuild: error|BUILD FAILED" sim.log | head -8 | while IFS= read -r line; do
-              line="${line%$''}"
-              echo "::error ::${line:0:800}"
-            done
+            grep -aE "error:|xcodebuild: error|BUILD FAILED" sim.log \
+              | head -8 \
+              | tr -d '\r' \
+              | while IFS= read -r line; do
+                  echo "::error ::${line:0:800}"
+                done
           fi
 
       - name: Package simulator bundle for Appetize
