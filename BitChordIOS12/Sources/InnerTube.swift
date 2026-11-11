@@ -69,13 +69,15 @@ final class InnerTube {
 
     // MARK: - Search
 
-    func search(_ query: String, completion: @escaping ([Track]?, String?) -> Void) {
+    func search(_ query: String,
+                filter: SearchFilter? = nil,
+                completion: @escaping ([Track]?, String?) -> Void) {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             completion([], nil)
             return
         }
-        let body: [String: Any] = [
+        var body: [String: Any] = [
             "context": [
                 "client": [
                     "clientName": "WEB_REMIX",
@@ -84,9 +86,11 @@ final class InnerTube {
                     "gl": "US"
                 ]
             ],
-            "query": trimmed,
-            "params": ""
+            "query": trimmed
         ]
+        if let params = filter?.params {
+            body["params"] = params
+        }
         post(path: "search", body: body, userAgent: InnerTube.browserUserAgent) { json, error in
             guard let json = json else {
                 completion(nil, error ?? "Search failed.")
@@ -188,7 +192,7 @@ final class InnerTube {
 
     // MARK: - Transport
 
-    private func post(path: String,
+    func post(path: String,
                       body: [String: Any],
                       userAgent: String,
                       completion: @escaping ([String: Any]?, String?) -> Void) {
@@ -225,7 +229,7 @@ final class InnerTube {
 
     // MARK: - Search response parsing
 
-    private func parseSearch(_ json: [String: Any]) -> [Track] {
+    func parseSearch(_ json: [String: Any]) -> [Track] {
         var tracks: [Track] = []
         var seen = Set<String>()
         for renderer in renderers(named: "musicResponsiveListItemRenderer", in: json) {
@@ -279,7 +283,7 @@ final class InnerTube {
         return found
     }
 
-    private func columnText(_ columns: [[String: Any]], index: Int) -> String? {
+    func columnText(_ columns: [[String: Any]], index: Int) -> String? {
         guard index < columns.count else { return nil }
         guard let text = value(columns[index], ["musicResponsiveListItemFlexColumnRenderer", "text"]) as? [String: Any] else {
             return nil
@@ -294,7 +298,7 @@ final class InnerTube {
         return trimmed.isEmpty ? nil : trimmed
     }
 
-    private func columnSegments(_ columns: [[String: Any]], index: Int) -> [String] {
+    func columnSegments(_ columns: [[String: Any]], index: Int) -> [String] {
         guard index < columns.count else { return [] }
         guard let text = value(columns[index], ["musicResponsiveListItemFlexColumnRenderer", "text"]) as? [String: Any] else {
             return []
@@ -352,7 +356,7 @@ final class InnerTube {
 
     // MARK: - Generic JSON helpers
 
-    private func renderers(named name: String, in node: Any) -> [[String: Any]] {
+    func renderers(named name: String, in node: Any) -> [[String: Any]] {
         var output: [[String: Any]] = []
         func walk(_ current: Any) {
             if let dict = current as? [String: Any] {

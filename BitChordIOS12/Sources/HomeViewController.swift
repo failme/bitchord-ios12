@@ -12,6 +12,7 @@ final class HomeViewController: UIViewController {
     private let tableView = UITableView(frame: .zero, style: .plain)
     private let emptyLabel = UILabel()
     private var shelves: [Shelf] = []
+    private var remoteQuickPicks: [Track] = []
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -52,15 +53,29 @@ final class HomeViewController: UIViewController {
                                               name: .libraryDidChange,
                                               object: nil)
         rebuild()
+        loadQuickPicks()
     }
 
     deinit {
         NotificationCenter.default.removeObserver(self)
     }
 
+    /// Live catalog shelf, so Home is not empty on a first launch with no local history.
+    private func loadQuickPicks() {
+        let year = Calendar.current.component(.year, from: Date())
+        InnerTube.shared.search("Top songs \(year)", filter: .songs) { [weak self] tracks, _ in
+            guard let self = self, let tracks = tracks, !tracks.isEmpty else { return }
+            self.remoteQuickPicks = Array(tracks.prefix(20))
+            self.rebuild()
+        }
+    }
+
     @objc private func rebuild() {
         let store = LibraryStore.shared
         var built: [Shelf] = []
+        if !remoteQuickPicks.isEmpty {
+            built.append(Shelf(title: "Quick picks", tracks: remoteQuickPicks))
+        }
         if let continueTrack = store.continueListeningTrack {
             built.append(Shelf(title: "Continue listening", tracks: [continueTrack]))
         }
