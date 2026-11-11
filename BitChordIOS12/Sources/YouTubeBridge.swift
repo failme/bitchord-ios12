@@ -50,11 +50,29 @@ final class YouTubeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegat
     private var lastDuration: Double = 0
     private var sawVideo = false
 
-    /// The identity this app presents to YouTube. Must match the `origin` parameter and the
-    /// `Referer` header, or the player refuses to start.
+    /// The identity this app presents to YouTube, sent as the `Referer`.
+    ///
+    /// Measured against the live embed endpoint, this is the only referrer that returns a clean
+    /// player page: no referrer yields error 153 ("player configuration error"), and both
+    /// `http://127.0.0.1:…` and `https://www.youtube.com/` yield "This video is unavailable".
+    ///
+    /// There is deliberately no `origin` parameter. It has to name the *embedding* page's origin,
+    /// and here the embed is the document itself, so every value we could pass would contradict
+    /// the page YouTube is serving.
     private let appOrigin = "https://com.bitchord.ios12"
 
-    private let userAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_3_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.3 Mobile/15E148 Safari/604.1"
+    /// Safari's user agent for the OS that is actually running.
+    ///
+    /// YouTube picks the player bundle from the user agent. Claiming a newer iOS than the WebKit
+    /// underneath it asks for JavaScript this iOS 12 engine cannot parse, and a parse failure
+    /// leaves the player at readyState 0 with no error event and no page text — silence, exactly
+    /// as reported. Identifying truthfully gets the bundle that matches the engine.
+    private var userAgent: String {
+        let version = UIDevice.current.systemVersion
+        let underscored = version.replacingOccurrences(of: ".", with: "_")
+        return "Mozilla/5.0 (iPhone; CPU iPhone OS \(underscored) like Mac OS X) "
+            + "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/\(version) Mobile/15E148 Safari/604.1"
+    }
 
     private override init() {
         super.init()
@@ -201,7 +219,6 @@ final class YouTubeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegat
     private func embedURL(videoId: String, startAt: Double) -> String {
         var url = "https://www.youtube.com/embed/\(videoId)"
         url += "?autoplay=1&playsinline=1&controls=0&rel=0&showinfo=0&iv_load_policy=3"
-        url += "&enablejsapi=1&origin=\(appOrigin)"
         if startAt >= 1 {
             url += "&start=\(Int(startAt))"
         }
