@@ -230,34 +230,31 @@ final class PlayerService: NSObject {
         }
     }
 
-    // The embed sometimes fires no event at all: a video that never starts, or a page
-    // that died before recovery landed. Catch the silence, heal it once, then move on.
+    // The embed sometimes fires no event at all: a video that never starts, or one that starts
+    // and then wedges. Both used to be silent. Measure the element itself and heal it once.
     private func checkForStall() {
-        guard isLoading, let started = loadStartedAt else { return }
-        guard Date().timeIntervalSince(started) > 15 else { return }
+        guard let track = currentTrack, !YouTubeBridge.shared.isPausedByUser else { return }
+        let bridge = YouTubeBridge.shared
+        let sinceLoad = loadStartedAt.map { Date().timeIntervalSince($0) } ?? 0
+        let waiting = max(bridge.secondsSinceProgress, sinceLoad)
+        guard waiting > 15 else { return }
         if sessionReloads < 1 {
             sessionReloads += 1
             loadStartedAt = Date()
+            isLoading = true
             statusText = "Reloading player…"
             postChange()
-            YouTubeBridge.shared.refreshSession()
-            if let videoId = currentTrack?.videoID {
-                YouTubeBridge.shared.play(videoId: videoId)
-            }
-        } else {
-            loadStartedAt = nil
-            let diagnostic = YouTubeBridge.shared.lastDiagnostic
-            let referrer = YouTubeBridge.shared.lastReferrer
-            if !diagnostic.isEmpty {
-                statusText = "Player refused: " + String(diagnostic.prefix(120))
-            } else if !referrer.isEmpty {
-                statusText = "Player refused the embed (referrer: \(referrer))."
-            } else {
-                statusText = "Player refused the embed: no referrer was sent."
-            }
-            postChange()
-            advance()
+            bridge.refreshSession()
+            return
         }
+        loadStartedAt = nil
+        isLoading = false
+        isPlaying = false
+        let diagnostic = bridge.lastDiagnostic
+        statusText = diagnostic.isEmpty
+            ? "Playback stalled (" + bridge.diagnosticsSummary + ")"
+            : "Playback stalled: " + String(diagnostic.prefix(100))
+        postChange()
     }
 
     // MARK: - Queue

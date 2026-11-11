@@ -10,6 +10,7 @@ final class NowPlayingViewController: UIViewController {
     private let artistLabel = UILabel()
     private let badgeLabel = UILabel()
     private let statusLabel = UILabel()
+    private let diagnosticsLabel = UILabel()
     private let slider = UISlider()
     private let elapsedLabel = UILabel()
     private let remainingLabel = UILabel()
@@ -119,6 +120,13 @@ final class NowPlayingViewController: UIViewController {
         statusLabel.numberOfLines = 2
         view.addSubview(statusLabel)
 
+        diagnosticsLabel.translatesAutoresizingMaskIntoConstraints = false
+        diagnosticsLabel.font = Theme.monoDigits(9)
+        diagnosticsLabel.textColor = Theme.secondaryText
+        diagnosticsLabel.textAlignment = .center
+        diagnosticsLabel.numberOfLines = 2
+        view.addSubview(diagnosticsLabel)
+
         slider.translatesAutoresizingMaskIntoConstraints = false
         slider.minimumTrackTintColor = Theme.accent
         slider.maximumTrackTintColor = Theme.surface
@@ -178,7 +186,11 @@ final class NowPlayingViewController: UIViewController {
             statusLabel.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
             statusLabel.trailingAnchor.constraint(equalTo: titleLabel.trailingAnchor),
 
-            slider.topAnchor.constraint(equalTo: statusLabel.bottomAnchor, constant: 10),
+            diagnosticsLabel.topAnchor.constraint(equalTo: statusLabel.bottomAnchor, constant: 2),
+            diagnosticsLabel.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
+            diagnosticsLabel.trailingAnchor.constraint(equalTo: titleLabel.trailingAnchor),
+
+            slider.topAnchor.constraint(equalTo: diagnosticsLabel.bottomAnchor, constant: 6),
             slider.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
             slider.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
 
@@ -314,6 +326,7 @@ final class NowPlayingViewController: UIViewController {
         if !slider.isTracking {
             slider.value = total > 0 ? Float(min(1, max(0, position / total))) : 0
         }
+        diagnosticsLabel.text = YouTubeBridge.shared.diagnosticsSummary
         elapsedLabel.text = Theme.format(position)
         remainingLabel.text = total > 0 ? "-" + Theme.format(max(0, total - position)) : ""
         updateHighlight(at: position)

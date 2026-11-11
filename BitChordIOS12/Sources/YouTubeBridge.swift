@@ -42,6 +42,15 @@ final class YouTubeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegat
     private(set) var lastReferrer: String = ""
     private(set) var lastDiagnostic: String = ""
 
+    /// What the last probe actually saw in the page, in one line. Surfaced in the UI because
+    /// a frozen <video> and a frozen probe look identical from the outside.
+    private(set) var diagnosticsSummary: String = "no probe yet"
+    /// Seconds since `currentTime` last moved. The stall watchdog reads this: a player that
+    /// started and then wedged never clears `loadStartedAt`, so it used to be invisible.
+    private(set) var secondsSinceProgress: TimeInterval = 0
+    private var probeCount = 0
+    private var lastProgressDate = Date()
+
     private var webView: WKWebView?
     private var pendingVideoId: String?
     private var consecutiveReloads = 0
@@ -235,6 +244,8 @@ final class YouTubeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegat
         sawVideo = false
         lastPosition = startAt
         lastDuration = 0
+        lastProgressDate = Date()
+        secondsSinceProgress = 0
         webView?.load(request)
     }
 
@@ -253,7 +264,16 @@ final class YouTubeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegat
 
     func resume() {
         isPausedByUser = false
-        evaluate("var v=document.querySelector('video'); if(v){v.muted=false;v.volume=1;v.play();}")
+        nudgePlayback()
+    }
+
+    /// Re-issues play() the way WebKit always permits: muted first, then unmuted by the
+    /// `playing` handler once audio is flowing. Calling play() unmuted outside a user gesture is
+    /// rejected on iOS, which is why a paused element used to stay paused no matter how often
+    /// the probe asked it to continue.
+    func nudgePlayback() {
+        evaluate("var v=document.querySelector('video'); if(v){v.muted=true;var p=v.play();" +
+                 "if(p&&p.catch){p.catch(function(){});}}")
     }
 
     func seek(to seconds: TimeInterval) {
@@ -294,10 +314,19 @@ final class YouTubeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegat
         let script = "(function(){var v=document.querySelector('video');" +
             "if(!v){return 'none';}" +
             "return JSON.stringify({t:v.currentTime||0,d:v.duration||0,p:v.paused,w:v.readyState,e:v.error?v.error.code:0,v:v.volume,m:v.muted});})()"
-        webView?.evaluateJavaScript(script) { [weak self] result, _ in
-            guard let self = self, let raw = result as? String, raw != "none" else { return }
+        webView?.evaluateJavaScript(script) { [weak self] result, error in
+            guard let self = self else { return }
+            guard let raw = result as? String else {
+                self.diagnosticsSummary = "probe failed: " + (error?.localizedDescription ?? "no result")
+                return
+            }
+            guard raw != "none" else {
+                self.diagnosticsSummary = "probe: no video element in page"
+                return
+            }
             guard let data = raw.data(using: .utf8),
                   let dict = (try? JSONSerialization.jsonObject(with: data, options: [])) as? [String: Any] else {
+                self.diagnosticsSummary = "probe: unreadable " + String(raw.prefix(60))
                 return
             }
             let position = dict["t"] as? Double ?? 0
@@ -305,6 +334,16 @@ final class YouTubeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegat
             let paused = dict["p"] as? Bool ?? true
             let readyState = dict["w"] as? Int ?? 0
             let errorCode = dict["e"] as? Int ?? 0
+            let muted = dict["m"] as? Bool ?? false
+
+            self.probeCount += 1
+            if position > self.lastPosition + 0.05 {
+                self.lastProgressDate = Date()
+            }
+            self.secondsSinceProgress = Date().timeIntervalSince(self.lastProgressDate)
+            self.diagnosticsSummary = "#\(self.probeCount) t=\(String(format: "%.1f", position))"
+                + " rs=\(readyState) paused=\(paused ? 1 : 0) muted=\(muted ? 1 : 0)"
+                + " err=\(errorCode) stale=\(Int(self.secondsSinceProgress))s"
 
             if duration > 0 { self.lastDuration = duration }
             if position > 0 {
@@ -312,7 +351,7 @@ final class YouTubeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegat
                 self.isReady = true
                 if !self.isPausedByUser && paused && readyState >= 2 {
                     // The embed paused itself (autoplay policy or a stall): ask it again.
-                    self.evaluate("var v=document.querySelector('video'); if(v){v.muted=false;v.volume=1;v.play();}")
+                    self.nudgePlayback()
                 }
             }
             if errorCode != 0 {
@@ -337,7 +376,7 @@ final class YouTubeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegat
         evaluate("document.referrer")
         startProbing()
         if !isPausedByUser {
-            evaluate("var v=document.querySelector('video'); if(v){v.muted=false;v.volume=1;v.play();}")
+            nudgePlayback()
         }
     }
 
