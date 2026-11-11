@@ -243,7 +243,10 @@ final class PlayerService: NSObject {
             }
         } else {
             loadStartedAt = nil
-            statusText = "This video will not start. Skipping…"
+            let referrer = YouTubeBridge.shared.lastReferrer
+            statusText = referrer.isEmpty
+                ? "Player refused the embed: no referrer was sent."
+                : "Player refused the embed (referrer: \(referrer))."
             postChange()
             advance()
         }

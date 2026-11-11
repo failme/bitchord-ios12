@@ -29,9 +29,11 @@ final class YouTubeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegat
     var onTimeUpdated: ((Double, Double) -> Void)?
     var onPlaybackError: ((Int) -> Void)?
     var onBridgeRecovering: (() -> Void)?
+    var onApiReady: (() -> Void)?
 
     private(set) var isReady = false
     private(set) var isPausedByUser = false
+    private(set) var lastReferrer: String = ""
     private(set) var currentVideoId: String?
 
     private var webView: WKWebView?
@@ -147,6 +149,7 @@ final class YouTubeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegat
                 src=""
                 allow="autoplay *; encrypted-media *; picture-in-picture *"
                 allowfullscreen
+                referrerpolicy="strict-origin-when-cross-origin"
                 playsinline>
         </iframe>
         <script>
@@ -163,6 +166,23 @@ final class YouTubeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegat
         var pendingSeekTime = 0;
         var seekConfirmed = true;
         var seekVerifyTimer = null;
+
+        // YouTube requires the embedding app to identify itself through the HTTP Referer
+        // header; without it the player refuses with error 153 and never becomes ready.
+        // The document is loaded with baseURL https://com.bitchord.ios12 so the iframe
+        // request carries that origin, and the same value is passed as `origin`.
+        var EMBED_ORIGIN = 'https%3A%2F%2Fcom.bitchord.ios12';
+
+        function embedURL(vId, startSeconds) {
+          var url = 'https://www.youtube.com/embed/' + vId +
+            '?autoplay=1&playsinline=1&controls=0&rel=0&enablejsapi=1&iv_load_policy=3' +
+            '&origin=' + EMBED_ORIGIN +
+            '&widget_referrer=' + EMBED_ORIGIN;
+          if (startSeconds) {
+            url += '&start=' + Math.floor(startSeconds);
+          }
+          return url;
+        }
 
         function postToHost(payload) {
           window.webkit.messageHandlers.bridge.postMessage(payload);
@@ -193,7 +213,11 @@ final class YouTubeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegat
           var iframe = document.getElementById('player');
           if (iframe && iframe.contentWindow) {
             if (command === 'listening') {
-              iframe.contentWindow.postMessage(JSON.stringify({ event: 'listening', id: 1 }), '*');
+              // The channel name is part of the handshake; the player only answers a
+              // listener that registered a channel and then subscribed to events.
+              iframe.contentWindow.postMessage(JSON.stringify({ event: 'listening', id: 1, channel: 'bitchord' }), '*');
+              iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'addEventListener', args: ['onReady'], id: 1 }), '*');
+              iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'addEventListener', args: ['onStateChange'], id: 1 }), '*');
             } else {
               iframe.contentWindow.postMessage(JSON.stringify({
                 event: 'command',
@@ -250,8 +274,7 @@ final class YouTubeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegat
             startPlayWatchdog();
           } else {
             currentLoadedId = vId;
-            var embedUrl = "https://www.youtube-nocookie.com/embed/" + vId + "?autoplay=1&playsinline=1&controls=0&rel=0&enablejsapi=1&iv_load_policy=3&widget_referrer=https%3A%2F%2Fwww.youtube.com";
-            iframe.src = embedUrl;
+            iframe.src = embedURL(vId);
             startPlayWatchdog();
           }
         }
@@ -310,9 +333,7 @@ final class YouTubeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegat
               if (seekConfirmed || pendingSeekTarget !== target || !currentLoadedId) return;
               var iframe = document.getElementById('player');
               if (!iframe) return;
-              iframe.src = "https://www.youtube-nocookie.com/embed/" + currentLoadedId +
-                "?autoplay=1&playsinline=1&controls=0&rel=0&enablejsapi=1&iv_load_policy=3&start=" +
-                Math.floor(target) + "&widget_referrer=https%3A%2F%2Fwww.youtube.com";
+              iframe.src = embedURL(currentLoadedId, target);
               pendingSeekTime = Date.now();
               if (isUserPlaying) startPlayWatchdog();
             }, 1200);
@@ -333,6 +354,7 @@ final class YouTubeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegat
             if (!data) return;
 
             if (data.event === 'onReady' || data.event === 'initialDelivery') {
+              postToHost({ type: 'apiReady' });
               postCommand('listening');
               if (isUserPlaying) {
                 postCommand('unMute');
@@ -411,7 +433,9 @@ final class YouTubeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegat
         });
 
         window.onload = function() {
-          postToHost({ type: 'ready' });
+          // Report what identity the page actually presents. If YouTube refuses the
+          // embed, this is the value that explains why.
+          postToHost({ type: 'ready', referrer: document.referrer || '', origin: location.origin || '' });
           if (pendingId) {
             var p = pendingId;
             pendingId = null;
@@ -423,7 +447,10 @@ final class YouTubeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegat
         </html>
         """#
 
-        webView?.loadHTMLString(html, baseURL: URL(string: "https://www.youtube-nocookie.com"))
+        // The base URL is the app's identity as far as YouTube is concerned. Loading the
+        // document without one (or with a YouTube host) means no Referer is sent, and
+        // YouTube answers embed requests with error 153 instead of a player.
+        webView?.loadHTMLString(html, baseURL: URL(string: "https://com.bitchord.ios12"))
     }
 
     // MARK: - Control
@@ -518,6 +545,9 @@ final class YouTubeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegat
         case "ready":
             isReady = true
             consecutiveReloads = 0
+            if let referrer = body["referrer"] as? String {
+                lastReferrer = referrer
+            }
             if let pending = pendingVideoId {
                 pendingVideoId = nil
                 play(videoId: pending)
@@ -554,6 +584,11 @@ final class YouTubeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegat
             let current = body["current"] as? Double ?? 0
             let duration = body["duration"] as? Double ?? 0
             onTimeUpdated?(current, duration)
+
+        case "apiReady":
+            // The embed handshake completed: playback is authorised, so a stall from here
+            // is a real media problem rather than a missing player.
+            onApiReady?()
 
         case "error":
             onPlaybackError?(body["code"] as? Int ?? -1)

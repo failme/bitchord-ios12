@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bridge protocol test</title>
+<style>
+  body { background:#111; color:#eee; font:13px -apple-system,system-ui,sans-serif; margin:0; padding:12px; }
+  button { background:#2c2c30; color:#fff; border:1px solid #555; border-radius:8px; padding:10px 14px; margin:4px 4px 4px 0; font-size:13px; }
+  #log { background:#000; border:1px solid #333; border-radius:8px; padding:10px; height:230px; overflow:auto; font:11px ui-monospace,monospace; white-space:pre-wrap; }
+  iframe { width:320px; height:180px; border:1px solid #333; margin-top:8px; }
+  b { color:#7fd1ff; }
+</style>
+</head>
+<body>
+<h3>Bridge protocol test</h3>
+<div><b id="state">idle</b></div>
+<button onclick="testA()">A: postMessage handshake (current port)</button>
+<button onclick="testB()">B: official IFrame API</button>
+<button onclick="clearLog()">clear</button>
+<div id="log"></div>
+
+<script>
+var logEl = document.getElementById('log');
+function log(msg) {
+  var line = new Date().toISOString().substr(14, 9) + ' ' + msg;
+  console.log('[TEST] ' + msg);
+  logEl.textContent += line + '\n';
+  logEl.scrollTop = logEl.scrollHeight;
+}
+function clearLog() { logEl.textContent = ''; }
+function setState(s) { document.getElementById('state').textContent = s; }
+
+// ---------- shared message tap, mirrors the port's listener ----------
+window.addEventListener('message', function (event) {
+  var raw = typeof event.data === 'string' ? event.data : JSON.stringify(event.data);
+  log('msg from ' + (event.origin || '?') + ': ' + String(raw).slice(0, 180));
+  try {
+    var d = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+    if (d && d.event) setState('last event: ' + d.event);
+  } catch (e) {}
+});
+
+function resetFrame() {
+  var old = document.getElementById('player');
+  if (old) old.remove();
+  var f = document.createElement('iframe');
+  f.id = 'player';
+  f.setAttribute('allow', 'autoplay *; encrypted-media *; picture-in-picture *');
+  f.setAttribute('allowfullscreen', '');
+  f.setAttribute('playsinline', '');
+  document.body.appendChild(f);
+  return f;
+}
+
+// ---------- A: exactly what the port does ----------
+function postCommand(command, args) {
+  var iframe = document.getElementById('player');
+  if (!iframe || !iframe.contentWindow) { log('A: no iframe window'); return; }
+  if (command === 'listening') {
+    iframe.contentWindow.postMessage(JSON.stringify({ event: 'listening', id: 1 }), '*');
+  } else {
+    iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: command, args: args || [] }), '*');
+  }
+}
+
+function testA() {
+  clearLog();
+  setState('A loading');
+  var f = resetFrame();
+  log('A: iframe created, setting src');
+  f.src = 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?autoplay=1&playsinline=1&controls=0&rel=0&enablejsapi=1&iv_load_policy=3&widget_referrer=https%3A%2F%2Fwww.youtube.com';
+  f.onload = function () {
+    log('A: iframe onload fired');
+    setTimeout(function () { postCommand('listening'); log('A: sent listening #1'); }, 600);
+    setTimeout(function () { postCommand('listening'); log('A: sent listening #2'); }, 1600);
+    setTimeout(function () { postCommand('unMute'); postCommand('playVideo'); log('A: sent unMute+playVideo'); }, 2600);
+  };
+}
+
+// ---------- B: official IFrame API ----------
+function testB() {
+  clearLog();
+  setState('B loading');
+  var f = resetFrame();
+  f.id = 'ytplayer';
+  log('B: injecting iframe_api');
+  var s = document.createElement('script');
+  s.src = 'https://www.youtube.com/iframe_api';
+  s.onerror = function () { log('B: iframe_api script FAILED to load'); };
+  s.onload = function () { log('B: iframe_api script loaded'); };
+  document.head.appendChild(s);
+  window.onYouTubeIframeAPIReady = function () { log('B: onYouTubeIframeAPIReady'); };
+  var poll = setInterval(function () {
+    if (!window.YT || !window.YT.Player) return;
+    clearInterval(poll);
+    log('B: YT.Player available, constructing');
+    try {
+      new window.YT.Player('ytplayer', {
+        videoId: 'dQw4w9WgXcQ',
+        playerVars: { autoplay: 1, playsinline: 1, controls: 0, rel: 0, origin: location.origin },
+        events: {
+          onReady: function (e) { log('B: onReady'); setState('B ready'); e.target.unMute(); e.target.playVideo(); },
+          onStateChange: function (e) { log('B: onStateChange ' + e.data); setState('B state ' + e.data); },
+          onError: function (e) { log('B: onError ' + e.data); setState('B error ' + e.data); }
+        }
+      });
+    } catch (err) { log('B: construct threw ' + err); }
+  }, 200);
+  setTimeout(function () { if (!window.YT) log('B: YT never appeared'); }, 8000);
+}
+</script>
+</body>
+</html>
