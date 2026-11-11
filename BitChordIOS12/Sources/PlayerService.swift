@@ -74,6 +74,7 @@ final class PlayerService: NSObject {
             }
             if total > 0 {
                 self.duration = total
+                LibraryStore.shared.updateProgress(position: position, duration: total)
             }
             NotificationCenter.default.post(name: .playerTimeDidChange, object: nil)
         }
@@ -312,6 +313,7 @@ final class PlayerService: NSObject {
         updateNowPlaying()
         postChange()
 
+        LibraryStore.shared.recordPlayback(track)
         YouTubeBridge.shared.play(videoId: track.videoID)
         loadLyrics(for: track)
     }

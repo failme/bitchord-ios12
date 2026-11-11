@@ -1,31 +1,33 @@
 import UIKit
 
+/// Container for the four tabs, the floating capsule bar and the mini player, and the host of the
+/// bridge web view. Mirrors upstream `MainTabView`.
 final class RootViewController: UIViewController {
-    private let navigation: UINavigationController
+    private var navigations: [UINavigationController] = []
+    private let tabBar = CapsuleTabBar()
     private let miniBar = MiniPlayerBar()
     private var miniBarHeight: NSLayoutConstraint!
-    private let miniBarHeightValue: CGFloat = 56
+    private var selectedIndex = 0
 
-    override init(nibName nibNameOrNil: String?, bundle nibBundleOrNil: Bundle?) {
-        navigation = UINavigationController(rootViewController: SearchViewController())
-        super.init(nibName: nibNameOrNil, bundle: nibBundleOrNil)
-    }
-
-    required init?(coder: NSCoder) {
-        navigation = UINavigationController(rootViewController: SearchViewController())
-        super.init(coder: coder)
-    }
+    private let tabBarHeight: CGFloat = 64
+    private let miniBarShownHeight: CGFloat = 56
+    private let overlayPadding: CGFloat = 8
+    private let overlayInset: CGFloat = 16
 
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = Theme.background
 
-        // The embed player must be on screen for WebKit to grant it audio: it sits behind
-        // the interface at a small size and never receives touches.
+        // The embed player must be on screen for WebKit to grant it audio: it sits behind the
+        // interface at a small size and never receives touches.
         let bridgeView = YouTubeBridge.shared.makeWebView()
         bridgeView.translatesAutoresizingMaskIntoConstraints = false
         bridgeView.isUserInteractionEnabled = false
         view.addSubview(bridgeView)
+
+        buildTabs()
+        buildOverlays()
+
         NSLayoutConstraint.activate([
             bridgeView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             bridgeView.topAnchor.constraint(equalTo: view.topAnchor),
@@ -33,47 +35,102 @@ final class RootViewController: UIViewController {
             bridgeView.heightAnchor.constraint(equalToConstant: 240)
         ])
 
-        addChild(navigation)
-        navigation.view.translatesAutoresizingMaskIntoConstraints = false
-        navigation.view.backgroundColor = Theme.background
-        view.addSubview(navigation.view)
-        navigation.didMove(toParent: self)
+        install(0)
+        playerChanged()
+
+        NotificationCenter.default.addObserver(self,
+                                              selector: #selector(playerChanged),
+                                              name: .playerDidChange,
+                                              object: nil)
+    }
+
+    // MARK: - Tabs
+
+    private func buildTabs() {
+        let tabs: [UIViewController] = [
+            HomeViewController(),
+            ExploreViewController(),
+            LibraryViewController(),
+            SearchViewController()
+        ]
+
+        for controller in tabs {
+            let navigation = UINavigationController(rootViewController: controller)
+            navigation.navigationBar.barTintColor = Theme.background
+            navigation.navigationBar.tintColor = Theme.accent
+            navigation.navigationBar.isTranslucent = false
+            navigation.navigationBar.titleTextAttributes = [.foregroundColor: UIColor.white]
+            navigation.navigationBar.largeTitleTextAttributes = [.foregroundColor: UIColor.white]
+            navigation.navigationBar.prefersLargeTitles = true
+
+            addChild(navigation)
+            navigation.view.translatesAutoresizingMaskIntoConstraints = false
+            view.addSubview(navigation.view)
+            NSLayoutConstraint.activate([
+                navigation.view.topAnchor.constraint(equalTo: view.topAnchor),
+                navigation.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+                navigation.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+                navigation.view.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+            ])
+            navigation.didMove(toParent: self)
+            navigations.append(navigation)
+        }
+    }
+
+    private func install(_ index: Int) {
+        selectedIndex = index
+        for (position, navigation) in navigations.enumerated() {
+            navigation.view.isHidden = position != index
+        }
+        tabBar.setSelectedIndex(index)
+    }
+
+    private func buildOverlays() {
+        tabBar.translatesAutoresizingMaskIntoConstraints = false
+        tabBar.onSelect = { [weak self] index in
+            self?.install(index)
+        }
+        view.addSubview(tabBar)
 
         miniBar.translatesAutoresizingMaskIntoConstraints = false
+        miniBar.layer.cornerRadius = 12
         miniBar.onTap = { [weak self] in
             self?.presentNowPlaying()
         }
         view.addSubview(miniBar)
 
         miniBarHeight = miniBar.heightAnchor.constraint(equalToConstant: 0)
+        miniBarHeight.isActive = true
 
         NSLayoutConstraint.activate([
-            navigation.view.topAnchor.constraint(equalTo: view.topAnchor),
-            navigation.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            navigation.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            navigation.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            tabBar.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: overlayInset),
+            tabBar.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -overlayInset),
+            tabBar.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor,
+                                           constant: -overlayPadding),
+            tabBar.heightAnchor.constraint(equalToConstant: tabBarHeight),
 
-            miniBar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            miniBar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            miniBar.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            miniBarHeight
+            miniBar.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: overlayInset),
+            miniBar.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -overlayInset),
+            miniBar.bottomAnchor.constraint(equalTo: tabBar.topAnchor, constant: -overlayPadding)
         ])
-
-        NotificationCenter.default.addObserver(self,
-                                               selector: #selector(playerChanged),
-                                               name: .playerDidChange,
-                                               object: nil)
-        playerChanged()
     }
 
     @objc private func playerChanged() {
         let visible = PlayerService.shared.currentTrack != nil
-        let height = visible ? miniBarHeightValue : 0
         miniBar.isHidden = !visible
-        miniBarHeight.constant = height
+        miniBarHeight.constant = visible ? miniBarShownHeight : 0
         miniBar.refresh()
-        navigation.additionalSafeAreaInsets.bottom = height
+
+        var inset = tabBarHeight + overlayPadding * 2
+        if visible {
+            inset += miniBarShownHeight + overlayPadding
+        }
+        for navigation in navigations {
+            navigation.additionalSafeAreaInsets = UIEdgeInsets(top: 0, left: 0, bottom: inset, right: 0)
+        }
     }
+
+    // MARK: - Now playing
 
     func presentNowPlaying() {
         guard PlayerService.shared.currentTrack != nil else { return }
