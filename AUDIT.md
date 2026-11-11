@@ -1,16 +1,19 @@
 # Port audit — what is actually ported
 
-Verdict: **not a 1:1 recreation.** 3,658 lines exist against 23,705 upstream (15%).
-27 upstream files have **no counterpart at all** (9,113 lines). No Settings screen exists,
-and none of the 73 upstream settings keys is wired.
+Verdict: **not a 1:1 recreation.** 4,173 lines exist against 23,705 upstream (17.6%).
+26 upstream files have **no counterpart at all** (6,048 lines).
+
+The settings surface now exists: all 73 upstream keys are present with their key names and
+defaults. Two are wired to real behaviour (playback speed, sleep timer); the rest are rendered
+but disabled, each stating why the machinery behind it is missing. A switch that silently does
+nothing would be worse than an absent one.
 
 Measured by listing every upstream file and grepping this port for each subsystem symbol.
 
-## Fully absent (27 files, 9,113 lines)
+## Fully absent (26 files, 6,048 lines)
 
 | Upstream file | Lines |
 | --- | --- |
-| BitChordUI/Views/SettingsView.swift | 3065 |
 | BitChordCore/Network/StreamExtractor.swift | 1071 |
 | BitChordCore/AudioEngine/CachingResourceLoader.swift | 564 |
 | BitChordUI/Components/TrackContextMenuSheet.swift | 477 |
@@ -44,7 +47,6 @@ Measured by listing every upstream file and grepping this port for each subsyste
 | --- | --- | --- | --- |
 | AudioPlayerEngine | 2543 | PlayerService + YouTubeAudioBridge | no crossfade, gapless, EQ, speed, sleep timer, loudness, bit-perfect, USB DAC |
 | YTMusicClient | 1636 | InnerTube + InnerTubeBrowse (~330) | search + filters + album/playlist browse only; no radio, artist pages, iTunes fallback, song info |
-| BitChordSettings | 1110 | none | no settings model, no defaults, no quality policy |
 | LyricsManager | 164 | LyricsService | no provider switching, no translation, no cache |
 
 ## Partial — screen exists, details do not
@@ -63,6 +65,8 @@ Measured by listing every upstream file and grepping this port for each subsyste
 | Lyrics | 88 | LyricLine | Syllable model |
 | AudioQuality | 26 | badge strings | quality policy and selection |
 | PlaybackState | 20 | RepeatMode | shuffle/autoplay state machine |
+| SettingsView | 3065 | 73 keys, sections, persistence, speed + sleep timer | every DSP, storage, integration and appearance row is disabled |
+| BitChordSettings | 1110 | SettingsStore keys/defaults | no quality policy, no addon model, no credential storage |
 
 ## The 73 settings keys: 0 wired
 
@@ -82,3 +86,16 @@ Spotify (6), LocalMusic (3), Source (2), Storage (2), Performance (3), Discord (
 5. Addons/downloads: StreamExtractor, DownloadManager, download sheet, offline storage.
 6. Integrations: Last.fm, ListenBrainz, Spotify import, local music scan, account manager.
 7. Components: context menu sheet, song info, thin slider, frosted glass, mesh gradient, logo.
+
+## Port log
+
+| Commit | Scope |
+| --- | --- |
+| 53a7dbf | WKWebView embed bridge; player rewritten around it |
+| a357cda | Four tabs, capsule bar, library store |
+| ee760aa | Search filters, album/playlist browse, live Home and Explore |
+| d9fdbaa | Full Now Playing: artwork/lyrics toggle, badge, shuffle/repeat, queue sheet |
+| 4fa9943 / 97699fd | Settings surface, 73 keys; speed and sleep timer wired |
+
+Every build above was verified green with `MinimumOSVersion 12.0`, `LC_BUILD_VERSION minos 12.0`,
+`arm64`. Nothing in this port has been run on a device.
