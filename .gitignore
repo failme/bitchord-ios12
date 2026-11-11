@@ -23,3 +23,6 @@ _noref.html
 _ref.html
 _art.zip
 _run.txt
+
+# local bridge harness
+_test/
