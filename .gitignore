@@ -9,3 +9,8 @@ api_test/
 patch_ios12/
 BitChord-1.0.2-9.ipa
 BitChord-1.0.2-9-ios12-patched.ipa
+
+# CI scratch files
+push.log
+push2.log
+build.log

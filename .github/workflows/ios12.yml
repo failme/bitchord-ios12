@@ -36,6 +36,28 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             build 2>&1 | tee build.log
 
+      - name: Report build errors as annotations
+        if: failure()
+        run: |
+          if [ ! -f build.log ]; then
+            echo "::error ::build.log was never created - the build failed before xcodebuild ran"
+            exit 0
+          fi
+          grep -aE "error:|xcodebuild: error|BUILD FAILED|The following build commands failed" build.log \
+            | head -8 \
+            | while IFS= read -r line; do
+                line="${line%$'\r'}"
+                line="${line//%/%25}"
+                echo "::error ::${line:0:800}"
+              done
+          if ! grep -qaE "error:" build.log; then
+            tail -8 build.log | while IFS= read -r line; do
+              line="${line%$'\r'}"
+              line="${line//%/%25}"
+              echo "::notice ::${line:0:800}"
+            done
+          fi
+
       - name: Report build diagnostics
         if: always()
         run: |
