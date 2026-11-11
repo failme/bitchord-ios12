@@ -1,0 +1,84 @@
+# Port audit — what is actually ported
+
+Verdict: **not a 1:1 recreation.** 3,658 lines exist against 23,705 upstream (15%).
+27 upstream files have **no counterpart at all** (9,113 lines). No Settings screen exists,
+and none of the 73 upstream settings keys is wired.
+
+Measured by listing every upstream file and grepping this port for each subsystem symbol.
+
+## Fully absent (27 files, 9,113 lines)
+
+| Upstream file | Lines |
+| --- | --- |
+| BitChordUI/Views/SettingsView.swift | 3065 |
+| BitChordCore/Network/StreamExtractor.swift | 1071 |
+| BitChordCore/AudioEngine/CachingResourceLoader.swift | 564 |
+| BitChordUI/Components/TrackContextMenuSheet.swift | 477 |
+| BitChordUI/Components/AudioPipelineSheet.swift | 464 |
+| BitChordUI/Components/AccountMenuSheet.swift | 438 |
+| BitChordCore/Services/SpotifyImporter.swift | 347 |
+| BitChordCore/Services/LocalMusicScanner.swift | 309 |
+| BitChordUI/Components/DownloadSheetView.swift | 281 |
+| BitChordUI/Components/BitChordLogoView.swift | 208 |
+| BitChordCore/Lyrics/LyricsStorageManager.swift | 207 |
+| BitChordCore/AudioEngine/AudioProtector.swift | 197 |
+| BitChordCore/Services/DownloadManager.swift | 191 |
+| BitChordCore/Models/SearchResultItem.swift | 170 |
+| BitChordCore/Lyrics/LyricsManager.swift | 164 |
+| BitChordCore/AudioEngine/AudioProcessingTapHelper.swift | 155 |
+| BitChordCore/Services/AccountManager.swift | 152 |
+| BitChordUI/Components/SongInfoDialog.swift | 122 |
+| BitChordCore/Services/LastFmScrobbler.swift | 122 |
+| BitChordUI/Components/ThinSlider.swift | 104 |
+| BitChordCore/Models/Album.swift | 79 |
+| BitChordCore/AudioEngine/EqualizerPreset.swift | 56 |
+| BitChordCore/AudioEngine/SleepTimer.swift | 48 |
+| BitChordUI/Components/DynamicBackgroundGradient.swift | 38 |
+| BitChordCore/AudioEngine/CrossfadeManager.swift | 33 |
+| BitChordUI/Components/FrostedGlass.swift | 28 |
+| BitChordCore/Models/SongInfo.swift | 23 |
+
+## Replaced rather than ported
+
+| Upstream | Lines | This port | Consequence |
+| --- | --- | --- | --- |
+| AudioPlayerEngine | 2543 | PlayerService + YouTubeAudioBridge | no crossfade, gapless, EQ, speed, sleep timer, loudness, bit-perfect, USB DAC |
+| YTMusicClient | 1636 | InnerTube + InnerTubeBrowse (~330) | search + filters + album/playlist browse only; no radio, artist pages, iTunes fallback, song info |
+| BitChordSettings | 1110 | none | no settings model, no defaults, no quality policy |
+| LyricsManager | 164 | LyricsService | no provider switching, no translation, no cache |
+
+## Partial — screen exists, details do not
+
+| Upstream | Lines | Ported | Missing |
+| --- | --- | --- | --- |
+| HomeView | 1667 | quick picks, continue listening, recents, liked | mood chips, 4-row pick grid + Play All, station/listen-together, new releases, forgotten favourites, mixed for you, listen again |
+| SearchView | 944 | query + results | source bar (YouTube/Library/Addons), category chips, recently searched grid, browse categories, addon prompt |
+| LibraryView | 853 | liked, playlists, recents, recent searches | local music list, downloaded songs, Spotify import, create/rename flows |
+| ExploreView | 825 | trending, new albums, top charts, moods | top category cards, ranked trending shelf, daily charts, artist charts |
+| NowPlayingView | 1303 | artwork/lyrics toggle, badge, scrubber, shuffle/repeat, like, queue | stats-for-nerds telemetry, upgrade banner, volume slider, lyrics source picker, autoplay, queue history |
+| Track | 620 | 10 fields | streamURL, lyricsId, isExplicit, TrackVersionMatcher, version classification, matching |
+| LRCParser | 120 | line timestamps | **syllable tags are stripped, not parsed** — upstream does karaoke highlighting |
+| MiniPlayerBar | 134 | tap-to-open | swipe-to-skip, drag-to-expand |
+| LibraryDatabase | 329 | 8 collections | artwork resolution pass |
+| Lyrics | 88 | LyricLine | Syllable model |
+| AudioQuality | 26 | badge strings | quality policy and selection |
+| PlaybackState | 20 | RepeatMode | shuffle/autoplay state machine |
+
+## The 73 settings keys: 0 wired
+
+Audio (15): Automix, AutomixPerf, BitPerfect, CellularQuality, Crossfade, DirectSourceStream,
+DisableOnPhoneSpeaker, DolbyAtmos, Equalizer, LoudnessNormalization, OutputPrecision,
+PreferUSBDAC, Quality, SkipSilence, SpatialAudio, WifiQuality.
+Appearance (11), Lyrics (10), Misc (11), Download (4), LastFm (3), ListenBrainz (2),
+Spotify (6), LocalMusic (3), Source (2), Storage (2), Performance (3), Discord (1), Advanced (1).
+
+## What "every detail" requires
+
+1. SettingsView + BitChordSettings (4,175 lines): 73 keys, sections, addon/source editors, account sheets.
+2. Audio engine surface the embed can support: speed, sleep timer, autoplay, queue history,
+   plus crossfade/EQ only if a real AVPlayer pipeline is built alongside the bridge.
+3. Search and Home detail: source bar, category chips, recently-searched grid, 8 Home sections.
+4. Lyrics: syllable-level karaoke, storage/cache, translation, provider switching.
+5. Addons/downloads: StreamExtractor, DownloadManager, download sheet, offline storage.
+6. Integrations: Last.fm, ListenBrainz, Spotify import, local music scan, account manager.
+7. Components: context menu sheet, song info, thin slider, frosted glass, mesh gradient, logo.
