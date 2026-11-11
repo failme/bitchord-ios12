@@ -81,8 +81,14 @@ jobs:
         run: |
           set -o pipefail
           APP="build/Build/Products/Release-iphoneos/BitChordIOS12.app"
-          echo "MinimumOSVersion: $(/usr/libexec/PlistBuddy -c 'Print :MinimumOSVersion' "$APP/Info.plist")"
-          otool -l "$APP/BitChordIOS12" | grep -A4 LC_BUILD_VERSION || echo "(no LC_BUILD_VERSION block)"
+          MIN=$(/usr/libexec/PlistBuddy -c 'Print :MinimumOSVersion' "$APP/Info.plist")
+          echo "MinimumOSVersion: $MIN"
+          echo "::notice ::Built app MinimumOSVersion = $MIN"
+          MINOS=$(otool -l "$APP/BitChordIOS12" | grep -m1 minos | tr -s ' ' | sed 's/^ *//')
+          echo "binary $MINOS"
+          echo "::notice ::Binary LC_BUILD_VERSION $MINOS"
+          ARCHS=$(lipo -archs "$APP/BitChordIOS12")
+          echo "::notice ::Architectures: $ARCHS"
 
       - name: Package unsigned IPA
         if: success()
