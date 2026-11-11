@@ -21,13 +21,14 @@ enum BridgePlaybackState {
 ///
 /// Everything here is available on iOS 12: WKWebView, WKUserScript, WKScriptMessageHandler and
 /// the callback form of evaluateJavaScript.
-final class YouTubeBridge: NSObject, WKScriptMessageHandler {
+final class YouTubeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     static let shared = YouTubeBridge()
 
     var onPlaybackEnded: (() -> Void)?
     var onStateChanged: ((BridgePlaybackState) -> Void)?
     var onTimeUpdated: ((Double, Double) -> Void)?
     var onPlaybackError: ((Int) -> Void)?
+    var onBridgeRecovering: (() -> Void)?
 
     private(set) var isReady = false
     private(set) var isPausedByUser = false
@@ -35,6 +36,7 @@ final class YouTubeBridge: NSObject, WKScriptMessageHandler {
 
     private var webView: WKWebView?
     private var pendingVideoId: String?
+    private var consecutiveReloads = 0
 
     private override init() {
         super.init()
@@ -93,6 +95,7 @@ final class YouTubeBridge: NSObject, WKScriptMessageHandler {
         view.backgroundColor = .black
         view.scrollView.isScrollEnabled = false
         view.scrollView.backgroundColor = .black
+        view.navigationDelegate = self
         webView = view
 
         loadPlayerHTML()
@@ -462,6 +465,48 @@ final class YouTubeBridge: NSObject, WKScriptMessageHandler {
         loadPlayerHTML()
     }
 
+    // MARK: - Recovery
+
+    // The embed page is heavy; on 1 GB devices WebKit can jettison the content process
+    // (jetsam) with no callback into the JS inside. Without this the bridge would sit at
+    // `isReady == true` forever while every command vanishes into a dead page.
+    // Reload the player and resume the current video instead.
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        if !isPausedByUser, let videoId = currentVideoId {
+            pendingVideoId = videoId
+        }
+        consecutiveReloads += 1
+        isReady = false
+        onBridgeRecovering?()
+        loadPlayerHTML()
+    }
+
+    func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+        guard consecutiveReloads < 2 else { return }
+        consecutiveReloads += 1
+        isReady = false
+        onBridgeRecovering?()
+        loadPlayerHTML()
+    }
+
+    func webView(_ webView: WKWebView,
+                 decidePolicyFor navigationAction: WKNavigationAction,
+                 decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+        // The player page is fully JS-driven; the top frame must never navigate away
+        // (consent walls, popups) or the session is lost. The embed iframe may load.
+        if navigationAction.targetFrame == nil {
+            decisionHandler(.cancel)
+            return
+        }
+        if let frame = navigationAction.targetFrame, frame.isMainFrame,
+           let host = navigationAction.request.url?.host,
+           !host.contains("youtube") {
+            decisionHandler(.cancel)
+            return
+        }
+        decisionHandler(.allow)
+    }
+
     // MARK: - WKScriptMessageHandler
 
     func userContentController(_ userContentController: WKUserContentController,
@@ -472,6 +517,7 @@ final class YouTubeBridge: NSObject, WKScriptMessageHandler {
         switch type {
         case "ready":
             isReady = true
+            consecutiveReloads = 0
             if let pending = pendingVideoId {
                 pendingVideoId = nil
                 play(videoId: pending)

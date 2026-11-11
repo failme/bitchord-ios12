@@ -36,6 +36,9 @@ final class PlayerService: NSObject {
     private var observers: [NSObjectProtocol] = []
     private var consecutiveErrors = 0
     private var sleepTimer: Timer?
+    private var loadStartedAt: Date?
+    private var stallTimer: Timer?
+    private var sessionReloads = 0
 
     var currentTrack: Track? {
         guard currentIndex >= 0, currentIndex < queue.count else { return nil }
@@ -49,6 +52,7 @@ final class PlayerService: NSObject {
         configureRemoteCommands()
         observeInterruptions()
         observeSettings()
+        startStallWatchdog()
     }
 
     deinit {
@@ -71,6 +75,9 @@ final class PlayerService: NSObject {
 
         bridge.onTimeUpdated = { [weak self] position, total in
             guard let self = self else { return }
+            if position > 0 || total > 0 {
+                self.loadStartedAt = nil
+            }
             if !self.isScrubbing {
                 self.currentTime = position
             }
@@ -86,6 +93,7 @@ final class PlayerService: NSObject {
             switch state {
             case .playing:
                 self.isPlaying = true
+                self.loadStartedAt = nil
                 self.isLoading = false
                 self.statusText = ""
             case .paused:
@@ -101,6 +109,13 @@ final class PlayerService: NSObject {
 
         bridge.onPlaybackEnded = { [weak self] in
             self?.advance()
+        }
+
+        bridge.onBridgeRecovering = { [weak self] in
+            guard let self = self else { return }
+            self.isLoading = true
+            self.statusText = "Reloading player…"
+            self.postChange()
         }
 
         bridge.onPlaybackError = { [weak self] code in
@@ -200,6 +215,37 @@ final class PlayerService: NSObject {
             self.pause()
             self.statusText = "Sleep timer ended playback."
             self.postChange()
+        }
+    }
+
+    // MARK: - Stall watchdog
+
+    private func startStallWatchdog() {
+        stallTimer?.invalidate()
+        stallTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
+            self?.checkForStall()
+        }
+    }
+
+    // The embed sometimes fires no event at all: a video that never starts, or a page
+    // that died before recovery landed. Catch the silence, heal it once, then move on.
+    private func checkForStall() {
+        guard isLoading, let started = loadStartedAt else { return }
+        guard Date().timeIntervalSince(started) > 15 else { return }
+        if sessionReloads < 1 {
+            sessionReloads += 1
+            loadStartedAt = Date()
+            statusText = "Reloading player…"
+            postChange()
+            YouTubeBridge.shared.refreshSession()
+            if let videoId = currentTrack?.videoID {
+                YouTubeBridge.shared.play(videoId: videoId)
+            }
+        } else {
+            loadStartedAt = nil
+            statusText = "This video will not start. Skipping…"
+            postChange()
+            advance()
         }
     }
 
@@ -342,6 +388,8 @@ final class PlayerService: NSObject {
     private func loadCurrent() {
         guard let track = currentTrack else { return }
         isLoading = true
+        loadStartedAt = Date()
+        sessionReloads = 0
         isPlaying = false
         statusText = ""
         currentTime = 0

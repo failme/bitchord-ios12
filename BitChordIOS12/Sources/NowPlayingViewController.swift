@@ -61,9 +61,9 @@ final class NowPlayingViewController: UIViewController {
 
     private func buildLayout() {
         closeButton.translatesAutoresizingMaskIntoConstraints = false
-        closeButton.setTitle("Done", for: .normal)
-        closeButton.titleLabel?.font = Theme.font(16, weight: .medium)
-        closeButton.tintColor = Theme.accent
+        closeButton.setImage(Icons.image(.chevronDown, size: 22), for: .normal)
+
+        closeButton.tintColor = Theme.primaryText
         closeButton.addTarget(self, action: #selector(close), for: .touchUpInside)
         view.addSubview(closeButton)
 
@@ -134,14 +134,14 @@ final class NowPlayingViewController: UIViewController {
             view.addSubview(label)
         }
 
-        configureTransportButton(shuffleButton, title: "\u{21C8}", size: 20, action: #selector(goShuffle))
-        configureTransportButton(previousButton, title: "\u{23EE}", size: 28, action: #selector(goPrevious))
-        configureTransportButton(playButton, title: "\u{25B6}", size: 34, action: #selector(togglePlay))
-        configureTransportButton(nextButton, title: "\u{23ED}", size: 28, action: #selector(goNext))
-        configureTransportButton(repeatButton, title: "\u{21BB}", size: 20, action: #selector(goRepeat))
+        configureTransportButton(shuffleButton, icon: .shuffle, size: 20, action: #selector(goShuffle))
+        configureTransportButton(previousButton, icon: .previous, size: 28, action: #selector(goPrevious))
+        configureTransportButton(playButton, icon: .play, size: 34, action: #selector(togglePlay))
+        configureTransportButton(nextButton, icon: .next, size: 28, action: #selector(goNext))
+        configureTransportButton(repeatButton, icon: .repeatAll, size: 20, action: #selector(goRepeat))
 
-        configureTransportButton(likeButton, title: "\u{2661}", size: 20, action: #selector(toggleLike))
-        configureTransportButton(queueButton, title: "\u{2261}", size: 20, action: #selector(showQueue))
+        configureTransportButton(likeButton, icon: .heart, size: 20, action: #selector(toggleLike))
+        configureTransportButton(queueButton, icon: .list, size: 20, action: #selector(showQueue))
 
         let safe = view.safeAreaLayoutGuide
         NSLayoutConstraint.activate([
@@ -225,10 +225,10 @@ final class NowPlayingViewController: UIViewController {
         ])
     }
 
-    private func configureTransportButton(_ button: UIButton, title: String, size: CGFloat, action: Selector) {
+    private func configureTransportButton(_ button: UIButton, icon: Icons.Kind, size: CGFloat, action: Selector) {
         button.translatesAutoresizingMaskIntoConstraints = false
-        button.setTitle(title, for: .normal)
-        button.titleLabel?.font = Theme.font(size)
+        button.setImage(Icons.image(icon, size: size), for: .normal)
+
         button.tintColor = Theme.primaryText
         button.addTarget(self, action: action, for: .touchUpInside)
         view.addSubview(button)
@@ -268,15 +268,15 @@ final class NowPlayingViewController: UIViewController {
         artistLabel.text = track.artist.isEmpty ? "Unknown artist" : track.artist
         badgeLabel.text = track.displayAudioQualityBadge.uppercased()
         statusLabel.text = service.statusText.isEmpty ? nil : service.statusText
-        playButton.setTitle(service.isPlaying ? "\u{2759}\u{2759}" : "\u{25B6}", for: .normal)
+        playButton.setImage(Icons.image(service.isPlaying ? .pause : .play, size: 34), for: .normal)
         nextButton.isEnabled = service.currentIndex + 1 < service.queue.count
-        likeButton.setTitle(LibraryStore.shared.isLiked(track) ? "\u{2665}" : "\u{2661}", for: .normal)
+        likeButton.setImage(Icons.image(LibraryStore.shared.isLiked(track) ? .heartFilled : .heart, size: 20), for: .normal)
         likeButton.tintColor = LibraryStore.shared.isLiked(track) ? Theme.accent : Theme.primaryText
         shuffleButton.alpha = service.isShuffled ? 1 : 0.4
         switch service.repeatMode {
-        case .off: repeatButton.setTitle("\u{21BB}", for: .normal); repeatButton.alpha = 0.4
-        case .all: repeatButton.setTitle("\u{21BB}", for: .normal); repeatButton.alpha = 1
-        case .one: repeatButton.setTitle("\u{21BB}1", for: .normal); repeatButton.alpha = 1
+        case .off: repeatButton.setImage(Icons.image(.repeatAll, size: 20), for: .normal); repeatButton.alpha = 0.4
+        case .all: repeatButton.setImage(Icons.image(.repeatAll, size: 20), for: .normal); repeatButton.alpha = 1
+        case .one: repeatButton.setImage(Icons.image(.repeatOne, size: 20), for: .normal); repeatButton.alpha = 1
         }
 
         let token = "\(track.videoID)-\(service.lyrics.count)"

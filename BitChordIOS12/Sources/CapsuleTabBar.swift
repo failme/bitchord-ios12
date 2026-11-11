@@ -1,14 +1,21 @@
 import UIKit
 
 /// The floating capsule tab bar. Upstream draws SF Symbols here; those do not exist on iOS 12,
-/// so each tab uses a text glyph with the same labels and selection treatment.
+/// so each tab shows a hand-drawn icon from `Icons` above its label, with the same labels and
+/// selection treatment.
 final class CapsuleTabBar: UIView {
     var onSelect: ((Int) -> Void)?
 
     private let stack = UIStackView()
-    private var buttons: [UIButton] = []
-    private let titles = ["Home", "Explore", "Library", "Search"]
-    private let glyphs = ["\u{2302}", "\u{25C8}", "\u{25A4}", "\u{2315}"]
+    private var controls: [UIControl] = []
+    private var iconViews: [UIImageView] = []
+    private var labels: [UILabel] = []
+    private let items: [(title: String, icon: Icons.Kind)] = [
+        ("Home", .house),
+        ("Explore", .compass),
+        ("Library", .library),
+        ("Search", .search)
+    ]
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -41,31 +48,57 @@ final class CapsuleTabBar: UIView {
             stack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -4)
         ])
 
-        for (index, title) in titles.enumerated() {
-            let button = UIButton(type: .system)
-            button.tag = index
-            button.titleLabel?.numberOfLines = 2
-            button.titleLabel?.textAlignment = .center
-            button.titleLabel?.font = Theme.font(11, weight: .semibold)
-            button.setTitle("\(glyphs[index])\n\(title)", for: .normal)
-            button.layer.cornerRadius = 28
-            button.addTarget(self, action: #selector(tapped(_:)), for: .touchUpInside)
-            stack.addArrangedSubview(button)
-            buttons.append(button)
+        for (index, item) in items.enumerated() {
+            let control = UIControl()
+            control.tag = index
+            control.layer.cornerRadius = 28
+            control.addTarget(self, action: #selector(tapped(_:)), for: .touchUpInside)
+
+            let cell = UIStackView()
+            cell.axis = .vertical
+            cell.alignment = .center
+            cell.spacing = 2
+            cell.isUserInteractionEnabled = false
+            cell.translatesAutoresizingMaskIntoConstraints = false
+
+            let icon = UIImageView(image: Icons.image(item.icon, size: 21))
+            icon.translatesAutoresizingMaskIntoConstraints = false
+            NSLayoutConstraint.activate([
+                icon.widthAnchor.constraint(equalToConstant: 21),
+                icon.heightAnchor.constraint(equalToConstant: 21)
+            ])
+
+            let label = UILabel()
+            label.text = item.title
+            label.font = Theme.font(10, weight: .semibold)
+
+            cell.addArrangedSubview(icon)
+            cell.addArrangedSubview(label)
+            control.addSubview(cell)
+            NSLayoutConstraint.activate([
+                cell.centerXAnchor.constraint(equalTo: control.centerXAnchor),
+                cell.centerYAnchor.constraint(equalTo: control.centerYAnchor)
+            ])
+
+            stack.addArrangedSubview(control)
+            controls.append(control)
+            iconViews.append(icon)
+            labels.append(label)
         }
         setSelectedIndex(0)
     }
 
-    @objc private func tapped(_ sender: UIButton) {
+    @objc private func tapped(_ sender: UIControl) {
         setSelectedIndex(sender.tag)
         onSelect?(sender.tag)
     }
 
     func setSelectedIndex(_ index: Int) {
-        for (position, button) in buttons.enumerated() {
+        for (position, control) in controls.enumerated() {
             let active = position == index
-            button.backgroundColor = active ? UIColor(white: 1, alpha: 0.18) : UIColor.clear
-            button.setTitleColor(active ? UIColor.white : UIColor(white: 1, alpha: 0.6), for: .normal)
+            control.backgroundColor = active ? UIColor(white: 1, alpha: 0.18) : UIColor.clear
+            iconViews[position].tintColor = active ? UIColor.white : UIColor(white: 1, alpha: 0.6)
+            labels[position].textColor = active ? UIColor.white : UIColor(white: 1, alpha: 0.6)
         }
     }
 }

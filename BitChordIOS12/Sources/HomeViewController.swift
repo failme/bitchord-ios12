@@ -17,7 +17,7 @@ final class HomeViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         title = "Home"
-        navigationItem.rightBarButtonItem = UIBarButtonItem(title: "Settings",
+        navigationItem.rightBarButtonItem = UIBarButtonItem(image: Icons.image(.gear, size: 22),
                                                             style: .plain,
                                                             target: self,
                                                             action: #selector(openSettings))

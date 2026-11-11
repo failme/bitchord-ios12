@@ -46,9 +46,9 @@ final class MiniPlayerBar: UIView {
         addSubview(subtitleLabel)
 
         playButton.translatesAutoresizingMaskIntoConstraints = false
-        playButton.titleLabel?.font = Theme.font(20, weight: .semibold)
+
         playButton.tintColor = Theme.primaryText
-        playButton.setTitle("▶", for: .normal)
+        playButton.setImage(Icons.image(.play, size: 24), for: .normal)
         playButton.addTarget(self, action: #selector(togglePlayback), for: .touchUpInside)
         addSubview(playButton)
 
@@ -96,14 +96,14 @@ final class MiniPlayerBar: UIView {
         guard let track = service.currentTrack else {
             titleLabel.text = "Nothing playing"
             subtitleLabel.text = "Search to start"
-            playButton.setTitle("▶", for: .normal)
+            playButton.setImage(Icons.image(.play, size: 24), for: .normal)
             artworkTask?.cancel()
             artworkView.image = nil
             return
         }
         titleLabel.text = track.title
         subtitleLabel.text = track.artist.isEmpty ? (service.statusText.isEmpty ? " " : service.statusText) : track.artist
-        playButton.setTitle(service.isPlaying ? "❚❚" : "▶", for: .normal)
+        playButton.setImage(Icons.image(service.isPlaying ? .pause : .play, size: 24), for: .normal)
 
         let url = track.artworkURL
         if let cached = ArtworkLoader.shared.cached(url) {
