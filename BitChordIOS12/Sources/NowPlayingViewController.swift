@@ -326,7 +326,7 @@ final class NowPlayingViewController: UIViewController {
         if !slider.isTracking {
             slider.value = total > 0 ? Float(min(1, max(0, position / total))) : 0
         }
-        diagnosticsLabel.text = YouTubeBridge.shared.diagnosticsSummary
+        diagnosticsLabel.text = AudioEngine.shared.diagnosticsSummary
         elapsedLabel.text = Theme.format(position)
         remainingLabel.text = total > 0 ? "-" + Theme.format(max(0, total - position)) : ""
         updateHighlight(at: position)

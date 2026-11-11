@@ -23,6 +23,22 @@ final class InnerTube {
     /// Tried in order when resolving a playable audio URL. YouTube gates most anonymous
     /// clients behind a sign-in/bot check, so several are attempted before giving up.
     private let clients: [ClientConfig] = [
+        // Measured against the live endpoint: this client is the one that still returns direct
+        // stream URLs without a cipher or a PO token, and it offers AAC in MP4 — the format
+        // AVPlayer decodes natively on iOS 12. The ordinary Android and iOS clients answer
+        // HTTP 400 and the web clients answer UNPLAYABLE, so this is tried first.
+        ClientConfig(
+            name: "ANDROID_VR",
+            version: "1.60.19",
+            userAgent: "com.google.android.apps.youtube.vr.oculus/1.60.19 (Linux; U; Android 12L; eureka-user Build/SQ3A.220605.009.A1) gzip",
+            extras: [
+                "androidSdkVersion": 32,
+                "deviceMake": "Oculus",
+                "deviceModel": "Quest 3",
+                "osName": "Android",
+                "osVersion": "12L"
+            ]
+        ),
         ClientConfig(
             name: "ANDROID_MUSIC",
             version: "6.42.55",
@@ -38,18 +54,6 @@ final class InnerTube {
                 "deviceModel": "iPhone14,3",
                 "osName": "iPhone",
                 "osVersion": "17.0.0.20A362"
-            ]
-        ),
-        ClientConfig(
-            name: "ANDROID_VR",
-            version: "1.60.19",
-            userAgent: "com.google.android.apps.youtube.vr.oculus/1.60.19 (Linux; U; Android 12L; eureka-user Build/SQ3A.220605.009.A1) gzip",
-            extras: [
-                "androidSdkVersion": 32,
-                "deviceMake": "Oculus",
-                "deviceModel": "Quest 3",
-                "osName": "Android",
-                "osVersion": "12L"
             ]
         ),
         ClientConfig(

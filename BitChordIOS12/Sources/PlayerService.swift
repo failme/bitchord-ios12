@@ -13,8 +13,9 @@ enum RepeatMode: Int {
     case one
 }
 
-/// Drives playback through `YouTubeBridge`. Position and duration come from the embedded
-/// player rather than from AVPlayer, so this class owns the clock instead of observing one.
+/// Drives playback through `AudioEngine`, which plays with AVFoundation when a stream URL can be
+/// resolved and falls back to the embedded web player when it cannot. Either way this class owns
+/// the queue and the user-facing state; position reports arrive through the engine's callbacks.
 final class PlayerService: NSObject {
     static let shared = PlayerService()
 
@@ -71,7 +72,7 @@ final class PlayerService: NSObject {
     }
 
     private func configureBridge() {
-        let bridge = YouTubeBridge.shared
+        let bridge = AudioEngine.shared
 
         bridge.onTimeUpdated = { [weak self] position, total in
             guard let self = self else { return }
@@ -123,7 +124,7 @@ final class PlayerService: NSObject {
             self.isLoading = false
             self.isPlaying = false
             self.consecutiveErrors += 1
-            let diagnostic = YouTubeBridge.shared.lastDiagnostic
+            let diagnostic = AudioEngine.shared.lastDiagnostic
             self.statusText = diagnostic.isEmpty
                 ? "Playback failed (\(code))."
                 : "Playback failed (\(code)): " + String(diagnostic.prefix(120))
@@ -205,7 +206,7 @@ final class PlayerService: NSObject {
 
     private func applySettings() {
         let store = SettingsStore.shared
-        YouTubeBridge.shared.setPlaybackRate(store.playbackRate)
+        AudioEngine.shared.setPlaybackRate(store.playbackRate)
         scheduleSleepTimer(minutes: store.sleepTimerMinutes)
     }
 
@@ -233,8 +234,8 @@ final class PlayerService: NSObject {
     // The embed sometimes fires no event at all: a video that never starts, or one that starts
     // and then wedges. Both used to be silent. Measure the element itself and heal it once.
     private func checkForStall() {
-        guard let track = currentTrack, !YouTubeBridge.shared.isPausedByUser else { return }
-        let bridge = YouTubeBridge.shared
+        guard let track = currentTrack, !AudioEngine.shared.isPausedByUser else { return }
+        let bridge = AudioEngine.shared
         let sinceLoad = loadStartedAt.map { Date().timeIntervalSince($0) } ?? 0
         let waiting = max(bridge.secondsSinceProgress, sinceLoad)
         guard waiting > 15 else { return }
@@ -271,14 +272,14 @@ final class PlayerService: NSObject {
 
     func play() {
         guard currentTrack != nil else { return }
-        YouTubeBridge.shared.resume()
+        AudioEngine.shared.resume()
         isPlaying = true
         updateNowPlaying()
         postChange()
     }
 
     func pause() {
-        YouTubeBridge.shared.pause()
+        AudioEngine.shared.pause()
         isPlaying = false
         updateNowPlaying()
         postChange()
@@ -381,7 +382,7 @@ final class PlayerService: NSObject {
     func seek(to time: TimeInterval) {
         let limit = duration > 0 ? duration : time
         let clamped = max(0, min(time, limit))
-        YouTubeBridge.shared.seek(to: clamped)
+        AudioEngine.shared.seek(to: clamped)
         currentTime = clamped
         updateNowPlaying()
     }
@@ -409,7 +410,7 @@ final class PlayerService: NSObject {
         postChange()
 
         LibraryStore.shared.recordPlayback(track)
-        YouTubeBridge.shared.play(videoId: track.videoID)
+        AudioEngine.shared.play(videoId: track.videoID)
         loadLyrics(for: track)
     }
 

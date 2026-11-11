@@ -297,6 +297,12 @@ final class YouTubeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegat
         evaluate("var v=document.querySelector('video'); if(v){v.playbackRate=\(rate);}")
     }
 
+    /// Halts the embedded player without recording it as a user pause, for when playback moves
+    /// to the native path.
+    func stop() {
+        evaluate("var v=document.querySelector('video'); if(v){v.pause();}")
+    }
+
     func refreshSession() {
         guard let videoId = currentVideoId else { return }
         load(videoId: videoId, startAt: lastPosition)
