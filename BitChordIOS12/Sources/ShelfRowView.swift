@@ -381,6 +381,10 @@ final class ChipCell: UICollectionViewCell {
         ])
     }
 
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+    }
+
     func configure(_ title: String) {
         label.text = title
     }
