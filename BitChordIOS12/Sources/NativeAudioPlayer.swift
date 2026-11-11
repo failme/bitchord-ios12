@@ -31,7 +31,7 @@ final class NativeAudioPlayer: NSObject {
     private(set) var currentVideoId: String?
     private var currentTrack: Track?
     /// Which catalogue served the loaded item ("JioSaavn 320kbps", "YouTube", or "").
-    private var sourceLabel = "
+    private var sourceLabel = ""
     private(set) var lastDiagnostic = ""
     private(set) var diagnosticsSummary = "native: idle"
     private(set) var secondsSinceProgress: TimeInterval = 0
