@@ -140,7 +140,8 @@ final class LyricsService {
         }
         getJSON(url) { [weak self] json in
             guard let self = self,
-                  let hits = json?["hits"] as? [[String: Any]] else {
+                  let object = json as? [String: Any],
+                  let hits = object["hits"] as? [[String: Any]] else {
                 completion(nil)
                 return
             }
@@ -223,7 +224,8 @@ final class LyricsService {
         }
         getJSON(url) { [weak self] json in
             guard let self = self else { return }
-            if let lines = json?["lyrics"] as? [[String: Any]] {
+            if let object = json as? [String: Any],
+               let lines = object["lyrics"] as? [[String: Any]] {
                 let parsed = self.parseLyricsPlus(lines)
                 if !parsed.isEmpty {
                     completion(LyricsResult(lines: parsed, isSynced: true, source: "LyricsPlus"))
@@ -306,7 +308,11 @@ final class LyricsService {
         }
         let trimmed = text.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return nil }
-        let end = (syllables.compactMap { ($0["time"] as? Double).map { t in t + (($0["duration"] as? Double) ?? 0) } }.max() ?? startMs) / 1000
+        let ends: [Double] = syllables.compactMap { syllable in
+            guard let started = syllable["time"] as? Double else { return nil }
+            return started + ((syllable["duration"] as? Double) ?? 0)
+        }
+        let end = (ends.max() ?? startMs) / 1000
         return WordLyricLine(time: startMs / 1000, text: text, words: words, end: end)
     }
 
@@ -328,14 +334,15 @@ final class LyricsService {
         }
         getJSON(url) { [weak self] json in
             guard let self = self else { return }
-            if let synced = json?["syncedLyrics"] as? String, !synced.isEmpty {
+            let object = json as? [String: Any]
+            if let synced = object?["syncedLyrics"] as? String, !synced.isEmpty {
                 let lines = self.parseLRC(synced)
                 if !lines.isEmpty {
                     completion(LyricsResult(lines: lines, isSynced: true, source: "LRCLIB"), nil)
                     return
                 }
             }
-            if let plain = json?["plainLyrics"] as? String, !plain.isEmpty {
+            if let plain = object?["plainLyrics"] as? String, !plain.isEmpty {
                 let lines = plain.components(separatedBy: "\n")
                     .map { $0.trimmingCharacters(in: .whitespaces) }
                     .filter { !$0.isEmpty }
