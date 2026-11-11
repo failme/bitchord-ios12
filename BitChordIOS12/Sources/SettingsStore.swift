@@ -3,7 +3,7 @@ import Foundation
 /// How a settings row behaves and whether this port can honour it.
 enum SettingKind {
     case toggle(Bool)
-    case stepper(Double, Double, Double, String)
+    case stepper(Double, Double, Double, Double, String)
     case choice(String, [String])
     /// Row is shown for parity but has no effect here; the reason is surfaced to the user.
     case unavailable(String)
@@ -12,7 +12,7 @@ enum SettingKind {
 struct SettingItem {
     let key: String
     let title: String
-    let detail: String?
+    var detail: String? = nil
     let kind: SettingKind
 }
 
