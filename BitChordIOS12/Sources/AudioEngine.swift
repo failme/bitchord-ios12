@@ -28,6 +28,9 @@ final class AudioEngine {
     private var mode: Mode = .native
     private let native = NativeAudioPlayer()
     private let web = YouTubeBridge.shared
+    /// Why the native path was abandoned, kept so the on-screen diagnostic names the cause
+    /// instead of silently showing the web player's numbers.
+    private var nativeFailure: String = ""
 
     private init() {
         native.onStateChanged = { [weak self] state in
@@ -96,7 +99,11 @@ final class AudioEngine {
     }
 
     var diagnosticsSummary: String {
-        mode == .native ? native.diagnosticsSummary : web.diagnosticsSummary
+        if mode == .native {
+            return native.diagnosticsSummary
+        }
+        guard !nativeFailure.isEmpty else { return web.diagnosticsSummary }
+        return "web[fallback: " + String(nativeFailure.prefix(44)) + "] " + web.diagnosticsSummary
     }
 
     var secondsSinceProgress: TimeInterval {
@@ -108,10 +115,14 @@ final class AudioEngine {
     func play(videoId: String) {
         web.stop()
         mode = .native
+        nativeFailure = ""
         native.play(videoId: videoId) { [weak self] resolved in
             guard let self = self else { return }
             guard !resolved else { return }
             // No stream URL: fall back to the web player rather than dropping the track.
+            self.nativeFailure = self.native.lastDiagnostic.isEmpty
+                ? "no stream url"
+                : self.native.lastDiagnostic
             self.mode = .web
             self.native.stop()
             self.web.play(videoId: videoId)
