@@ -19,6 +19,7 @@ jobs:
         run: |
           set -o pipefail
           xcodegen generate
+          xcodebuild -project BitChordIOS12.xcodeproj -list
 
       - name: Build for device
         run: |
@@ -33,9 +34,28 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
-            build
+            build 2>&1 | tee build.log
+
+      - name: Report build diagnostics
+        if: always()
+        run: |
+          {
+            echo "### Schemes in generated project"
+            echo '```'
+            xcodebuild -project BitChordIOS12.xcodeproj -list 2>&1 || true
+            echo '```'
+            echo "### Compiler errors"
+            echo '```'
+            grep -nE "error:|xcodebuild: error|BUILD FAILED" build.log 2>/dev/null | head -60 || true
+            echo '```'
+            echo "### Last 40 log lines"
+            echo '```'
+            tail -40 build.log 2>/dev/null || echo "(no build.log written)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Verify deployment target
+        if: success()
         run: |
           set -o pipefail
           APP="build/Build/Products/Release-iphoneos/BitChordIOS12.app"
@@ -43,6 +63,7 @@ jobs:
           otool -l "$APP/BitChordIOS12" | grep -A4 LC_BUILD_VERSION || echo "(no LC_BUILD_VERSION block)"
 
       - name: Package unsigned IPA
+        if: success()
         run: |
           set -o pipefail
           rm -rf Payload
@@ -52,6 +73,7 @@ jobs:
           ls -lh BitChordIOS12-unsigned.ipa
 
       - name: Upload IPA
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: BitChordIOS12-unsigned-ipa
