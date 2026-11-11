@@ -77,7 +77,8 @@ final class JioSaavnService {
                           artist: String,
                           durationSeconds: Double?) -> (id: String, isExplicit: Bool)? {
         let wantTitle = normalized(title)
-        let wantArtist = normalized(artist)            var best: (id: String, isExplicit: Bool)?
+        let wantArtist = normalized(artist)
+        var best: (id: String, isExplicit: Bool)?
         // An exact title plus the artist or the duration clears this; anything less
         // than a solid title match with corroboration does not.
         var bestScore = 4
@@ -140,7 +141,8 @@ final class JioSaavnService {
                   let url = URL(string: stream.url), url.scheme?.hasPrefix("http") == true else {
                 completion(nil, "JioSaavn had no stream URL.")
                 return
-            }                self.lastQualityLabel = "JioSaavn " + (stream.kbps.map { "\($0)kbps" } ?? "audio")
+            }
+            self.lastQualityLabel = "JioSaavn " + (stream.kbps.map { "\($0)kbps" } ?? "audio")
                 // The details row is authoritative; fall back to the search row otherwise.
                 let flag = (row["explicit_content"] as? String ?? "").lowercased()
                 if flag == "1" || flag == "true" || flag == "0" || flag == "false" {
