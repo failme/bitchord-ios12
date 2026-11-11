@@ -4,7 +4,10 @@ final class SearchViewController: UIViewController {
     private let tableView = UITableView(frame: .zero, style: .plain)
     private let searchController = UISearchController(searchResultsController: nil)
     private let emptyLabel = UILabel()
-    private let spinner = UIActivityIndicatorView(activityIndicatorStyle: .white)
+    // The style-taking initializer was renamed to init(style:) in the iOS 13 SDK, and that
+    // spelling is unavailable at a 12.0 deployment target, so use the inherited frame form
+    // and let the view keep its default style.
+    private let spinner = UIActivityIndicatorView(frame: CGRect(x: 0, y: 0, width: 20, height: 20))
 
     private var results: [Track] = []
     private var pendingWork: DispatchWorkItem?
