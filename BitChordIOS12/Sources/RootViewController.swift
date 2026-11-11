@@ -20,6 +20,19 @@ final class RootViewController: UIViewController {
         super.viewDidLoad()
         view.backgroundColor = Theme.background
 
+        // The embed player must be on screen for WebKit to grant it audio: it sits behind
+        // the interface at a small size and never receives touches.
+        let bridgeView = YouTubeBridge.shared.makeWebView()
+        bridgeView.translatesAutoresizingMaskIntoConstraints = false
+        bridgeView.isUserInteractionEnabled = false
+        view.addSubview(bridgeView)
+        NSLayoutConstraint.activate([
+            bridgeView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            bridgeView.topAnchor.constraint(equalTo: view.topAnchor),
+            bridgeView.widthAnchor.constraint(equalToConstant: 320),
+            bridgeView.heightAnchor.constraint(equalToConstant: 240)
+        ])
+
         addChild(navigation)
         navigation.view.translatesAutoresizingMaskIntoConstraints = false
         navigation.view.backgroundColor = Theme.background

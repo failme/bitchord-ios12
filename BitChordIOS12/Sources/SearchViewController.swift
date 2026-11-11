@@ -17,11 +17,6 @@ final class SearchViewController: UIViewController {
         title = "BitChord"
         view.backgroundColor = Theme.background
 
-        navigationItem.rightBarButtonItem = UIBarButtonItem(title: "Source",
-                                                            style: .plain,
-                                                            target: self,
-                                                            action: #selector(editSource))
-
         searchController.searchResultsUpdater = self
         searchController.obscuresBackgroundDuringPresentation = true
         searchController.searchBar.searchBarStyle = .minimal
@@ -66,27 +61,6 @@ final class SearchViewController: UIViewController {
             spinner.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             spinner.topAnchor.constraint(equalTo: emptyLabel.bottomAnchor, constant: 16)
         ])
-    }
-
-    @objc private func editSource() {
-        let current = StreamResolver.shared.sourceTemplate ?? ""
-        let alert = UIAlertController(
-            title: "Audio source",
-            message: "Optional. A URL that returns {\"url\": \"…\"} or a bare URL for a video id. Use {videoId} in the template. Leave empty to ask YouTube directly.",
-            preferredStyle: .alert
-        )
-        alert.addTextField { field in
-            field.text = current
-            field.placeholder = "https://example.com/stream?id={videoId}"
-            field.autocapitalizationType = .none
-            field.autocorrectionType = .no
-            field.keyboardType = .URL
-        }
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel, handler: nil))
-        alert.addAction(UIAlertAction(title: "Save", style: .default) { _ in
-            StreamResolver.shared.sourceTemplate = alert.textFields?.first?.text
-        })
-        present(alert, animated: true, completion: nil)
     }
 
     private func runSearch(_ query: String) {

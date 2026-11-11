@@ -7,13 +7,16 @@ extension Notification.Name {
     static let playerTimeDidChange = Notification.Name("BitChordPlayerTimeDidChange")
 }
 
+enum RepeatMode: Int {
+    case off
+    case all
+    case one
+}
+
+/// Drives playback through `YouTubeBridge`. Position and duration come from the embedded
+/// player rather than from AVPlayer, so this class owns the clock instead of observing one.
 final class PlayerService: NSObject {
     static let shared = PlayerService()
-
-    private let player = AVPlayer()
-    private var timeObserver: Any?
-    private var observers: [NSObjectProtocol] = []
-    private var loadToken = 0
 
     private(set) var queue: [Track] = []
     private(set) var currentIndex: Int = -1
@@ -21,40 +24,34 @@ final class PlayerService: NSObject {
     private(set) var lyricsAreSynced = false
     private(set) var statusText: String = ""
     private(set) var isLoading = false
+    private(set) var isPlaying = false
+    private(set) var currentTime: TimeInterval = 0
+    private(set) var duration: TimeInterval = 0
+    private(set) var isShuffled = false
+    private(set) var repeatMode: RepeatMode = .off
+
     var isScrubbing = false
+
+    private var unshuffledQueue: [Track] = []
+    private var observers: [NSObjectProtocol] = []
+    private var consecutiveErrors = 0
 
     var currentTrack: Track? {
         guard currentIndex >= 0, currentIndex < queue.count else { return nil }
         return queue[currentIndex]
     }
 
-    var isPlaying: Bool {
-        return player.timeControlStatus == .playing
-    }
-
-    var currentTime: TimeInterval {
-        let seconds = player.currentTime().seconds
-        return seconds.isFinite ? seconds : 0
-    }
-
-    var duration: TimeInterval {
-        if let item = player.currentItem {
-            let seconds = item.duration.seconds
-            if seconds.isFinite, seconds > 0 { return seconds }
-        }
-        return currentTrack?.durationSeconds ?? 0
-    }
-
     private override init() {
         super.init()
         configureAudioSession()
-        observePlayback()
+        configureBridge()
         configureRemoteCommands()
-        timeObserver = player.addPeriodicTimeObserver(
-            forInterval: CMTime(seconds: 0.25, preferredTimescale: 600),
-            queue: .main
-        ) { _ in
-            NotificationCenter.default.post(name: .playerTimeDidChange, object: nil)
+        observeInterruptions()
+    }
+
+    deinit {
+        for observer in observers {
+            NotificationCenter.default.removeObserver(observer)
         }
     }
 
@@ -67,23 +64,53 @@ final class PlayerService: NSObject {
         UIApplication.shared.beginReceivingRemoteControlEvents()
     }
 
-    private func observePlayback() {
-        let center = NotificationCenter.default
-        observers.append(center.addObserver(
-            forName: AVPlayerItem.didPlayToEndTimeNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
+    private func configureBridge() {
+        let bridge = YouTubeBridge.shared
+
+        bridge.onTimeUpdated = { [weak self] position, total in
+            guard let self = self else { return }
+            if !self.isScrubbing {
+                self.currentTime = position
+            }
+            if total > 0 {
+                self.duration = total
+            }
+            NotificationCenter.default.post(name: .playerTimeDidChange, object: nil)
+        }
+
+        bridge.onStateChanged = { [weak self] state in
+            guard let self = self else { return }
+            switch state {
+            case .playing:
+                self.isPlaying = true
+                self.isLoading = false
+                self.statusText = ""
+            case .paused:
+                self.isPlaying = false
+            case .loading:
+                self.isLoading = true
+            case .ended:
+                self.isPlaying = false
+            }
+            self.updateNowPlaying()
+            self.postChange()
+        }
+
+        bridge.onPlaybackEnded = { [weak self] in
             self?.advance()
-        })
-        observers.append(center.addObserver(
-            forName: AVPlayerItem.failedToPlayToEndTimeNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            self?.statusText = "Playback failed. Try a different source."
-            self?.postChange()
-        })
+        }
+
+        bridge.onPlaybackError = { [weak self] code in
+            guard let self = self else { return }
+            self.isLoading = false
+            self.isPlaying = false
+            self.consecutiveErrors += 1
+            self.statusText = "Playback failed (\(code))."
+            self.postChange()
+            if self.consecutiveErrors < 3 {
+                self.advance()
+            }
+        }
     }
 
     private func configureRemoteCommands() {
@@ -118,24 +145,53 @@ final class PlayerService: NSObject {
         }
     }
 
-    // MARK: - Control
+    private func observeInterruptions() {
+        observers.append(NotificationCenter.default.addObserver(
+            forName: AVAudioSession.interruptionNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] note in
+            guard let self = self,
+                  let raw = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
+                  let type = AVAudioSession.InterruptionType(rawValue: raw) else { return }
+            if type == .began {
+                self.pause()
+            }
+        })
+
+        observers.append(NotificationCenter.default.addObserver(
+            forName: UIApplication.didEnterBackgroundNotification,
+            object: nil,
+            queue: .main
+        ) { _ in
+            // Re-assert the session so the web audio thread is not torn down.
+            try? AVAudioSession.sharedInstance().setActive(true)
+        })
+    }
+
+    // MARK: - Queue
 
     func play(tracks: [Track], startingAt index: Int) {
         guard !tracks.isEmpty else { return }
         queue = tracks
+        unshuffledQueue = tracks
+        isShuffled = false
         currentIndex = max(0, min(index, tracks.count - 1))
+        consecutiveErrors = 0
         loadCurrent()
     }
 
     func play() {
-        guard player.currentItem != nil else { return }
-        player.play()
+        guard currentTrack != nil else { return }
+        YouTubeBridge.shared.resume()
+        isPlaying = true
         updateNowPlaying()
         postChange()
     }
 
     func pause() {
-        player.pause()
+        YouTubeBridge.shared.pause()
+        isPlaying = false
         updateNowPlaying()
         postChange()
     }
@@ -149,14 +205,23 @@ final class PlayerService: NSObject {
     }
 
     func advance() {
-        guard currentIndex + 1 < queue.count else {
-            player.pause()
-            updateNowPlaying()
-            postChange()
+        guard !queue.isEmpty else { return }
+        if repeatMode == .one {
+            replayCurrent()
             return
         }
-        currentIndex += 1
-        loadCurrent()
+        if currentIndex + 1 < queue.count {
+            currentIndex += 1
+            loadCurrent()
+            return
+        }
+        if repeatMode == .all {
+            currentIndex = 0
+            loadCurrent()
+            return
+        }
+        isPlaying = false
+        postChange()
     }
 
     func previous() {
@@ -164,18 +229,66 @@ final class PlayerService: NSObject {
             seek(to: 0)
             return
         }
-        guard currentIndex > 0 else {
+        guard !queue.isEmpty else { return }
+        if currentIndex > 0 {
+            currentIndex -= 1
+            loadCurrent()
+        } else {
             seek(to: 0)
-            return
         }
-        currentIndex -= 1
+    }
+
+    func replayCurrent() {
         loadCurrent()
     }
+
+    func toggleShuffle() {
+        isShuffled.toggle()
+        if isShuffled {
+            if queue.isEmpty { return }
+            let head = currentIndex >= 0 ? Array(queue.prefix(currentIndex + 1)) : []
+            let tail = currentIndex >= 0 ? Array(queue.suffix(from: currentIndex + 1)) : queue
+            queue = head + tail.shuffled()
+            currentIndex = head.isEmpty ? 0 : currentIndex
+        } else if !unshuffledQueue.isEmpty {
+            let track = currentTrack
+            queue = unshuffledQueue
+            if let track = track, let index = queue.firstIndex(where: { $0.videoID == track.videoID }) {
+                currentIndex = index
+            }
+        }
+        postChange()
+    }
+
+    func cycleRepeatMode() {
+        switch repeatMode {
+        case .off: repeatMode = .all
+        case .all: repeatMode = .one
+        case .one: repeatMode = .off
+        }
+        postChange()
+    }
+
+    func clearQueue() {
+        queue = []
+        unshuffledQueue = []
+        currentIndex = -1
+        currentTime = 0
+        duration = 0
+        isPlaying = false
+        lyrics = []
+        lyricsAreSynced = false
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+        postChange()
+    }
+
+    // MARK: - Transport
 
     func seek(to time: TimeInterval) {
         let limit = duration > 0 ? duration : time
         let clamped = max(0, min(time, limit))
-        player.seek(to: CMTime(seconds: clamped, preferredTimescale: 600))
+        YouTubeBridge.shared.seek(to: clamped)
+        currentTime = clamped
         updateNowPlaying()
     }
 
@@ -188,35 +301,19 @@ final class PlayerService: NSObject {
 
     private func loadCurrent() {
         guard let track = currentTrack else { return }
-        loadToken += 1
-        let token = loadToken
         isLoading = true
-        statusText = "Loading \(track.title)…"
+        isPlaying = false
+        statusText = ""
+        currentTime = 0
+        duration = track.durationSeconds ?? 0
         lyrics = []
         lyricsAreSynced = false
-        postChange()
-
-        StreamResolver.shared.resolve(track: track) { [weak self] url, error in
-            guard let self = self else { return }
-            guard token == self.loadToken else { return }
-            self.isLoading = false
-            guard let url = url else {
-                self.statusText = error ?? "Could not resolve this track."
-                self.postChange()
-                return
-            }
-            self.startPlayback(url: url, track: track)
-        }
-    }
-
-    private func startPlayback(url: URL, track: Track) {
-        let item = AVPlayerItem(url: url)
-        player.replaceCurrentItem(with: item)
-        player.play()
-        statusText = ""
+        consecutiveErrors = 0
         updateNowPlaying()
-        loadLyrics(for: track)
         postChange()
+
+        YouTubeBridge.shared.play(videoId: track.videoID)
+        loadLyrics(for: track)
     }
 
     private func loadLyrics(for track: Track) {
@@ -243,6 +340,9 @@ final class PlayerService: NSObject {
             MPMediaItemPropertyPlaybackDuration: duration,
             MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? 1.0 : 0.0
         ]
+        if !track.album.isEmpty {
+            info[MPMediaItemPropertyAlbumTitle] = track.album
+        }
         if let image = ArtworkLoader.shared.cached(track.largeArtworkURL) {
             info[MPMediaItemPropertyArtwork] = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
         } else {
