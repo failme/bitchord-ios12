@@ -14,7 +14,7 @@ enum TTMLLyrics {
 
     static func parse(_ document: String) -> [WordLyricLine] {
         var lines: [WordLyricLine] = []
-        let pattern = "<p\b([^>]*)>(.*?)</p>"
+        let pattern = #"<p\b([^>]*)>(.*?)</p>"#
         guard let regex = try? NSRegularExpression(pattern: pattern,
                                                    options: [.dotMatchesLineSeparators]) else {
             return []
@@ -45,7 +45,7 @@ enum TTMLLyrics {
     /// Each timed run, with the document's own inter-span whitespace appended
     /// to the run it follows — that separator is what marks a word boundary.
     private static func spans(in body: String) -> [[String: Any]] {
-        let pattern = "<span\b([^>]*)>(.*?)</span>"
+        let pattern = #"<span\b([^>]*)>(.*?)</span>"#
         guard let regex = try? NSRegularExpression(pattern: pattern,
                                                    options: [.dotMatchesLineSeparators]) else {
             return []
@@ -98,7 +98,7 @@ enum TTMLLyrics {
     }
 
     private static func seconds(in attributes: String, key: String) -> Double? {
-        guard let regex = try? NSRegularExpression(pattern: "\(key)=\"([^\"]+)\"") else {
+        guard let regex = try? NSRegularExpression(pattern: #"\#(key)="([^"]+)""#) else {
             // The interpolation above is written out below; this branch only
             // exists so a bad pattern fails closed rather than crashing.
             return nil
