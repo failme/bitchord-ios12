@@ -1,4 +1,0 @@
-serving C:\Users\natha\Downloads\bitios on 127.0.0.1:58101
-"HEAD /BitChordIOS12-simulator.zip HTTP/1.1" 200 -
-"OPTIONS /BitChordIOS12-simulator.zip HTTP/1.1" 204 -
-"GET /BitChordIOS12-simulator.zip HTTP/1.1" 200 -
