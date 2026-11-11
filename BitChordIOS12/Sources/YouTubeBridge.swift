@@ -50,6 +50,7 @@ final class YouTubeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegat
     private(set) var secondsSinceProgress: TimeInterval = 0
     private var probeCount = 0
     private var lastProgressDate = Date()
+    private var desiredVolume: Float = 1
 
     private var webView: WKWebView?
     private var pendingVideoId: String?
@@ -170,11 +171,16 @@ final class YouTubeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegat
             if (v.__bitChordHooked) { return true; }
             v.__bitChordHooked = true;
 
+            // Mute only when a fresh start needs the permission. An element that is already
+            // playing must never be muted here: 'playing' has already fired, so nothing would
+            // ever unmute it again and the app would play silently forever.
+            var alreadyPlaying = !v.paused;
             try {
                 v.setAttribute('playsinline', '');
                 v.setAttribute('webkit-playsinline', '');
                 v.playsInline = true;
-                v.muted = true;
+                if (alreadyPlaying) { v.muted = false; v.volume = 1; }
+                else { v.muted = true; }
             } catch (e) {}
 
             v.addEventListener('loadedmetadata', function() {
@@ -282,6 +288,7 @@ final class YouTubeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegat
     }
 
     func setVolume(_ volume: Float) {
+        desiredVolume = volume
         evaluate("var v=document.querySelector('video'); if(v){v.volume=\(volume);v.muted=\(volume <= 0.001 ? "true" : "false");}")
     }
 
@@ -352,6 +359,10 @@ final class YouTubeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegat
                 if !self.isPausedByUser && paused && readyState >= 2 {
                     // The embed paused itself (autoplay policy or a stall): ask it again.
                     self.nudgePlayback()
+                }
+                if !paused && muted && !self.isPausedByUser && self.desiredVolume > 0.001 {
+                    // Running but silent: the muted start never received its unmute.
+                    self.evaluate("var v=document.querySelector('video'); if(v){v.muted=false;v.volume=\(self.desiredVolume);}")
                 }
             }
             if errorCode != 0 {
