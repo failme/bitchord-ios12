@@ -1,0 +1,59 @@
+name: Build iOS 12 IPA
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: |
+          set -o pipefail
+          xcodegen generate
+
+      - name: Build for device
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project BitChordIOS12.xcodeproj \
+            -scheme BitChordIOS12 \
+            -sdk iphoneos \
+            -configuration Release \
+            -derivedDataPath build \
+            IPHONEOS_DEPLOYMENT_TARGET=12.0 \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build
+
+      - name: Verify deployment target
+        run: |
+          set -o pipefail
+          APP="build/Build/Products/Release-iphoneos/BitChordIOS12.app"
+          echo "MinimumOSVersion: $(/usr/libexec/PlistBuddy -c 'Print :MinimumOSVersion' "$APP/Info.plist")"
+          otool -l "$APP/BitChordIOS12" | grep -A4 LC_BUILD_VERSION | head -20
+
+      - name: Package unsigned IPA
+        run: |
+          set -o pipefail
+          rm -rf Payload
+          mkdir -p Payload
+          cp -R "build/Build/Products/Release-iphoneos/BitChordIOS12.app" Payload/
+          /usr/bin/zip -qry BitChordIOS12-unsigned.ipa Payload
+          ls -lh BitChordIOS12-unsigned.ipa
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: BitChordIOS12-unsigned-ipa
+          path: BitChordIOS12-unsigned.ipa
+          retention-days: 30

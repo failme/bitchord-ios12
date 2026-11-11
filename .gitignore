@@ -1,0 +1,11 @@
+build/
+DerivedData/
+*.ipa
+Payload/
+*.xcodeproj
+*.xcworkspace
+.DS_Store
+api_test/
+patch_ios12/
+BitChord-1.0.2-9.ipa
+BitChord-1.0.2-9-ios12-patched.ipa
