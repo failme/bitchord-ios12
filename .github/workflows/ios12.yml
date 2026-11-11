@@ -107,3 +107,49 @@ jobs:
           name: BitChordIOS12-unsigned-ipa
           path: BitChordIOS12-unsigned.ipa
           retention-days: 30
+
+  simulator:
+    runs-on: macos-15
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Build for simulator
+        run: |
+          set -o pipefail
+          xcodebuild             -project BitChordIOS12.xcodeproj             -scheme BitChordIOS12             -sdk iphonesimulator             -configuration Release             -arch arm64             -derivedDataPath build-sim             IPHONEOS_DEPLOYMENT_TARGET=12.0             CODE_SIGNING_ALLOWED=NO             CODE_SIGNING_REQUIRED=NO             CODE_SIGN_IDENTITY=""             build 2>&1 | tee sim.log
+
+      - name: Report simulator build errors
+        if: failure()
+        run: |
+          if [ -f sim.log ]; then
+            grep -aE "error:|xcodebuild: error|BUILD FAILED" sim.log | head -8 | while IFS= read -r line; do
+              line="${line%$''}"
+              echo "::error ::${line:0:800}"
+            done
+          fi
+
+      - name: Package simulator bundle for Appetize
+        if: success()
+        run: |
+          set -o pipefail
+          APP="build-sim/Build/Products/Release-iphonesimulator/BitChordIOS12.app"
+          test -d "$APP"
+          /usr/libexec/PlistBuddy -c 'Print :MinimumOSVersion' "$APP/Info.plist"
+          ditto -c -k --sequesterRsrc --keepParent "$APP" BitChordIOS12-simulator.zip
+          ls -lh BitChordIOS12-simulator.zip
+          echo "::notice ::Simulator bundle packaged for Appetize upload"
+
+      - name: Upload simulator build
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: BitChordIOS12-simulator
+          path: BitChordIOS12-simulator.zip
+          retention-days: 30

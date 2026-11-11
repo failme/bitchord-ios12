@@ -100,3 +100,23 @@ Avoided, because each would raise the floor: `SwiftUI`, `Combine`, `async`/`awai
 Used and safe on 12: `WKWebView`, `WKUserScript`, `WKScriptMessageHandler`,
 `UINavigationController`, `UISearchController`, `UITableView`, `MPRemoteCommandCenter`,
 `MPNowPlayingInfoCenter`, `AVAudioSession`, `URLSession`, `JSONSerialization`.
+
+## Running it without a Mac
+
+There is no iOS emulator for Windows — no VS Code extension can execute an iOS binary, because
+the app links against Apple's frameworks. What works is running the app on someone else's iOS:
+
+**Real hardware, including iOS 12 (the decisive test).** BrowserStack App Live accepts an
+unsigned `.ipa`, re-signs it with their own provisioning profile and runs it on a real device.
+Upload `BitChordIOS12-unsigned.ipa`, then pick an iPhone 6 (or similar) with iOS 12. This is
+the only option that reproduces your phone's WebKit, so it is the one that can answer whether
+playback works on iOS 12.
+
+**Cloud simulator in a browser tab (fast, no account juggling).** Appetize runs iOS Simulator
+builds. It does not accept `.ipa` files and its simulators are current iOS, so it verifies the
+app launches, the interface renders and whether the embed plays in WebKit at all — but it is
+not iOS 12. Download the `BitChordIOS12-simulator` artifact, unzip it, and upload the `.zip`
+at https://appetize.io/upload.
+
+**Nothing else.** Xcode simulators need macOS, and services that claim to emulate iOS on
+Windows are running a lookalike shell, not Apple's frameworks.
