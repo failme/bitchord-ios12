@@ -1,13 +1,14 @@
 import AVFoundation
 import Foundation
 
-/// Plays a track's audio with AVFoundation from a resolved YouTube stream URL.
+/// Plays a track's audio with AVFoundation from a resolved direct stream URL.
 ///
 /// The embedded web player is a WebKit media pipeline inside a web view, and on iOS 12 that
 /// pipeline stalls: the element reports `paused = false`, `muted = false`, no error, and yet
 /// `currentTime` never advances. AVPlayer has no such dependency — it decodes AAC in MP4
-/// natively, which is exactly the format `InnerTube.resolveStreamURL` prefers — so this is the
-/// path playback takes whenever a stream URL can be resolved.
+/// natively, which is exactly what JioSaavn's CDN serves — so this is the path playback
+/// takes whenever a stream URL can be resolved. JioSaavn is tried first and YouTube
+/// resolution is the fallback for catalogue gaps.
 final class NativeAudioPlayer: NSObject {
     var onStateChanged: ((BridgePlaybackState) -> Void)?
     var onTimeUpdated: ((Double, Double) -> Void)?
@@ -28,6 +29,9 @@ final class NativeAudioPlayer: NSObject {
     private(set) var isPausedByUser = false
     private(set) var isReady = false
     private(set) var currentVideoId: String?
+    private var currentTrack: Track?
+    /// Which catalogue served the loaded item ("JioSaavn 320kbps", "YouTube", or "").
+    private var sourceLabel = "
     private(set) var lastDiagnostic = ""
     private(set) var diagnosticsSummary = "native: idle"
     private(set) var secondsSinceProgress: TimeInterval = 0
@@ -56,8 +60,10 @@ final class NativeAudioPlayer: NSObject {
 
     // MARK: - Loading
 
-    func play(videoId: String, at position: Double = 0, completion: @escaping (Bool) -> Void) {
-        currentVideoId = videoId
+    func play(track: Track, at position: Double = 0, completion: @escaping (Bool) -> Void) {
+        currentVideoId = track.videoID
+        currentTrack = track
+        sourceLabel = ""
         isPausedByUser = false
         isReady = false
         lastKnownPosition = position
@@ -65,18 +71,34 @@ final class NativeAudioPlayer: NSObject {
         secondsSinceProgress = 0
         requestTicket += 1
         let ticket = requestTicket
-        diagnosticsSummary = "native: resolving"
+        diagnosticsSummary = "native: resolving (saavn)"
 
-        InnerTube.shared.resolveStreamURL(videoID: videoId) { [weak self] url, reason in
+        // JioSaavn first: its CDN URLs are direct progressive MP4 that AVPlayer
+        // decodes on iOS 12 with no signature to break. YouTube resolution is the
+        // fallback for catalogue gaps.
+        JioSaavnService.shared.resolve(title: track.title,
+                                       artist: track.artist,
+                                       durationSeconds: track.durationSeconds) { [weak self] url, _ in
             guard let self = self, self.requestTicket == ticket else { return }
-            guard let url = url, let scheme = url.scheme, scheme.hasPrefix("http") else {
-                self.lastDiagnostic = reason.isEmpty ? "No stream URL was returned." : reason
-                self.diagnosticsSummary = "native: no stream (" + self.lastDiagnostic.prefix(60) + ")"
-                completion(false)
+            if let url = url, let scheme = url.scheme, scheme.hasPrefix("http") {
+                self.sourceLabel = JioSaavnService.shared.lastQualityLabel
+                self.start(url: url, at: position)
+                completion(true)
                 return
             }
-            self.start(url: url, at: position)
-            completion(true)
+            self.diagnosticsSummary = "native: resolving (youtube)"
+            InnerTube.shared.resolveStreamURL(videoID: track.videoID) { [weak self] url, reason in
+                guard let self = self, self.requestTicket == ticket else { return }
+                guard let url = url, let scheme = url.scheme, scheme.hasPrefix("http") else {
+                    self.lastDiagnostic = reason.isEmpty ? "No stream URL was returned." : reason
+                    self.diagnosticsSummary = "native: no stream (" + self.lastDiagnostic.prefix(60) + ")"
+                    completion(false)
+                    return
+                }
+                self.sourceLabel = "YouTube"
+                self.start(url: url, at: position)
+                completion(true)
+            }
         }
     }
 
@@ -145,7 +167,8 @@ final class NativeAudioPlayer: NSObject {
         }
         secondsSinceProgress = Date().timeIntervalSince(lastProgressDate)
 
-        diagnosticsSummary = "native t=" + String(format: "%.1f", seconds)
+        let source = sourceLabel.isEmpty ? "" : " " + sourceLabel
+        diagnosticsSummary = "native" + source + " t=" + String(format: "%.1f", seconds)
             + "/" + String(format: "%.0f", duration)
             + " rate=" + String(format: "%.2f", Double(player.rate))
             + " stale=" + String(Int(secondsSinceProgress)) + "s"
@@ -203,9 +226,9 @@ final class NativeAudioPlayer: NSObject {
     }
 
     func refreshSession() {
-        guard let videoId = currentVideoId else { return }
+        guard let track = currentTrack else { return }
         let position = lastKnownPosition
-        play(videoId: videoId, at: position) { _ in }
+        play(track: track, at: position) { _ in }
     }
 
     func stop() {

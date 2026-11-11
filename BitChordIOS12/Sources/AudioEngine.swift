@@ -2,10 +2,10 @@ import Foundation
 
 /// The single audio surface `PlayerService` talks to.
 ///
-/// A track is played with AVFoundation when YouTube returns a stream URL, which is the reliable
-/// path on iOS 12. When resolution fails (age-gated or region-gated videos answer `UNPLAYABLE`
-/// for every anonymous client), playback falls back to the embedded web player instead of
-/// leaving the queue stuck.
+/// A track is played with AVFoundation whenever a direct stream URL resolves, which is the
+/// reliable path on iOS 12. JioSaavn is resolved first — its CDN URLs need no signature —
+/// and YouTube is the fallback. When both fail, playback falls back to the embedded web
+/// player instead of leaving the queue stuck.
 ///
 /// Both players are wired up once, and each forwards only while it is the active one: the web
 /// view keeps probing in the background after a switch, and its stale position reports would
@@ -112,11 +112,11 @@ final class AudioEngine {
 
     // MARK: - Control
 
-    func play(videoId: String) {
+    func play(track: Track) {
         web.stop()
         mode = .native
         nativeFailure = ""
-        native.play(videoId: videoId) { [weak self] resolved in
+        native.play(track: track) { [weak self] resolved in
             guard let self = self else { return }
             guard !resolved else { return }
             // No stream URL: fall back to the web player rather than dropping the track.
@@ -125,7 +125,7 @@ final class AudioEngine {
                 : self.native.lastDiagnostic
             self.mode = .web
             self.native.stop()
-            self.web.play(videoId: videoId)
+            self.web.play(videoId: track.videoID)
         }
     }
 
