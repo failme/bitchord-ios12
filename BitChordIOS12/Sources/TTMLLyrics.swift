@@ -42,10 +42,8 @@ enum TTMLLyrics {
         return LyricsService.line(fromSyllables: runs, startMs: begin * 1000)
     }
 
-    /// Each timed run as `{time, duration, text}` — the shape
-    /// `LyricsService.line(fromSyllables:)` consumes — with the document's own
-    /// inter-span whitespace appended to the run it follows, which is what marks
-    /// a word boundary.
+    /// Each timed run, with the document's own inter-span whitespace appended
+    /// to the run it follows — that separator is what marks a word boundary.
     private static func spans(in body: String) -> [[String: Any]] {
         let pattern = "<span\b([^>]*)>(.*?)</span>"
         guard let regex = try? NSRegularExpression(pattern: pattern,
@@ -53,47 +51,50 @@ enum TTMLLyrics {
             return []
         }
         let ns = body as NSString
-        let matches = regex.matches(in: body, options: [], range: NSRange(location: 0, length: ns.length))
-        var result: [[String: Any]] = []
+        let matches = regex.matches(in: body, options: [],
+                                    range: NSRange(location: 0, length: ns.length))
+        var runs: [(time: Double, duration: Double, text: String)] = []
         var cursor = 0
 
         for match in matches {
-            let gap = cursor < match.range.location
-                ? ns.substring(with: NSRange(location: cursor, length: match.range.location - cursor))
-                : ""
+            let gap: String
+            if cursor < match.range.location {
+                gap = ns.substring(with: NSRange(location: cursor,
+                                                 length: match.range.location - cursor))
+            } else {
+                gap = ""
+            }
             cursor = match.range.location + match.range.length
 
             let attributes = ns.substring(with: match.range(at: 1))
             guard let begin = seconds(in: attributes, key: "begin"),
                   let finish = seconds(in: attributes, key: "end") else { continue }
-            var text = decode(stripTags(ns.substring(with: match.range(at: 2))))
-            guard !text.isEmpty else { continue }
+            let piece = decode(stripTags(ns.substring(with: match.range(at: 2))))
+            if piece.isEmpty { continue }
 
-            // Whitespace before this run closes the word before it.
-            if !gap.isEmpty, gap.rangeOfCharacter(from: .whitespacesAndNewlines) != nil,
-               !result.isEmpty {
-                let previous = (result[result.count - 1]["text"] as? String) ?? ""
-                if !previous.hasSuffix(" ") {
-                    result[result.count - 1]["text"] = previous + " "
+            if gap.rangeOfCharacter(from: .whitespacesAndNewlines) != nil, !runs.isEmpty {
+                if !runs[runs.count - 1].text.hasSuffix(" ") {
+                    runs[runs.count - 1].text += " "
                 }
             }
-
-            result.append(["time": begin * 1000,
-                           "duration": max(0, finish - begin) * 1000,
-                           "text": text])
+            runs.append((begin, max(0, finish - begin), piece))
         }
 
-        // Trailing whitespace after the last span keeps the final word closed.
-        if cursor < ns.length {
+        if cursor < ns.length, !runs.isEmpty {
             let tail = ns.substring(with: NSRange(location: cursor, length: ns.length - cursor))
-            if !tail.isEmpty, tail.rangeOfCharacter(from: .whitespacesAndNewlines) != nil,
-               !result.isEmpty,
-               let last = result[result.count - 1]["text"] as? String,
-               !last.hasSuffix(" ") {
-                result[result.count - 1]["text"] = last + " "
+            if tail.rangeOfCharacter(from: .whitespacesAndNewlines) != nil,
+               !runs[runs.count - 1].text.hasSuffix(" ") {
+                runs[runs.count - 1].text += " "
             }
         }
-        return result
+
+        var output: [[String: Any]] = []
+        for run in runs {
+            output.append(["time": run.time * 1000,
+                           "duration": run.duration * 1000,
+                           "text": run.text])
+        }
+        return output
     }
 
     private static func seconds(in attributes: String, key: String) -> Double? {

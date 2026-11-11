@@ -262,57 +262,62 @@ final class LyricsService {
     static func line(fromSyllables syllables: [[String: Any]], startMs: Double) -> WordLyricLine? {
         var text = ""
         var words: [LyricWord] = []
-        var pending = ""
-        var pendingStart = -1.0
-        var pendingEnd = -1.0
-        var pendingStartChar = 0
-        var pendingSyllables: [LyricSyllable] = []
-
-        func flush(_ endChar: Int) {
-            guard !pending.isEmpty, pendingStart >= 0 else { return }
-            words.append(LyricWord(start: pendingStart / 1000,
-                                   end: max(pendingStart, pendingEnd) / 1000,
-                                   text: pending,
-                                   startChar: pendingStartChar,
-                                   endChar: endChar,
-                                   syllables: pendingSyllables))
-            pendingSyllables = []
-        }
+        var wordStart = -1.0
+        var wordEnd = -1.0
+        var wordStartChar = 0
+        var wordText = ""
+        var wordSyllables: [LyricSyllable] = []
 
         for syllable in syllables {
             guard let piece = syllable["text"] as? String, !piece.isEmpty else { continue }
-            let time = (syllable["time"] as? Double) ?? -1
+            guard let started = syllable["time"] as? Double, started >= 0 else { continue }
             let duration = (syllable["duration"] as? Double) ?? 0
-            if time < 0 { continue }
-            if pending.isEmpty {
-                pendingStart = time
-                pendingStartChar = text.count
+
+            if wordStart < 0 {
+                wordStart = started
+                wordStartChar = text.count
+                wordText = ""
+                wordSyllables = []
             }
+
             let startChar = text.count
             text += piece
-            let endChar = text.count
-            pendingSyllables.append(LyricSyllable(start: time / 1000,
-                                                  end: (time + duration) / 1000,
-                                                  startChar: startChar,
-                                                  endChar: endChar))
-            pending += piece
-            pendingEnd = time + duration
+            wordText += piece
+            wordEnd = started + duration
+            wordSyllables.append(LyricSyllable(start: started / 1000,
+                                               end: (started + duration) / 1000,
+                                               startChar: startChar,
+                                               endChar: text.count))
+
             if piece.last?.isWhitespace == true {
-                flush(endChar)
-                pending = ""
-                pendingStart = -1
+                words.append(LyricWord(start: wordStart / 1000,
+                                       end: max(wordStart, wordEnd) / 1000,
+                                       text: wordText,
+                                       startChar: wordStartChar,
+                                       endChar: text.count,
+                                       syllables: wordSyllables))
+                wordStart = -1
+                wordText = ""
+                wordSyllables = []
             }
         }
-        if !pending.isEmpty {
-            flush(text.count)
+
+        if wordStart >= 0, !wordText.isEmpty {
+            words.append(LyricWord(start: wordStart / 1000,
+                                   end: max(wordStart, wordEnd) / 1000,
+                                   text: wordText,
+                                   startChar: wordStartChar,
+                                   endChar: text.count,
+                                   syllables: wordSyllables))
         }
-        let trimmed = text.trimmingCharacters(in: .whitespaces)
-        guard !trimmed.isEmpty else { return nil }
-        let ends: [Double] = syllables.compactMap { syllable in
-            guard let started = syllable["time"] as? Double else { return nil }
-            return started + ((syllable["duration"] as? Double) ?? 0)
+
+        guard !text.trimmingCharacters(in: .whitespaces).isEmpty else { return nil }
+        var end = startMs / 1000
+        for syllable in syllables {
+            if let started = syllable["time"] as? Double {
+                end = max(end, (started + ((syllable["duration"] as? Double) ?? 0)) / 1000)
+            }
         }
-        let end = (ends.max() ?? startMs) / 1000
         return WordLyricLine(time: startMs / 1000, text: text, words: words, end: end)
     }
 
