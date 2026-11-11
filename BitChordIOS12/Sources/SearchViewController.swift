@@ -125,6 +125,10 @@ extension SearchViewController: UITableViewDataSource, UITableViewDelegate {
         guard indexPath.row < picked.count else { return }
         searchController.isActive = false
         PlayerService.shared.play(tracks: picked, startingAt: indexPath.row)
-        presentNowPlayingFromRoot()
+        // The search controller tears its own presentation down asynchronously;
+        // presenting in the same run loop lost the player behind that transition.
+        DispatchQueue.main.async { [weak self] in
+            self?.presentNowPlayingFromRoot()
+        }
     }
 }

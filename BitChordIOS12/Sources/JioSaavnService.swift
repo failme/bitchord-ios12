@@ -60,7 +60,14 @@ final class JioSaavnService {
                 completion(nil, error ?? "JioSaavn returned no results.")
                 return
             }
-            guard let match = self.pickBest(in: results, title: title, artist: artist, durationSeconds: durationSeconds) else {
+            var match = self.pickBest(in: results, title: title, artist: artist, durationSeconds: durationSeconds)
+            // A catalogue row's artist string often carries credits the Saavn
+            // catalogue files differently. Falling back to the title alone still
+            // requires an exact title match, so it cannot pick the wrong song.
+            if match == nil, !artist.isEmpty {
+                match = self.pickBest(in: results, title: title, artist: "", durationSeconds: durationSeconds)
+            }
+            guard let match = match else {
                 completion(nil, "JioSaavn had no close match.")
                 return
             }

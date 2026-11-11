@@ -234,15 +234,34 @@ final class InnerTube {
     // MARK: - Search response parsing
 
     func parseSearch(_ json: [String: Any]) -> [Track] {
-        var tracks: [Track] = []
+        var songs: [Track] = []
+        var others: [Track] = []
         var seen = Set<String>()
         for renderer in renderers(named: "musicResponsiveListItemRenderer", in: json) {
             guard let track = track(from: renderer) else { continue }
             if seen.contains(track.videoID) { continue }
             seen.insert(track.videoID)
-            tracks.append(track)
+            // A result's type is its own token in the metadata column: "Song",
+            // "Video", "Episode", "Artist". Only Song rows are catalogue
+            // recordings; the user-uploaded videos next to them have no match in
+            // any streaming catalogue, so playing one is a guaranteed silence.
+            if isSongRow(renderer) {
+                songs.append(track)
+            } else {
+                others.append(track)
+            }
         }
-        return tracks
+        return songs.isEmpty ? others : songs
+    }
+
+    private func isSongRow(_ renderer: [String: Any]) -> Bool {
+        guard let columns = renderer["flexColumns"] as? [[String: Any]] else { return false }
+        for column in columns {
+            if columnSegments([column], index: 0).contains(where: { $0.lowercased() == "song" }) {
+                return true
+            }
+        }
+        return false
     }
 
     private func track(from renderer: [String: Any]) -> Track? {
@@ -250,12 +269,35 @@ final class InnerTube {
         let columns = (renderer["flexColumns"] as? [[String: Any]]) ?? []
         guard let title = columnText(columns, index: 0), !title.isEmpty else { return nil }
         let segments = columnSegments(columns, index: 1)
+        // Song rows carry a play count where the video rows carry a length, so
+        // the duration is often simply absent — left nil, and the row shows no
+        // time rather than a wrong 0:00.
         return Track(
             videoID: videoID,
             title: title,
             artist: artistName(from: segments),
-            durationSeconds: durationSeconds(from: segments)
+            durationSeconds: durationSeconds(from: segments) ?? fixedDuration(in: renderer)
         )
+    }
+
+    /// Some result layouts state the length in a right-hand fixed column.
+    private func fixedDuration(in renderer: [String: Any]) -> Double? {
+        guard let columns = renderer["fixedColumns"] as? [[String: Any]] else { return nil }
+        for column in columns {
+            guard let renderer = column["musicResponsiveListItemFixedColumnRenderer"] as? [String: Any],
+                  let text = renderer["text"] as? [String: Any] else { continue }
+            let raw: String
+            if let simple = text["simpleText"] as? String {
+                raw = simple
+            } else {
+                raw = ((text["runs"] as? [[String: Any]]) ?? [])
+                    .compactMap { $0["text"] as? String }.joined()
+            }
+            if let seconds = InnerTube.parseDuration(raw.trimmingCharacters(in: .whitespaces)) {
+                return seconds
+            }
+        }
+        return nil
     }
 
     private func videoID(in renderer: [String: Any]) -> String? {

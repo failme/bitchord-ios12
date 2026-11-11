@@ -30,11 +30,10 @@ final class NowPlayingViewController: UIViewController {
 
     private var currentTrackID: String?
     private var lyricsToken = ""
-    private var currentLyrics: [LyricLine] = []
+    private var currentLyrics: [WordLyricLine] = []
+    private var lyricHeights: [Int: CGFloat] = [:]
     private var lyricsSynced = false
     private var lyricHighlight = -1
-    /// How far through the active line playback is, for the karaoke fill.
-    private var lyricFraction: CGFloat = 0
     private var userScrolling = false
     private var showingLyrics = false
     private var artworkTask: URLSessionDataTask?
@@ -119,19 +118,20 @@ final class NowPlayingViewController: UIViewController {
         lyricsTable.backgroundColor = UIColor.clear
         lyricsTable.separatorStyle = .none
         lyricsTable.rowHeight = UITableView.automaticDimension
-        lyricsTable.estimatedRowHeight = 30
-        lyricsTable.register(LyricCell.self, forCellReuseIdentifier: LyricCell.reuseIdentifier)
+        lyricsTable.estimatedRowHeight = 34
+        lyricsTable.register(KaraokeLyricCell.self,
+                             forCellReuseIdentifier: KaraokeLyricCell.reuseIdentifier)
         view.addSubview(lyricsTable)
 
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
-        titleLabel.font = Theme.font(20, weight: .semibold)
+        titleLabel.font = Theme.font(22, weight: .bold)
         titleLabel.textColor = Theme.primaryText
         titleLabel.numberOfLines = 2
         titleLabel.textAlignment = .center
         view.addSubview(titleLabel)
 
         artistLabel.translatesAutoresizingMaskIntoConstraints = false
-        artistLabel.font = Theme.font(14)
+        artistLabel.font = Theme.font(15)
         artistLabel.textColor = Theme.secondaryText
         artistLabel.textAlignment = .center
         view.addSubview(artistLabel)
@@ -209,7 +209,7 @@ final class NowPlayingViewController: UIViewController {
 
             artworkView.topAnchor.constraint(equalTo: closeButton.bottomAnchor, constant: 4),
             artworkView.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            artworkView.widthAnchor.constraint(equalToConstant: 260),
+            artworkView.widthAnchor.constraint(equalToConstant: 300),
             artworkView.heightAnchor.constraint(equalTo: artworkView.widthAnchor),
 
             lyricsTable.topAnchor.constraint(equalTo: artworkView.topAnchor),
@@ -360,6 +360,7 @@ final class NowPlayingViewController: UIViewController {
             currentLyrics = service.lyrics
             lyricsSynced = service.lyricsAreSynced
             lyricHighlight = -1
+            lyricHeights.removeAll()
             lyricsTable.reloadData()
             if !currentLyrics.isEmpty {
                 lyricsTable.setContentOffset(.zero, animated: false)
@@ -421,15 +422,6 @@ final class NowPlayingViewController: UIViewController {
                 break
             }
         }
-        // Karaoke: the line fills left-to-right across its own span, so a track with
-        // only line timings still reads word-by-word in time with the vocal.
-        let start = currentLyrics[index].time
-        let next = index + 1 < currentLyrics.count ? currentLyrics[index + 1].time : start + 4
-        let span = next - start
-        lyricFraction = span > 0.05
-            ? CGFloat(max(0, min(1, (position - start) / span)))
-            : 1
-
         if index != lyricHighlight {
             lyricHighlight = index
             lyricsTable.reloadData()
@@ -439,10 +431,12 @@ final class NowPlayingViewController: UIViewController {
             return
         }
 
+        // The karaoke view works out what is sung from the provider's own word
+        // and syllable timings; this only hands it the clock.
         for cell in lyricsTable.visibleCells {
-            guard let lyricCell = cell as? LyricCell,
+            guard let lyricCell = cell as? KaraokeLyricCell,
                   let path = lyricsTable.indexPath(for: cell) else { continue }
-            lyricCell.setFraction(path.row == lyricHighlight ? lyricFraction : 0)
+            lyricCell.setPosition(path.row == lyricHighlight ? position : -1)
         }
     }
 
@@ -504,14 +498,27 @@ extension NowPlayingViewController: UITableViewDataSource, UITableViewDelegate {
     }
 
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let cell = tableView.dequeueReusableCell(withIdentifier: LyricCell.reuseIdentifier, for: indexPath)
-        if let lyricCell = cell as? LyricCell {
-            let active = lyricsSynced && indexPath.row == lyricHighlight
-            lyricCell.configure(text: currentLyrics[indexPath.row].text,
-                                active: active,
-                                fraction: active ? lyricFraction : 0)
+        let cell = tableView.dequeueReusableCell(withIdentifier: KaraokeLyricCell.reuseIdentifier,
+                                                 for: indexPath)
+        if let lyricCell = cell as? KaraokeLyricCell, indexPath.row < currentLyrics.count {
+            lyricCell.configure(line: currentLyrics[indexPath.row],
+                                font: Theme.font(17, weight: .semibold),
+                                position: indexPath.row == lyricHighlight
+                                    ? PlayerService.shared.currentTime
+                                    : -1)
         }
         return cell
+    }
+
+    func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
+        if let cached = lyricHeights[indexPath.row] { return cached }
+        guard indexPath.row < currentLyrics.count else { return 34 }
+        let width = max(1, tableView.bounds.width - 48)
+        let height = KaraokeLineView.height(text: currentLyrics[indexPath.row].text,
+                                            font: Theme.font(17, weight: .semibold),
+                                            width: width)
+        lyricHeights[indexPath.row] = height
+        return height
     }
 
     func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
@@ -526,98 +533,6 @@ extension NowPlayingViewController: UITableViewDataSource, UITableViewDelegate {
 
     func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
         userScrolling = false
-    }
-}
-
-/// A label whose white copy is revealed left-to-right by a mask layer — the
-/// karaoke fill over the dimmed line underneath it.
-final class KaraokeLabel: UILabel {
-    var fraction: CGFloat = 0 {
-        didSet { setNeedsLayout() }
-    }
-
-    private let revealMask = CALayer()
-
-    override init(frame: CGRect) {
-        super.init(frame: frame)
-        commonInit()
-    }
-
-    required init?(coder: NSCoder) {
-        super.init(coder: coder)
-        commonInit()
-    }
-
-    private func commonInit() {
-        revealMask.backgroundColor = UIColor.black.cgColor
-        layer.mask = revealMask
-    }
-
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        revealMask.frame = CGRect(x: 0, y: 0,
-                                  width: bounds.width * max(0, min(1, fraction)),
-                                  height: bounds.height)
-        CATransaction.commit()
-    }
-}
-
-final class LyricCell: UITableViewCell {
-    static let reuseIdentifier = "LyricCell"
-
-    private let label = UILabel()
-    private let fillLabel = KaraokeLabel()
-
-    override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
-        super.init(style: style, reuseIdentifier: reuseIdentifier)
-        backgroundColor = UIColor.clear
-        contentView.backgroundColor = UIColor.clear
-        selectionStyle = .none
-
-        label.translatesAutoresizingMaskIntoConstraints = false
-        label.numberOfLines = 0
-        label.textAlignment = .center
-        contentView.addSubview(label)
-
-        fillLabel.translatesAutoresizingMaskIntoConstraints = false
-        fillLabel.numberOfLines = 0
-        fillLabel.textAlignment = .center
-        fillLabel.textColor = Theme.primaryText
-        fillLabel.isUserInteractionEnabled = false
-        contentView.addSubview(fillLabel)
-
-        NSLayoutConstraint.activate([
-            label.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 24),
-            label.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -24),
-            label.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 5),
-            label.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -5),
-
-            fillLabel.topAnchor.constraint(equalTo: label.topAnchor),
-            fillLabel.leadingAnchor.constraint(equalTo: label.leadingAnchor),
-            fillLabel.trailingAnchor.constraint(equalTo: label.trailingAnchor),
-            fillLabel.bottomAnchor.constraint(equalTo: label.bottomAnchor)
-        ])
-    }
-
-    required init?(coder: NSCoder) {
-        super.init(coder: coder)
-    }
-
-    func configure(text: String, active: Bool, fraction: CGFloat = 0) {
-        let font = Theme.font(active ? 18 : 15, weight: active ? .bold : .regular)
-        label.text = text
-        label.font = font
-        label.textColor = Theme.secondaryText
-        fillLabel.text = text
-        fillLabel.font = font
-        fillLabel.fraction = active ? fraction : 0
-        fillLabel.isHidden = !active
-    }
-
-    func setFraction(_ fraction: CGFloat) {
-        fillLabel.fraction = fraction
     }
 }
 

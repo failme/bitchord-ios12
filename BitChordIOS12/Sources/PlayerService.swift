@@ -21,7 +21,9 @@ final class PlayerService: NSObject {
 
     private(set) var queue: [Track] = []
     private(set) var currentIndex: Int = -1
-    private(set) var lyrics: [LyricLine] = []
+    private(set) var lyrics: [WordLyricLine] = []
+    /// Which provider the words came from, for the lyrics header.
+    private(set) var lyricsSource = ""
     private(set) var lyricsAreSynced = false
     private(set) var statusText: String = ""
     private(set) var isLoading = false
@@ -420,6 +422,7 @@ final class PlayerService: NSObject {
             guard let current = self.currentTrack, current.videoID == track.videoID else { return }
             self.lyrics = result?.lines ?? []
             self.lyricsAreSynced = result?.isSynced ?? false
+            self.lyricsSource = result?.source ?? ""
             self.postChange()
         }
     }

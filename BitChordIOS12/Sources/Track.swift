@@ -28,7 +28,10 @@ struct Track: Codable, Hashable {
     }
 
     var formattedDuration: String {
-        let total = Int(durationSeconds ?? 0)
+        // A catalogue row that states no length shows none. Printing 0:00 for
+        // an unknown duration made whole result lists look broken.
+        guard let seconds = durationSeconds, seconds > 0 else { return "" }
+        let total = Int(seconds)
         return String(format: "%d:%02d", total / 60, total % 60)
     }
 
