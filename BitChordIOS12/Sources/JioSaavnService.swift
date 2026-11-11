@@ -172,6 +172,7 @@ final class JioSaavnService {
         var out = Data(count: data.count + kCCBlockSizeDES)
         var moved: size_t = 0
         let key = desKey
+        let capacity = out.count
         let status: CCCryptorStatus = out.withUnsafeMutableBytes { outPtr in
             data.withUnsafeBytes { dataPtr in
                 key.withUnsafeBytes { keyPtr in
@@ -180,7 +181,7 @@ final class JioSaavnService {
                             keyPtr.baseAddress, size_t(kCCKeySizeDES),
                             nil,
                             dataPtr.baseAddress, size_t(data.count),
-                            outPtr.baseAddress, size_t(out.count),
+                            outPtr.baseAddress, size_t(capacity),
                             &moved)
                 }
             }
