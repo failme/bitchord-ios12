@@ -123,7 +123,10 @@ final class PlayerService: NSObject {
             self.isLoading = false
             self.isPlaying = false
             self.consecutiveErrors += 1
-            self.statusText = "Playback failed (\(code))."
+            let diagnostic = YouTubeBridge.shared.lastDiagnostic
+            self.statusText = diagnostic.isEmpty
+                ? "Playback failed (\(code))."
+                : "Playback failed (\(code)): " + String(diagnostic.prefix(120))
             self.postChange()
             if self.consecutiveErrors < 3 {
                 self.advance()
@@ -243,10 +246,15 @@ final class PlayerService: NSObject {
             }
         } else {
             loadStartedAt = nil
+            let diagnostic = YouTubeBridge.shared.lastDiagnostic
             let referrer = YouTubeBridge.shared.lastReferrer
-            statusText = referrer.isEmpty
-                ? "Player refused the embed: no referrer was sent."
-                : "Player refused the embed (referrer: \(referrer))."
+            if !diagnostic.isEmpty {
+                statusText = "Player refused: " + String(diagnostic.prefix(120))
+            } else if !referrer.isEmpty {
+                statusText = "Player refused the embed (referrer: \(referrer))."
+            } else {
+                statusText = "Player refused the embed: no referrer was sent."
+            }
             postChange()
             advance()
         }
