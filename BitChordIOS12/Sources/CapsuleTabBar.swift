@@ -96,9 +96,10 @@ final class CapsuleTabBar: UIView {
     func setSelectedIndex(_ index: Int) {
         for (position, control) in controls.enumerated() {
             let active = position == index
-            control.backgroundColor = active ? UIColor(white: 1, alpha: 0.18) : UIColor.clear
-            iconViews[position].tintColor = active ? UIColor.white : UIColor(white: 1, alpha: 0.6)
-            labels[position].textColor = active ? UIColor.white : UIColor(white: 1, alpha: 0.6)
+            // The selected tab is a solid white pill with black content.
+            control.backgroundColor = active ? UIColor.white : UIColor.clear
+            iconViews[position].tintColor = active ? UIColor.black : UIColor(white: 1, alpha: 0.6)
+            labels[position].textColor = active ? UIColor.black : UIColor(white: 1, alpha: 0.6)
         }
     }
 }

@@ -127,32 +127,32 @@ final class NowPlayingViewController: UIViewController {
         titleLabel.font = Theme.font(22, weight: .bold)
         titleLabel.textColor = Theme.primaryText
         titleLabel.numberOfLines = 2
-        titleLabel.textAlignment = .center
+        titleLabel.textAlignment = .left
         view.addSubview(titleLabel)
 
         artistLabel.translatesAutoresizingMaskIntoConstraints = false
         artistLabel.font = Theme.font(15)
         artistLabel.textColor = Theme.secondaryText
-        artistLabel.textAlignment = .center
+        artistLabel.textAlignment = .left
         view.addSubview(artistLabel)
 
         badgeLabel.translatesAutoresizingMaskIntoConstraints = false
         badgeLabel.font = Theme.font(10, weight: .semibold)
         badgeLabel.textColor = Theme.accent
-        badgeLabel.textAlignment = .center
+        badgeLabel.textAlignment = .left
         view.addSubview(badgeLabel)
 
         statusLabel.translatesAutoresizingMaskIntoConstraints = false
         statusLabel.font = Theme.font(12)
         statusLabel.textColor = Theme.accent
-        statusLabel.textAlignment = .center
+        statusLabel.textAlignment = .left
         statusLabel.numberOfLines = 2
         view.addSubview(statusLabel)
 
         diagnosticsLabel.translatesAutoresizingMaskIntoConstraints = false
         diagnosticsLabel.font = Theme.monoDigits(9)
         diagnosticsLabel.textColor = Theme.secondaryText
-        diagnosticsLabel.textAlignment = .center
+        diagnosticsLabel.textAlignment = .left
         diagnosticsLabel.numberOfLines = 2
         view.addSubview(diagnosticsLabel)
 
@@ -174,7 +174,14 @@ final class NowPlayingViewController: UIViewController {
 
         configureTransportButton(shuffleButton, icon: .shuffle, size: 20, action: #selector(goShuffle))
         configureTransportButton(previousButton, icon: .previous, size: 28, action: #selector(goPrevious))
-        configureTransportButton(playButton, icon: .play, size: 34, action: #selector(togglePlay))
+        configureTransportButton(playButton, icon: .play, size: 26, action: #selector(togglePlay))
+        playButton.backgroundColor = .white
+        playButton.layer.cornerRadius = 32
+        playButton.tintColor = .black
+        playButton.layer.shadowColor = UIColor.black.cgColor
+        playButton.layer.shadowOpacity = 0.35
+        playButton.layer.shadowRadius = 12
+        playButton.layer.shadowOffset = CGSize(width: 0, height: 6)
         configureTransportButton(nextButton, icon: .next, size: 28, action: #selector(goNext))
         configureTransportButton(repeatButton, icon: .repeatAll, size: 20, action: #selector(goRepeat))
 
@@ -209,7 +216,7 @@ final class NowPlayingViewController: UIViewController {
 
             artworkView.topAnchor.constraint(equalTo: closeButton.bottomAnchor, constant: 4),
             artworkView.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            artworkView.widthAnchor.constraint(equalToConstant: 300),
+            artworkView.widthAnchor.constraint(equalTo: view.widthAnchor, multiplier: 0.80),
             artworkView.heightAnchor.constraint(equalTo: artworkView.widthAnchor),
 
             lyricsTable.topAnchor.constraint(equalTo: artworkView.topAnchor),
@@ -249,7 +256,7 @@ final class NowPlayingViewController: UIViewController {
 
             playButton.topAnchor.constraint(equalTo: elapsedLabel.bottomAnchor, constant: 12),
             playButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            playButton.heightAnchor.constraint(equalToConstant: 48),
+            playButton.heightAnchor.constraint(equalToConstant: 64),
             playButton.widthAnchor.constraint(equalToConstant: 64),
 
             previousButton.centerYAnchor.constraint(equalTo: playButton.centerYAnchor),
@@ -343,7 +350,7 @@ final class NowPlayingViewController: UIViewController {
         styled.addAttribute(.foregroundColor, value: Theme.secondaryText, range: full)
         badgeLabel.attributedText = styled
         statusLabel.text = service.statusText.isEmpty ? nil : service.statusText
-        playButton.setImage(Icons.image(service.isPlaying ? .pause : .play, size: 34), for: .normal)
+        playButton.setImage(Icons.image(service.isPlaying ? .pause : .play, size: 26), for: .normal)
         nextButton.isEnabled = service.currentIndex + 1 < service.queue.count
         likeButton.setImage(Icons.image(LibraryStore.shared.isLiked(track) ? .heartFilled : .heart, size: 20), for: .normal)
         likeButton.tintColor = LibraryStore.shared.isLiked(track) ? Theme.accent : Theme.primaryText
