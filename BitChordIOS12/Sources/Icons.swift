@@ -230,7 +230,7 @@ enum Icons {
         case .bubble:
             let box = UIBezierPath(roundedRect: CGRect(x: 0.16 * s, y: 0.18 * s, width: 0.68 * s, height: 0.56 * s),
                                    cornerRadius: 0.16 * s)
-            box.fill()
+            stroke(box)
             for dx in [-0.14, 0.0, 0.14] {
                 UIBezierPath(ovalIn: CGRect(x: (0.5 + CGFloat(dx) - 0.035) * s, y: 0.44 * s,
                                             width: 0.07 * s, height: 0.07 * s)).fill()

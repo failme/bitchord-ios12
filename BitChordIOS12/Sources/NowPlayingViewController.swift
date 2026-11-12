@@ -18,6 +18,8 @@ final class NowPlayingViewController: UIViewController {
     private let headerArtist = UILabel()
     private let handle = UIView()
     private let volumeSlider = UISlider()
+    private let volumeLow = UIImageView()
+    private let volumeHigh = UIImageView()
     private let outputButton = UIButton(type: .system)
     private let outputLabel = UILabel()
     private let modeButton = UIButton(type: .system)
@@ -59,6 +61,9 @@ final class NowPlayingViewController: UIViewController {
         super.viewDidLoad()
         view.backgroundColor = Theme.background
         buildLayout()
+        let drag = UISwipeGestureRecognizer(target: self, action: #selector(close))
+        drag.direction = .down
+        view.addGestureRecognizer(drag)
         applyMode(lyrics: false)
 
         NotificationCenter.default.addObserver(self,
@@ -209,6 +214,13 @@ final class NowPlayingViewController: UIViewController {
         volumeSlider.setThumbImage(Theme.thumbImage(), for: .normal)
         volumeSlider.value = 1
         volumeSlider.addTarget(self, action: #selector(volumeChanged), for: .valueChanged)
+        for speaker in [volumeLow, volumeHigh] {
+            speaker.translatesAutoresizingMaskIntoConstraints = false
+            speaker.image = Icons.image(.speaker, size: 14)
+            speaker.tintColor = UIColor(white: 1, alpha: 0.5)
+            speaker.isHidden = true
+            view.addSubview(speaker)
+        }
         view.addSubview(volumeSlider)
 
         modeButton.translatesAutoresizingMaskIntoConstraints = false
@@ -363,7 +375,7 @@ final class NowPlayingViewController: UIViewController {
             compactHeader.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
             compactHeader.heightAnchor.constraint(equalToConstant: 44),
 
-            lyricsSourceLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
+            lyricsSourceLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 32),
             lyricsSourceLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
             lyricsSourceLabel.bottomAnchor.constraint(equalTo: slider.topAnchor, constant: -10),
 
@@ -406,6 +418,16 @@ final class NowPlayingViewController: UIViewController {
 
             outputLabel.topAnchor.constraint(equalTo: outputButton.bottomAnchor, constant: -6),
             outputLabel.centerXAnchor.constraint(equalTo: outputButton.centerXAnchor),
+
+            volumeLow.centerYAnchor.constraint(equalTo: volumeSlider.centerYAnchor),
+            volumeLow.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
+            volumeLow.widthAnchor.constraint(equalToConstant: 14),
+            volumeLow.heightAnchor.constraint(equalToConstant: 14),
+
+            volumeHigh.centerYAnchor.constraint(equalTo: volumeSlider.centerYAnchor),
+            volumeHigh.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
+            volumeHigh.widthAnchor.constraint(equalToConstant: 14),
+            volumeHigh.heightAnchor.constraint(equalToConstant: 14),
 
             globeButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
             globeButton.bottomAnchor.constraint(equalTo: lyricsSourceLabel.topAnchor, constant: -10),
@@ -483,9 +505,12 @@ final class NowPlayingViewController: UIViewController {
         statusLabel.isHidden = lyrics
         diagnosticsLabel.isHidden = lyrics
         handle.isHidden = !lyrics
+        closeButton.isHidden = lyrics
         globeButton.isHidden = !lyrics
         translitButton.isHidden = !lyrics
         volumeSlider.isHidden = !lyrics
+        volumeLow.isHidden = !lyrics
+        volumeHigh.isHidden = !lyrics
         outputButton.isHidden = !lyrics
         outputLabel.isHidden = !lyrics
         shuffleButton.isHidden = lyrics
@@ -500,7 +525,7 @@ final class NowPlayingViewController: UIViewController {
         titleUnderClose?.isActive = false
         lyricsTable.isHidden = !lyrics
         lyricsSourceLabel.isHidden = !lyrics
-        toggleButton.setTitle(lyrics ? "Artwork" : "Lyrics", for: .normal)
+        toggleButton.setTitle(nil, for: .normal)
         if !lyrics {
             lyricsTable.setContentOffset(.zero, animated: false)
         }
