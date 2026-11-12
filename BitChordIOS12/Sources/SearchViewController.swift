@@ -37,7 +37,7 @@ final class SearchViewController: UIViewController {
         super.viewDidLoad()
         title = "Search"
         view.backgroundColor = Theme.background
-        navigationItem.largeTitleDisplayMode = .never
+        navigationItem.largeTitleDisplayMode = .always
         buildField()
         buildSelector()
         buildList()

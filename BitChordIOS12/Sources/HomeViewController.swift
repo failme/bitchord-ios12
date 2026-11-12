@@ -7,6 +7,8 @@ final class HomeViewController: UIViewController {
     private let stack = UIStackView()
     private let emptyLabel = UILabel()
     private let greetingLabel = UILabel()
+    private let releasesShelf = CardShelfView()
+    private var albums: [CatalogueAlbum] = []
 
     private var remoteQuickPicks: [Track] = []
     private var shelfViews: [String: ShelfRowView] = [:]
@@ -70,6 +72,7 @@ final class HomeViewController: UIViewController {
                                               object: nil)
         rebuild()
         loadQuickPicks()
+        loadNewReleases()
     }
 
     deinit {
@@ -96,6 +99,51 @@ final class HomeViewController: UIViewController {
             self.remoteQuickPicks = Array(tracks.prefix(20))
             self.rebuild()
         }
+    }
+
+    /// A second shelf straight from the catalogue, so a first launch has more
+    /// on it than one row of picks.
+    private func loadNewReleases() {
+        CatalogueSearch.shared.albums("New album releases") { [weak self] albums in
+            guard let self = self, !albums.isEmpty else { return }
+            self.albums = Array(albums.prefix(12))
+            var cards: [CardItem] = []
+            for album in self.albums {
+                let bits = [album.artist, album.year].filter { !$0.isEmpty }
+                cards.append(CardItem(id: album.id,
+                                      title: album.title,
+                                      subtitle: bits.joined(separator: " · "),
+                                      artworkURL: album.artwork))
+            }
+            self.releasesShelf.configure(title: "New releases", items: cards)
+            self.releasesShelf.onSelect = { [weak self] index in
+                guard let self = self, index < self.albums.count else { return }
+                self.openAlbum(self.albums[index])
+            }
+            if self.releasesShelf.superview == nil {
+                self.releasesShelf.heightAnchor.constraint(
+                    equalToConstant: CardShelfView.rowHeight).isActive = true
+                self.stack.addArrangedSubview(self.releasesShelf)
+            }
+        }
+    }
+
+    private func openAlbum(_ album: CatalogueAlbum) {
+        let controller = CollectionViewController(title: album.title,
+                                                  subtitle: album.artist,
+                                                  artwork: album.artwork)
+        controller.loader = { completion in
+            CatalogueSearch.shared.songs(inAlbum: album.id) { completion($0) }
+        }
+        navigationController?.pushViewController(controller, animated: true)
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        // The capsule tab bar floats over the content, so the list needs its
+        // own clearance or the last shelf scrolls under it.
+        scrollView.contentInset.bottom = 104
+        scrollView.scrollIndicatorInsets.bottom = 104
     }
 
     @objc private func openSettings() {

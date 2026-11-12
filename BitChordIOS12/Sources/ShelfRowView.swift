@@ -16,7 +16,7 @@ final class ShelfRowView: UIView {
     private var tracks: [Track] = []
 
     static let cardWidth: CGFloat = 152
-    static let rowHeight: CGFloat = 232
+    static let rowHeight: CGFloat = 252
 
     override init(frame: CGRect) {
         let layout = UICollectionViewFlowLayout()
@@ -123,7 +123,7 @@ struct CardItem {
 
 final class CardShelfView: UIView {
     var onSelect: ((Int) -> Void)?
-    static let rowHeight: CGFloat = 232
+    static let rowHeight: CGFloat = 252
 
     private let titleLabel = UILabel()
     private let collectionView: UICollectionView

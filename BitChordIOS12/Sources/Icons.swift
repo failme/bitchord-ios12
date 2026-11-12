@@ -200,19 +200,25 @@ enum Icons {
             UIBezierPath(roundedRect: CGRect(x: 0.70 * s, y: 0.48 * s, width: 0.10 * s, height: 0.24 * s),
                          cornerRadius: 0.05 * s).fill()
         case .gear:
+            // Eight rounded teeth around a ring: teeth alone read as an
+            // asterisk at bar-button size.
             for i in 0..<8 {
                 cg.saveGState()
                 cg.translateBy(x: 0.5 * s, y: 0.5 * s)
                 cg.rotate(by: CGFloat(i) * .pi / 4)
-                UIBezierPath(rect: CGRect(x: -0.05 * s, y: -0.315 * s,
-                                          width: 0.10 * s, height: 0.115 * s)).fill()
+                let tooth = UIBezierPath()
+                tooth.move(to: CGPoint(x: 0, y: -0.235 * s))
+                tooth.addLine(to: CGPoint(x: 0, y: -0.335 * s))
+                tooth.lineWidth = 0.13 * s
+                tooth.lineCapStyle = .round
+                tooth.stroke()
                 cg.restoreGState()
             }
-            let disc = UIBezierPath(ovalIn: CGRect(x: 0.30 * s, y: 0.30 * s, width: 0.40 * s, height: 0.40 * s))
-            disc.append(UIBezierPath(ovalIn: CGRect(x: 0.405 * s, y: 0.405 * s,
-                                                   width: 0.19 * s, height: 0.19 * s)))
-            disc.usesEvenOddFillRule = true
-            disc.fill()
+            let ring = UIBezierPath(arcCenter: CGPoint(x: 0.5 * s, y: 0.5 * s),
+                                    radius: 0.245 * s,
+                                    startAngle: 0, endAngle: .pi * 2, clockwise: true)
+            ring.lineWidth = 0.085 * s
+            ring.stroke()
         }
     }
 

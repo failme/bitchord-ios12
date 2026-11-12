@@ -94,6 +94,12 @@ final class ExploreViewController: UIViewController {
         load()
     }
 
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        scrollView.contentInset.bottom = 104
+        scrollView.scrollIndicatorInsets.bottom = 104
+    }
+
     private func addShelf(_ view: UIView, height: CGFloat) {
         view.heightAnchor.constraint(equalToConstant: height).isActive = true
         stack.addArrangedSubview(view)
