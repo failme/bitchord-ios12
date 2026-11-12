@@ -12,6 +12,12 @@ final class NowPlayingViewController: UIViewController {
     private let glowLayer = CAGradientLayer()
     private let lyricsTable = UITableView(frame: .zero, style: .plain)
     private let lyricsSourceLabel = UILabel()
+    private let compactHeader = UIView()
+    private let headerArtwork = UIImageView()
+    private let headerTitle = UILabel()
+    private let headerArtist = UILabel()
+    private var lyricsTopDefault: NSLayoutConstraint?
+    private var lyricsTopCompact: NSLayoutConstraint?
     private var titleUnderArtwork: NSLayoutConstraint?
     private var titleUnderClose: NSLayoutConstraint?
     private let titleLabel = UILabel()
@@ -133,6 +139,44 @@ final class NowPlayingViewController: UIViewController {
         lyricsTable.contentInset = UIEdgeInsets(top: 8, left: 0, bottom: 8, right: 0)
         view.addSubview(lyricsTable)
 
+        // The real lyrics panel leads with a small cover, the track and its
+        // artist, where the artwork would be.
+        compactHeader.translatesAutoresizingMaskIntoConstraints = false
+        compactHeader.isHidden = true
+        view.addSubview(compactHeader)
+
+        headerArtwork.translatesAutoresizingMaskIntoConstraints = false
+        headerArtwork.contentMode = .scaleAspectFill
+        headerArtwork.clipsToBounds = true
+        headerArtwork.layer.cornerRadius = 6
+        headerArtwork.backgroundColor = Theme.surfaceVariant
+        compactHeader.addSubview(headerArtwork)
+
+        headerTitle.translatesAutoresizingMaskIntoConstraints = false
+        headerTitle.font = Theme.font(17, weight: .semibold)
+        headerTitle.textColor = Theme.primaryText
+        headerTitle.lineBreakMode = .byTruncatingTail
+        compactHeader.addSubview(headerTitle)
+
+        headerArtist.translatesAutoresizingMaskIntoConstraints = false
+        headerArtist.font = Theme.font(14)
+        headerArtist.textColor = Theme.secondaryText
+        headerArtist.lineBreakMode = .byTruncatingTail
+        compactHeader.addSubview(headerArtist)
+
+        NSLayoutConstraint.activate([
+            headerArtwork.leadingAnchor.constraint(equalTo: compactHeader.leadingAnchor),
+            headerArtwork.centerYAnchor.constraint(equalTo: compactHeader.centerYAnchor),
+            headerArtwork.widthAnchor.constraint(equalToConstant: 40),
+            headerArtwork.heightAnchor.constraint(equalToConstant: 40),
+            headerTitle.leadingAnchor.constraint(equalTo: headerArtwork.trailingAnchor, constant: 10),
+            headerTitle.trailingAnchor.constraint(equalTo: compactHeader.trailingAnchor),
+            headerTitle.bottomAnchor.constraint(equalTo: compactHeader.centerYAnchor, constant: -1),
+            headerArtist.leadingAnchor.constraint(equalTo: headerTitle.leadingAnchor),
+            headerArtist.trailingAnchor.constraint(equalTo: headerTitle.trailingAnchor),
+            headerArtist.topAnchor.constraint(equalTo: compactHeader.centerYAnchor, constant: 1)
+        ])
+
         // The real panel credits the provider under the words.
         lyricsSourceLabel.translatesAutoresizingMaskIntoConstraints = false
         lyricsSourceLabel.font = Theme.font(13)
@@ -218,6 +262,9 @@ final class NowPlayingViewController: UIViewController {
         glowLayer.endPoint = CGPoint(x: 0.5, y: 1)
         titleUnderArtwork = titleLabel.topAnchor.constraint(equalTo: artworkView.bottomAnchor,
                                                             constant: 16)
+        lyricsTopDefault = lyricsTable.topAnchor.constraint(equalTo: artworkView.topAnchor)
+        lyricsTopCompact = lyricsTable.topAnchor.constraint(equalTo: compactHeader.bottomAnchor,
+                                                            constant: 12)
         titleUnderClose = titleLabel.topAnchor.constraint(equalTo: closeButton.bottomAnchor,
                                                           constant: 10)
         NSLayoutConstraint.activate([
@@ -248,15 +295,18 @@ final class NowPlayingViewController: UIViewController {
             artworkView.widthAnchor.constraint(equalTo: view.widthAnchor, multiplier: 0.80),
             artworkView.heightAnchor.constraint(equalTo: artworkView.widthAnchor),
 
-            lyricsTable.topAnchor.constraint(equalTo: artworkView.topAnchor),
             lyricsTable.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             lyricsTable.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            lyricsTable.bottomAnchor.constraint(equalTo: lyricsSourceLabel.topAnchor, constant: -4),
+            lyricsTable.bottomAnchor.constraint(equalTo: lyricsSourceLabel.topAnchor, constant: -6),
+
+            compactHeader.topAnchor.constraint(equalTo: closeButton.bottomAnchor, constant: 4),
+            compactHeader.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
+            compactHeader.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
+            compactHeader.heightAnchor.constraint(equalToConstant: 44),
 
             lyricsSourceLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
             lyricsSourceLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
-            lyricsSourceLabel.bottomAnchor.constraint(equalTo: artworkView.bottomAnchor,
-                                                       constant: -2),
+            lyricsSourceLabel.bottomAnchor.constraint(equalTo: slider.topAnchor, constant: -10),
 
             titleUnderArtwork ?? titleLabel.topAnchor.constraint(equalTo: artworkView.bottomAnchor, constant: 16),
             titleLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
@@ -278,7 +328,7 @@ final class NowPlayingViewController: UIViewController {
             diagnosticsLabel.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
             diagnosticsLabel.trailingAnchor.constraint(equalTo: titleLabel.trailingAnchor),
 
-            slider.topAnchor.constraint(equalTo: diagnosticsLabel.bottomAnchor, constant: 6),
+            playButton.bottomAnchor.constraint(equalTo: likeButton.topAnchor, constant: -24),
             slider.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
             slider.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
 
@@ -313,12 +363,12 @@ final class NowPlayingViewController: UIViewController {
             repeatButton.widthAnchor.constraint(equalToConstant: 44),
             repeatButton.heightAnchor.constraint(equalToConstant: 44),
 
-            likeButton.topAnchor.constraint(equalTo: playButton.bottomAnchor, constant: 24),
+            likeButton.bottomAnchor.constraint(equalTo: safe.bottomAnchor, constant: -4),
             likeButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 40),
             likeButton.widthAnchor.constraint(equalToConstant: 44),
             likeButton.heightAnchor.constraint(equalToConstant: 44),
 
-            queueButton.topAnchor.constraint(equalTo: likeButton.topAnchor),
+            queueButton.centerYAnchor.constraint(equalTo: likeButton.centerYAnchor),
             queueButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -40),
             queueButton.widthAnchor.constraint(equalToConstant: 44),
             queueButton.heightAnchor.constraint(equalToConstant: 44)
@@ -337,8 +387,16 @@ final class NowPlayingViewController: UIViewController {
     private func applyMode(lyrics: Bool) {
         showingLyrics = lyrics
         artworkView.isHidden = lyrics
-        // The panel keeps the title under the cover: the scrubber and transport
-        // hang off that chain, so moving it would pull them up the screen.
+        // In lyrics mode the words take the screen: the big title and the
+        // small print fold away and a compact header takes their place.
+        compactHeader.isHidden = !lyrics
+        titleLabel.isHidden = lyrics
+        artistLabel.isHidden = lyrics
+        badgeLabel.isHidden = lyrics
+        statusLabel.isHidden = lyrics
+        diagnosticsLabel.isHidden = lyrics
+        lyricsTopCompact?.isActive = lyrics
+        lyricsTopDefault?.isActive = !lyrics
         titleUnderArtwork?.isActive = true
         titleUnderClose?.isActive = false
         lyricsTable.isHidden = !lyrics
@@ -381,6 +439,8 @@ final class NowPlayingViewController: UIViewController {
             titleLabel.text = track.title
         }
         artistLabel.text = track.artist.isEmpty ? "Unknown artist" : track.artist
+        headerTitle.text = track.title
+        headerArtist.text = artistLabel.text
         // The source tag reads "JIOSAAVN 320KBPS" on every track. Useful when
         // something will not play, noise the rest of the time, so it is only
         // shown when the listener turns debug information on.
@@ -444,6 +504,7 @@ final class NowPlayingViewController: UIViewController {
     /// backdrop and the edge-color glow the cover fades into.
     private func applyArtwork(_ image: UIImage?) {
         artworkView.image = image
+        headerArtwork.image = image
         meshView.palette = Theme.meshPalette(of: image)
         UIView.transition(with: backdropView, duration: 0.4, options: .transitionCrossDissolve, animations: {
             self.backdropView.image = image
