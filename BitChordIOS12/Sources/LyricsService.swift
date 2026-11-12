@@ -80,8 +80,9 @@ struct LyricsResult {
 
 /// Lyrics from the same providers upstream's `LyricsRepository` asks, in its
 /// default order: lrc.red first (Apple Music TTML, syllable timing, filed by
-/// ISRC), then LyricsPlus (Apple/QQ syllables from community mirrors), and
-/// finally LRCLIB for whole-line LRC when neither has the track.
+/// ISRC), then LyricsPlus (Apple/QQ syllables from community mirrors), then
+/// Unison (contributed, any of TTML/LRC/plain), and finally LRCLIB for
+/// whole-line LRC when none of them has the track.
 ///
 /// Word timing is the point: a line that only knows when it starts can only
 /// light up whole, and faking a sweep across it is not the same thing.
@@ -121,7 +122,13 @@ final class LyricsService {
                     completion(result, nil)
                     return
                 }
-                self?.lrcLib(track: track, completion: completion)
+                self?.unison(title: title, artist: artist, duration: duration) { result in
+                    if let result = result, !result.lines.isEmpty {
+                        completion(result, nil)
+                        return
+                    }
+                    self?.lrcLib(track: track, completion: completion)
+                }
             }
         }
     }
@@ -319,6 +326,43 @@ final class LyricsService {
             }
         }
         return WordLyricLine(time: startMs / 1000, text: text, words: words, end: end)
+    }
+
+    // MARK: - Unison (contributed)
+
+    private func unison(title: String,
+                        artist: String,
+                        duration: Double,
+                        completion: @escaping (LyricsResult?) -> Void) {
+        var components = URLComponents(string: "https://unison.boidu.dev/lyrics")
+        var items = [URLQueryItem(name: "song", value: title),
+                     URLQueryItem(name: "artist", value: artist)]
+        if duration > 0 {
+            items.append(URLQueryItem(name: "duration", value: String(Int(duration.rounded()))))
+        }
+        components?.queryItems = items
+        guard let url = components?.url else {
+            completion(nil)
+            return
+        }
+        getJSON(url) { [weak self] json in
+            guard let self = self,
+                  let object = json as? [String: Any],
+                  (object["success"] as? Bool) == true,
+                  let data = object["data"] as? [String: Any],
+                  let text = data["lyrics"] as? String,
+                  !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                completion(nil)
+                return
+            }
+            let format = ((data["format"] as? String) ?? "").lowercased()
+            let lines = format.contains("ttml")
+                ? TTMLLyrics.parse(text)
+                : self.parseLRC(text)
+            completion(lines.isEmpty
+                ? nil
+                : LyricsResult(lines: lines, isSynced: true, source: "Unison"))
+        }
     }
 
     // MARK: - LRCLIB (whole lines)

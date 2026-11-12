@@ -11,6 +11,7 @@ final class NowPlayingViewController: UIViewController {
     private let glowView = UIView()
     private let glowLayer = CAGradientLayer()
     private let lyricsTable = UITableView(frame: .zero, style: .plain)
+    private let lyricsSourceLabel = UILabel()
     private let titleLabel = UILabel()
     private let artistLabel = UILabel()
     private let badgeLabel = UILabel()
@@ -127,7 +128,16 @@ final class NowPlayingViewController: UIViewController {
         lyricsTable.estimatedRowHeight = 34
         lyricsTable.register(KaraokeLyricCell.self,
                              forCellReuseIdentifier: KaraokeLyricCell.reuseIdentifier)
+        lyricsTable.contentInset = UIEdgeInsets(top: 8, left: 0, bottom: 8, right: 0)
         view.addSubview(lyricsTable)
+
+        // The real panel credits the provider under the words.
+        lyricsSourceLabel.translatesAutoresizingMaskIntoConstraints = false
+        lyricsSourceLabel.font = Theme.font(13)
+        lyricsSourceLabel.textColor = Theme.secondaryText
+        lyricsSourceLabel.textAlignment = .left
+        lyricsSourceLabel.isHidden = true
+        view.addSubview(lyricsSourceLabel)
 
         NSLayoutConstraint.activate([
             meshView.topAnchor.constraint(equalTo: view.topAnchor),
@@ -237,6 +247,10 @@ final class NowPlayingViewController: UIViewController {
             lyricsTable.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             lyricsTable.heightAnchor.constraint(equalTo: artworkView.heightAnchor),
 
+            lyricsSourceLabel.topAnchor.constraint(equalTo: lyricsTable.bottomAnchor, constant: 8),
+            lyricsSourceLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
+            lyricsSourceLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
+
             titleLabel.topAnchor.constraint(equalTo: artworkView.bottomAnchor, constant: 16),
             titleLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
             titleLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
@@ -317,6 +331,7 @@ final class NowPlayingViewController: UIViewController {
         showingLyrics = lyrics
         artworkView.isHidden = lyrics
         lyricsTable.isHidden = !lyrics
+        lyricsSourceLabel.isHidden = !lyrics
         toggleButton.setTitle(lyrics ? "Artwork" : "Lyrics", for: .normal)
         if !lyrics {
             lyricsTable.setContentOffset(.zero, animated: false)
@@ -389,6 +404,9 @@ final class NowPlayingViewController: UIViewController {
             lyricsSynced = service.lyricsAreSynced
             lyricHighlight = -1
             lyricHeights.removeAll()
+            lyricsSourceLabel.text = service.lyricsSource.isEmpty
+                ? nil
+                : "Lyrics by " + service.lyricsSource
             lyricsTable.reloadData()
             if !currentLyrics.isEmpty {
                 lyricsTable.setContentOffset(.zero, animated: false)
@@ -455,6 +473,8 @@ final class NowPlayingViewController: UIViewController {
         }
         if index != lyricHighlight {
             lyricHighlight = index
+            // The active line is set larger, so its measured height is stale.
+            lyricHeights.removeAll()
             lyricsTable.reloadData()
             if !userScrolling {
                 lyricsTable.scrollToRow(at: IndexPath(row: index, section: 0), at: .middle, animated: true)
@@ -523,6 +543,14 @@ final class NowPlayingViewController: UIViewController {
     }
 }
 
+extension NowPlayingViewController {
+    /// The active line is large and bold, everything else steps down a size and
+    /// a weight — the proportions the real lyrics panel uses.
+    static func lyricFont(active: Bool) -> UIFont {
+        return active ? Theme.font(34, weight: .bold) : Theme.font(28, weight: .semibold)
+    }
+}
+
 extension NowPlayingViewController: UITableViewDataSource, UITableViewDelegate {
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         return currentLyrics.count
@@ -532,11 +560,14 @@ extension NowPlayingViewController: UITableViewDataSource, UITableViewDelegate {
         let cell = tableView.dequeueReusableCell(withIdentifier: KaraokeLyricCell.reuseIdentifier,
                                                  for: indexPath)
         if let lyricCell = cell as? KaraokeLyricCell, indexPath.row < currentLyrics.count {
-            lyricCell.configure(line: currentLyrics[indexPath.row],
-                                font: Theme.font(17, weight: .semibold),
-                                position: indexPath.row == lyricHighlight
-                                    ? PlayerService.shared.currentTime
-                                    : -1)
+            let row = indexPath.row
+            let cellPosition = row == lyricHighlight ? PlayerService.shared.currentTime : -1
+            lyricCell.configure(line: currentLyrics[row],
+                                font: NowPlayingViewController.lyricFont(active: row == lyricHighlight),
+                                position: cellPosition)
+            lyricCell.dimmed = row == lyricHighlight
+                ? UIColor(white: 1, alpha: 0.5)
+                : UIColor(white: 1, alpha: 0.35)
         }
         return cell
     }
@@ -545,9 +576,10 @@ extension NowPlayingViewController: UITableViewDataSource, UITableViewDelegate {
         if let cached = lyricHeights[indexPath.row] { return cached }
         guard indexPath.row < currentLyrics.count else { return 34 }
         let width = max(1, tableView.bounds.width - 48)
-        let height = KaraokeLineView.height(text: currentLyrics[indexPath.row].text,
-                                            font: Theme.font(17, weight: .semibold),
-                                            width: width)
+        let height = KaraokeLineView.height(
+            text: currentLyrics[indexPath.row].text,
+            font: NowPlayingViewController.lyricFont(active: indexPath.row == lyricHighlight),
+            width: width)
         lyricHeights[indexPath.row] = height
         return height
     }

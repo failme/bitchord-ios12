@@ -236,7 +236,7 @@ final class CardItemCell: UICollectionViewCell {
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
         titleLabel.font = Theme.font(.bodyMedium)
         titleLabel.textColor = Theme.primaryText
-        titleLabel.numberOfLines = 2
+        titleLabel.numberOfLines = 1
         contentView.addSubview(titleLabel)
 
         subtitleLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -421,7 +421,7 @@ final class ArtworkCardCell: UICollectionViewCell {
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
         titleLabel.font = Theme.font(.bodyMedium)
         titleLabel.textColor = Theme.primaryText
-        titleLabel.numberOfLines = 2
+        titleLabel.numberOfLines = 1
         contentView.addSubview(titleLabel)
 
         subtitleLabel.translatesAutoresizingMaskIntoConstraints = false

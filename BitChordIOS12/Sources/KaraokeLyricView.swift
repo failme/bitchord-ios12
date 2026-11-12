@@ -17,7 +17,11 @@ final class KaraokeLineView: UIView {
     private var container: NSTextContainer?
     private var builtWidth: CGFloat = 0
 
-    private let verticalPadding: CGFloat = 6
+    private let verticalPadding: CGFloat = 10
+
+    /// Unsung text stays white and dimmed rather than turning grey; over the
+    /// blurred cover that is what the real panel looks like.
+    var dimmed: UIColor = UIColor(white: 1, alpha: 0.45)
 
     /// Playback position this line is drawn at. Setting it repaints only when
     /// the revealed characters actually change, which is most ticks apart.
@@ -54,7 +58,7 @@ final class KaraokeLineView: UIView {
             options: [.usesLineFragmentOrigin, .usesFontLeading],
             attributes: [.font: font, .paragraphStyle: style],
             context: nil)
-        return ceil(bounds.height) + 12
+        return ceil(bounds.height) + 20
     }
 
     override func layoutSubviews() {
@@ -92,7 +96,7 @@ final class KaraokeLineView: UIView {
         let base: [NSAttributedString.Key: Any] = [
             .font: font,
             .paragraphStyle: paragraph,
-            .foregroundColor: Theme.secondaryText
+            .foregroundColor: dimmed
         ]
         NSAttributedString(string: line.text, attributes: base).draw(in: textRect)
 
@@ -164,6 +168,11 @@ final class KaraokeLyricCell: UITableViewCell {
 
     private var lineView: KaraokeLineView?
 
+    /// How the unsung part of the line is coloured for this row.
+    var dimmed: UIColor = UIColor(white: 1, alpha: 0.45) {
+        didSet { lineView?.dimmed = dimmed }
+    }
+
     override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
         super.init(style: style, reuseIdentifier: reuseIdentifier)
         backgroundColor = .clear
@@ -178,6 +187,7 @@ final class KaraokeLyricCell: UITableViewCell {
     func configure(line: WordLyricLine, font: UIFont, position: TimeInterval) {
         lineView?.removeFromSuperview()
         let view = KaraokeLineView(line: line, font: font)
+        view.dimmed = dimmed
         view.translatesAutoresizingMaskIntoConstraints = false
         view.position = position
         contentView.addSubview(view)
