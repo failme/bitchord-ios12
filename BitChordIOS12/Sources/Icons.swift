@@ -17,7 +17,6 @@ enum Icons {
         case house, compass, library, list, gear
         case grid, books, person, logo
         case globe, cast, bubble, speaker
-        case globe, cast, bubble, speaker
     }
 
     static func image(_ kind: Kind, size: CGFloat = 24) -> UIImage {
