@@ -63,10 +63,14 @@ final class SettingsViewController: UIViewController {
         searchField.attributedPlaceholder = NSAttributedString(
             string: "Search settings",
             attributes: [.foregroundColor: Theme.secondaryText, .font: Theme.font(16)])
-        searchField.leftView = UIImageView(image: Icons.image(.search, size: 18))
-        searchField.leftView?.tintColor = Theme.secondaryText
+        let magnifier = UIImageView(image: Icons.image(.search, size: 18))
+        magnifier.tintColor = Theme.secondaryText
+        magnifier.contentMode = .center
+        let leftInset = UIView(frame: CGRect(x: 0, y: 0, width: 46, height: 18))
+        magnifier.frame = CGRect(x: 14, y: 0, width: 18, height: 18)
+        leftInset.addSubview(magnifier)
+        searchField.leftView = leftInset
         searchField.leftViewMode = .always
-        searchField.leftView?.frame = CGRect(x: 0, y: 0, width: 40, height: 18)
         view.addSubview(searchField)
 
         NSLayoutConstraint.activate([
@@ -149,7 +153,7 @@ extension SettingsViewController: UITableViewDataSource, UITableViewDelegate {
             toggle.isOn = SettingsStore.shared.bool(item.key, fallback)
             toggle.accessibilityIdentifier = item.key
             toggle.addTarget(self, action: #selector(toggleChanged(_:)), for: .valueChanged)
-            cell.accessoryView = toggle
+            cell.install(toggle)
         }
         return cell
     }
@@ -192,7 +196,7 @@ final class SettingsCell: UITableViewCell {
         detailLabel.translatesAutoresizingMaskIntoConstraints = false
         detailLabel.font = Theme.font(14)
         detailLabel.textColor = Theme.secondaryText
-        detailLabel.numberOfLines = 2
+        detailLabel.numberOfLines = 1
         cardView.addSubview(detailLabel)
 
         chevron.translatesAutoresizingMaskIntoConstraints = false
@@ -223,6 +227,17 @@ final class SettingsCell: UITableViewCell {
 
     required init?(coder: NSCoder) {
         return nil
+    }
+
+    /// Puts a control inside the card, at the trailing edge, where the real
+    /// rows keep their switches.
+    func install(_ control: UIView) {
+        control.translatesAutoresizingMaskIntoConstraints = false
+        cardView.addSubview(control)
+        NSLayoutConstraint.activate([
+            control.trailingAnchor.constraint(equalTo: cardView.trailingAnchor, constant: -16),
+            control.centerYAnchor.constraint(equalTo: cardView.centerYAnchor)
+        ])
     }
 
     func configure(item: SettingItem, card: UIColor, first: Bool, last: Bool) {
