@@ -198,10 +198,16 @@ jobs:
           APP="build-shots/Build/Products/Release-iphonesimulator/BitChordIOS12.app"
           test -d "$APP"
           BUNDLE=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")
-          RUNTIME=$(xcrun simctl list runtimes | grep -E 'iOS (1[7-9]|2[0-9])' | tail -1 | sed -E 's/.*(com\.apple\.CoreSimulator\.SimRuntime\.[^ ]+).*/\1/')
-          TYPE=$(xcrun simctl list devicetypes | grep -m1 'iPhone 1[5-9]' | sed -E 's/.*(com\.apple\.CoreSimulator\.SimDeviceType\.[^ ]+).*/\1/')
+          RUNTIME=$(xcrun simctl list runtimes | grep -oE 'com\.apple\.CoreSimulator\.SimRuntime\.iOS-[0-9-]+' | tail -1)
+          TYPE=$(xcrun simctl list devicetypes | grep -oE 'com\.apple\.CoreSimulator\.SimDeviceType\.iPhone-[0-9A-Za-z-]+' | tail -1)
           echo "runtime=$RUNTIME type=$TYPE"
-          UDID=$(xcrun simctl create BC-Screens "$TYPE" "$RUNTIME")
+          if [ -n "$RUNTIME" ] && [ -n "$TYPE" ]; then
+            UDID=$(xcrun simctl create BC-Screens "$TYPE" "$RUNTIME")
+          else
+            echo "no runtime found, reusing an installed simulator"
+            UDID=$(xcrun simctl list devices available | grep -oE '[0-9A-F]{8}-[0-9A-F-]{27}' | head -1)
+          fi
+          test -n "$UDID"
           xcrun simctl boot "$UDID" || true
           xcrun simctl bootstatus "$UDID" -b
           xcrun simctl install "$UDID" "$APP"
