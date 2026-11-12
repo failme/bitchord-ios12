@@ -530,6 +530,9 @@ final class NowPlayingViewController: UIViewController {
         // In lyrics mode the cover itself is the backdrop: the dark blur
         // effect above it softens it exactly the way the real panel does.
         backdropView.alpha = lyrics ? 0.9 : 0
+        // The mesh is opaque; in lyrics mode it has to blend with the cover
+        // underneath instead of hiding it.
+        meshView.alpha = lyrics ? 0.55 : 1
         scrimView.isHidden = !lyrics
         handle.isHidden = !lyrics
         closeButton.isHidden = lyrics
