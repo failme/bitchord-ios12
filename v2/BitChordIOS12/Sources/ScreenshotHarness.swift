@@ -64,7 +64,17 @@ enum ScreenshotHarness {
                 }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
                     write(window: window, name: "lyrics", directory: directory)
-                    exit(0)
+                    guard let player = root.presentedViewController as? NowPlayingViewController else {
+                        exit(0)
+                    }
+                    let settings = SettingsViewController()
+                    settings.modalPresentationStyle = .fullScreen
+                    player.present(settings, animated: false) {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                            write(window: window, name: "settings", directory: directory)
+                            exit(0)
+                        }
+                    }
                 }
             }
         }
