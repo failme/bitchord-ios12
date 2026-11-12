@@ -13,3 +13,10 @@
 127.0.0.1 - - [12/Nov/2026 13:02:18] "GET /shots/lyrics.png HTTP/1.1" 200 -
 127.0.0.1 - - [12/Nov/2026 13:02:20] "GET /shots/settings.png HTTP/1.1" 200 -
 127.0.0.1 - - [12/Nov/2026 13:03:22] "GET /shots/lyrics.png HTTP/1.1" 304 -
+127.0.0.1 - - [12/Nov/2026 13:21:26] "GET / HTTP/1.1" 304 -
+127.0.0.1 - - [12/Nov/2026 13:21:26] "GET /shots/home.png HTTP/1.1" 200 -
+127.0.0.1 - - [12/Nov/2026 13:21:29] "GET /shots/explore.png HTTP/1.1" 200 -
+127.0.0.1 - - [12/Nov/2026 13:21:31] "GET /shots/library.png HTTP/1.1" 200 -
+127.0.0.1 - - [12/Nov/2026 13:21:33] "GET /shots/search.png HTTP/1.1" 200 -
+127.0.0.1 - - [12/Nov/2026 13:21:34] "GET /shots/lyrics.png HTTP/1.1" 200 -
+127.0.0.1 - - [12/Nov/2026 13:21:39] "GET /shots/settings.png HTTP/1.1" 200 -

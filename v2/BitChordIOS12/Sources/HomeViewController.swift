@@ -138,6 +138,10 @@ final class HomeViewController: UIViewController {
             self.remoteQuickPicks = Array(tracks.prefix(20))
             self.topPicks.configure(tracks: self.remoteQuickPicks)
             self.topPicks.isHidden = false
+            // rebuild() can return early when the shelf shape is unchanged, so
+            // the empty state is cleared here, where the feed first appears.
+            self.emptyLabel.isHidden = true
+            self.scrollView.isHidden = false
             self.rebuild()
         }
     }
