@@ -1,0 +1,246 @@
+name: Build iOS 12 IPA (v2 port)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'v2/**'
+      - '.github/workflows/ios12-v2.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: v2
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: |
+          set -o pipefail
+          xcodegen generate
+          xcodebuild -project BitChordIOS12V2.xcodeproj -list
+
+      - name: Build for device
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project BitChordIOS12V2.xcodeproj \
+            -scheme BitChordIOS12V2 \
+            -sdk iphoneos \
+            -configuration Release \
+            -derivedDataPath build \
+            IPHONEOS_DEPLOYMENT_TARGET=12.0 \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build 2>&1 | tee build.log
+
+      - name: Report build errors as annotations
+        if: failure()
+        run: |
+          if [ ! -f build.log ]; then
+            echo "::error ::build.log was never created - the build failed before xcodebuild ran"
+            exit 0
+          fi
+          grep -aE "error:|xcodebuild: error|BUILD FAILED|The following build commands failed" build.log \
+            | head -8 \
+            | tr -d '\r' \
+            | while IFS= read -r line; do
+                echo "::error ::${line:0:800}"
+              done
+          if ! grep -qaE "error:" build.log; then
+            tail -8 build.log \
+              | tr -d '\r' \
+              | while IFS= read -r line; do
+                  echo "::notice ::${line:0:800}"
+                done
+          fi
+
+      - name: Report build diagnostics
+        if: always()
+        run: |
+          {
+            echo "### Schemes in generated project"
+            echo '```'
+            xcodebuild -project BitChordIOS12V2.xcodeproj -list 2>&1 || true
+            echo '```'
+            echo "### Compiler errors"
+            echo '```'
+            grep -nE "error:|xcodebuild: error|BUILD FAILED" build.log 2>/dev/null | head -60 || true
+            echo '```'
+            echo "### Last 40 log lines"
+            echo '```'
+            tail -40 build.log 2>/dev/null || echo "(no build.log written)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Verify deployment target
+        if: success()
+        run: |
+          set -o pipefail
+          APP="build/Build/Products/Release-iphoneos/BitChordIOS12V2.app"
+          MIN=$(/usr/libexec/PlistBuddy -c 'Print :MinimumOSVersion' "$APP/Info.plist")
+          echo "MinimumOSVersion: $MIN"
+          echo "::notice ::Built app MinimumOSVersion = $MIN"
+          MINOS=$(otool -l "$APP/BitChordIOS12" | grep -m1 minos | tr -s ' ' | sed 's/^ *//')
+          echo "binary $MINOS"
+          echo "::notice ::Binary LC_BUILD_VERSION $MINOS"
+          ARCHS=$(lipo -archs "$APP/BitChordIOS12")
+          echo "::notice ::Architectures: $ARCHS"
+
+      - name: Package unsigned IPA
+        if: success()
+        run: |
+          set -o pipefail
+          rm -rf Payload
+          mkdir -p Payload
+          cp -R "build/Build/Products/Release-iphoneos/BitChordIOS12V2.app" Payload/
+          /usr/bin/zip -qry BitChordIOS12V2-unsigned.ipa Payload
+          ls -lh BitChordIOS12V2-unsigned.ipa
+
+      - name: Upload IPA
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: BitChordIOS12V2-unsigned-ipa
+          path: BitChordIOS12V2-unsigned.ipa
+          retention-days: 30
+
+  simulator:
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: v2
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Build for simulator
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project BitChordIOS12V2.xcodeproj \
+            -scheme BitChordIOS12V2 \
+            -sdk iphonesimulator \
+            -configuration Release \
+            -arch arm64 \
+            -derivedDataPath build-sim \
+            IPHONEOS_DEPLOYMENT_TARGET=12.0 \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build 2>&1 | tee sim.log
+
+      - name: Report simulator build errors
+        if: failure()
+        run: |
+          if [ -f sim.log ]; then
+            grep -aE "error:|xcodebuild: error|BUILD FAILED" sim.log \
+              | head -8 \
+              | tr -d '\r' \
+              | while IFS= read -r line; do
+                  echo "::error ::${line:0:800}"
+                done
+          fi
+
+      - name: Package simulator bundle for Appetize
+        if: success()
+        run: |
+          set -o pipefail
+          APP="build-sim/Build/Products/Release-iphonesimulator/BitChordIOS12V2.app"
+          test -d "$APP"
+          /usr/libexec/PlistBuddy -c 'Print :MinimumOSVersion' "$APP/Info.plist"
+          ditto -c -k --sequesterRsrc --keepParent "$APP" BitChordIOS12V2-simulator.zip
+          ls -lh BitChordIOS12V2-simulator.zip
+          echo "::notice ::Simulator bundle packaged for Appetize upload"
+
+      - name: Upload simulator build
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: BitChordIOS12V2-simulator
+          path: BitChordIOS12V2-simulator.zip
+          retention-days: 30
+  screenshots:
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: v2
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Build for simulator
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project BitChordIOS12V2.xcodeproj \
+            -scheme BitChordIOS12V2 \
+            -sdk iphonesimulator \
+            -configuration Release \
+            -derivedDataPath build-shots \
+            IPHONEOS_DEPLOYMENT_TARGET=12.0 \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build 2>&1 | tee shots-build.log
+
+      - name: Capture screens
+        run: |
+          set -o pipefail
+          APP="build-shots/Build/Products/Release-iphonesimulator/BitChordIOS12V2.app"
+          test -d "$APP"
+          BUNDLE=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")
+          RUNTIME=$(xcrun simctl list runtimes | grep -oE 'com\.apple\.CoreSimulator\.SimRuntime\.iOS-[0-9-]+' | tail -1 || true)
+          echo "runtime=$RUNTIME"
+          UDID=$(xcrun simctl list devices available | grep -E 'iPhone 1[5-9]' | grep -oE '[0-9A-F]{8}-[0-9A-F-]{27}' | head -1 || true)
+          if [ -z "$UDID" ]; then
+            for T in iPhone-17-Pro iPhone-16 iPhone-15; do
+              UDID=$(xcrun simctl create BC-Screens "com.apple.CoreSimulator.SimDeviceType.$T" "$RUNTIME" 2>/dev/null || true)
+              if [ -n "$UDID" ]; then break; fi
+            done
+          fi
+          echo "udid=$UDID"
+          test -n "$UDID"
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl install "$UDID" "$APP"
+          CONTAINER=$(xcrun simctl get_app_container "$UDID" "$BUNDLE" data)
+          mkdir -p "$CONTAINER/Documents/shots"
+          xcrun simctl launch "$UDID" "$BUNDLE" -BCScreenshots "$CONTAINER/Documents/shots"
+          # The harness walks the tabs, then plays a track and opens the
+          # lyrics panel, which needs its provider call to land first.
+          sleep 45
+          rm -rf shots && mkdir -p shots
+          cp -R "$CONTAINER/Documents/shots/." shots/ || true
+          ls -l shots
+          ls shots/*.png > /dev/null
+
+      - name: Upload screens
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: BitChordIOS12V2-screenshots
+          path: |
+            shots
+            shots-build.log
+          retention-days: 14
