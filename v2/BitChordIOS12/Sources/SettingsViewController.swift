@@ -174,6 +174,7 @@ final class SettingsCell: UITableViewCell {
 
     private let titleLabel = UILabel()
     private let detailLabel = UILabel()
+    private let separator = UIView()
     private let chevron = UIImageView(image: Icons.image(.chevronRight, size: 15))
     private let cardView = UIView()
 
@@ -242,6 +243,19 @@ final class SettingsCell: UITableViewCell {
     }
 
     func configure(item: SettingItem, card: UIColor, first: Bool, last: Bool) {
+        if separator.superview == nil {
+            // The real cards are one surface split by hairlines, not a slab.
+            separator.backgroundColor = UIColor.white.withAlphaComponent(0.09)
+            separator.translatesAutoresizingMaskIntoConstraints = false
+            cardView.addSubview(separator)
+            NSLayoutConstraint.activate([
+                separator.leadingAnchor.constraint(equalTo: cardView.leadingAnchor, constant: 20),
+                separator.trailingAnchor.constraint(equalTo: cardView.trailingAnchor),
+                separator.bottomAnchor.constraint(equalTo: cardView.bottomAnchor),
+                separator.heightAnchor.constraint(equalToConstant: 1.0 / UIScreen.main.scale)
+            ])
+        }
+        separator.isHidden = last
         titleLabel.text = item.title
         detailLabel.text = item.detail
         var showsChevron = false

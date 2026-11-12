@@ -106,7 +106,7 @@ enum SettingsCatalog {
                         detail: "Pause after this long (0 = off)",
                         kind: .stepper(0, 0, 120, 15, " min")),
             SettingItem(key: "BitChord.Audio.AutoPlay", title: "Autoplay",
-                        detail: "Continue with the next track",
+                        detail: "",
                         kind: .toggle(true)),
             SettingItem(key: "BitChord.Audio.Crossfade", title: "Crossfade",
                         detail: "Needs the AVPlayer pipeline",
