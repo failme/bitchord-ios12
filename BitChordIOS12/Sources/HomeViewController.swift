@@ -35,8 +35,11 @@ final class HomeViewController: UIViewController {
         let header = UIView()
         header.translatesAutoresizingMaskIntoConstraints = false
 
-        let logo = UIImageView(image: Icons.image(.logo, size: 30))
+        // The app's own artwork, rasterised from its shipped SVG rather than
+        // redrawn by hand.
+        let logo = UIImageView(image: UIImage(named: "BrandLogo") ?? Icons.image(.logo, size: 30))
         logo.tintColor = Theme.primaryText
+        logo.contentMode = .scaleAspectFit
         logo.translatesAutoresizingMaskIntoConstraints = false
         header.addSubview(logo)
 
@@ -53,8 +56,8 @@ final class HomeViewController: UIViewController {
             header.heightAnchor.constraint(equalToConstant: 44),
             logo.leadingAnchor.constraint(equalTo: header.leadingAnchor, constant: Theme.gutter),
             logo.centerYAnchor.constraint(equalTo: header.centerYAnchor),
-            logo.widthAnchor.constraint(equalToConstant: 34),
-            logo.heightAnchor.constraint(equalToConstant: 34),
+            logo.widthAnchor.constraint(equalToConstant: 42),
+            logo.heightAnchor.constraint(equalToConstant: 28),
             avatar.trailingAnchor.constraint(equalTo: header.trailingAnchor, constant: -Theme.gutter),
             avatar.centerYAnchor.constraint(equalTo: header.centerYAnchor),
             avatar.widthAnchor.constraint(equalToConstant: 38),
