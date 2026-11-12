@@ -89,10 +89,10 @@ jobs:
           MIN=$(/usr/libexec/PlistBuddy -c 'Print :MinimumOSVersion' "$APP/Info.plist")
           echo "MinimumOSVersion: $MIN"
           echo "::notice ::Built app MinimumOSVersion = $MIN"
-          MINOS=$(otool -l "$APP/BitChordIOS12" | grep -m1 minos | tr -s ' ' | sed 's/^ *//')
+          MINOS=$(otool -l "$APP/BitChordIOS12V2" | grep -m1 minos | tr -s ' ' | sed 's/^ *//')
           echo "binary $MINOS"
           echo "::notice ::Binary LC_BUILD_VERSION $MINOS"
-          ARCHS=$(lipo -archs "$APP/BitChordIOS12")
+          ARCHS=$(lipo -archs "$APP/BitChordIOS12V2")
           echo "::notice ::Architectures: $ARCHS"
 
       - name: Package unsigned IPA
