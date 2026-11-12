@@ -110,7 +110,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: BitChordIOS12V2-unsigned-ipa
-          path: BitChordIOS12V2-unsigned.ipa
+          path: v2/BitChordIOS12V2-unsigned.ipa
           retention-days: 30
 
   simulator:
@@ -172,7 +172,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: BitChordIOS12V2-simulator
-          path: BitChordIOS12V2-simulator.zip
+          path: v2/BitChordIOS12V2-simulator.zip
           retention-days: 30
   screenshots:
     runs-on: macos-15
@@ -241,6 +241,6 @@ jobs:
         with:
           name: BitChordIOS12V2-screenshots
           path: |
-            shots
-            shots-build.log
+            v2/shots
+            v2/shots-build.log
           retention-days: 14
