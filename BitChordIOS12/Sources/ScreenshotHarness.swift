@@ -30,7 +30,8 @@ enum ScreenshotHarness {
 
         step = {
             guard index < names.count else {
-                exit(0)
+                capturePlayer(window: window, root: root, directory: directory)
+                return
             }
             let name = names[index]
             root.showTab(index)
@@ -41,6 +42,27 @@ enum ScreenshotHarness {
             }
         }
         step?()
+    }
+
+    /// Plays a track and photographs the lyrics panel, so the one screen whose
+    /// look depends on a live provider is still judged from a capture.
+    private static func capturePlayer(window: UIWindow, root: RootViewController, directory: URL) {
+        CatalogueSearch.shared.songs("Blinding Lights The Weeknd") { tracks in
+            guard let track = tracks.first else {
+                exit(0)
+            }
+            PlayerService.shared.play(tracks: [track], startingAt: 0)
+            root.presentNowPlayingFromRoot()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
+                if let player = root.presentedViewController as? NowPlayingViewController {
+                    player.showLyricsForScreenshots()
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                    write(window: window, name: "lyrics", directory: directory)
+                    exit(0)
+                }
+            }
+        }
     }
 
     private static func write(window: UIWindow, name: String, directory: URL) {

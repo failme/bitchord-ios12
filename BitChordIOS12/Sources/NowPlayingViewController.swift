@@ -497,6 +497,13 @@ final class NowPlayingViewController: UIViewController {
         dismiss(animated: true, completion: nil)
     }
 
+    /// Opens the lyrics panel for the screenshot harness.
+    func showLyricsForScreenshots() {
+        loadViewIfNeeded()
+        applyMode(lyrics: true)
+        updateHighlight(at: PlayerService.shared.currentTime)
+    }
+
     @objc private func toggleMode() {
         applyMode(lyrics: !showingLyrics)
     }
