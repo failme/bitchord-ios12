@@ -174,10 +174,6 @@ rw('BitChordIOS12/Sources/NowPlayingViewController.swift', [
             handle.heightAnchor.constraint(equalToConstant: 5),
 
             compactHeader.topAnchor.constraint(equalTo: handle.bottomAnchor, constant: 12),'''),
-    ('''            lyricsTable.topAnchor.constraint(equalTo: compactHeader.bottomAnchor,
-                                                            constant: 12)''',
-     '''            lyricsTable.topAnchor.constraint(equalTo: compactHeader.bottomAnchor,
-                                                            constant: 16)'''),
     ('''            playButton.bottomAnchor.constraint(equalTo: likeButton.topAnchor, constant: -24),''',
      '''            volumeSlider.bottomAnchor.constraint(equalTo: likeButton.topAnchor, constant: -14),
             volumeSlider.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 44),
@@ -211,6 +207,10 @@ rw('BitChordIOS12/Sources/NowPlayingViewController.swift', [
     ('''            likeButton.bottomAnchor.constraint(equalTo: safe.bottomAnchor, constant: -4),''',
      '''            likeButton.bottomAnchor.constraint(equalTo: safe.bottomAnchor, constant: -26),'''),
     # Show the panel's own chrome only in lyrics mode.
+    ('''        lyricsTopCompact = lyricsTable.topAnchor.constraint(equalTo: compactHeader.bottomAnchor,
+                                                            constant: 12)''',
+     '''        lyricsTopCompact = lyricsTable.topAnchor.constraint(equalTo: compactHeader.bottomAnchor,
+                                                            constant: 16)'''),
     ('''        lyricsTopCompact?.isActive = lyrics''',
      '''        handle.isHidden = !lyrics
         globeButton.isHidden = !lyrics

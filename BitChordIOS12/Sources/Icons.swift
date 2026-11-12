@@ -17,6 +17,7 @@ enum Icons {
         case house, compass, library, list, gear
         case grid, books, person, logo
         case globe, cast, bubble, speaker
+        case globe, cast, bubble, speaker
     }
 
     static func image(_ kind: Kind, size: CGFloat = 24) -> UIImage {
@@ -204,6 +205,52 @@ enum Icons {
             lean.addLine(to: pt(0.78, 0.25))
             lean.close()
             lean.fill()
+        case .globe:
+            stroke(UIBezierPath(ovalIn: CGRect(x: 0.18 * s, y: 0.18 * s, width: 0.64 * s, height: 0.64 * s)))
+            let meridian = UIBezierPath(ovalIn: CGRect(x: 0.34 * s, y: 0.18 * s, width: 0.32 * s, height: 0.64 * s))
+            stroke(meridian, width: w * 0.8)
+            let equator = UIBezierPath()
+            equator.move(to: pt(0.18, 0.50))
+            equator.addLine(to: pt(0.82, 0.50))
+            stroke(equator, width: w * 0.8)
+        case .cast:
+            let frame = UIBezierPath()
+            frame.move(to: pt(0.22, 0.34))
+            frame.addLine(to: pt(0.22, 0.26))
+            frame.addLine(to: pt(0.78, 0.26))
+            frame.addLine(to: pt(0.78, 0.74))
+            frame.addLine(to: pt(0.56, 0.74))
+            stroke(frame)
+            let arc1 = UIBezierPath(arcCenter: pt(0.26, 0.74), radius: 0.10 * s,
+                                    startAngle: -.pi / 2, endAngle: -.pi, clockwise: false)
+            stroke(arc1, width: w * 0.85)
+            let arc2 = UIBezierPath(arcCenter: pt(0.26, 0.74), radius: 0.20 * s,
+                                    startAngle: -.pi / 2, endAngle: -.pi, clockwise: false)
+            stroke(arc2, width: w * 0.85)
+            UIBezierPath(ovalIn: CGRect(x: 0.22 * s, y: 0.70 * s, width: 0.09 * s, height: 0.09 * s)).fill()
+        case .bubble:
+            let box = UIBezierPath(roundedRect: CGRect(x: 0.16 * s, y: 0.18 * s, width: 0.68 * s, height: 0.56 * s),
+                                   cornerRadius: 0.16 * s)
+            box.fill()
+            for dx in [-0.14, 0.0, 0.14] {
+                UIBezierPath(ovalIn: CGRect(x: (0.5 + CGFloat(dx) - 0.035) * s, y: 0.44 * s,
+                                            width: 0.07 * s, height: 0.07 * s)).fill()
+            }
+        case .speaker:
+            let body = UIBezierPath()
+            body.move(to: pt(0.20, 0.40))
+            body.addLine(to: pt(0.34, 0.40))
+            body.addLine(to: pt(0.50, 0.26))
+            body.addLine(to: pt(0.50, 0.74))
+            body.addLine(to: pt(0.34, 0.60))
+            body.addLine(to: pt(0.20, 0.60))
+            body.close()
+            body.fill()
+            for radius in [0.16, 0.28] {
+                let wave = UIBezierPath(arcCenter: pt(0.50, 0.50), radius: CGFloat(radius) * s,
+                                        startAngle: -0.9, endAngle: 0.9, clockwise: true)
+                stroke(wave, width: w * 0.85)
+            }
         case .globe:
             stroke(UIBezierPath(ovalIn: CGRect(x: 0.18 * s, y: 0.18 * s, width: 0.64 * s, height: 0.64 * s)))
             let meridian = UIBezierPath(ovalIn: CGRect(x: 0.34 * s, y: 0.18 * s, width: 0.32 * s, height: 0.64 * s))
