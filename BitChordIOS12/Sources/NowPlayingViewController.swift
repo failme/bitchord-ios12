@@ -508,7 +508,7 @@ final class NowPlayingViewController: UIViewController {
         // no white disc behind the pause.
         playButton.backgroundColor = lyrics ? .clear : .white
         playButton.tintColor = lyrics ? .white : .black
-        playButton.setImage(Icons.image(service.isPlaying ? .pause : .play, size: 30), for: .normal)
+        playButton.setImage(Icons.image(PlayerService.shared.isPlaying ? .pause : .play, size: 30), for: .normal)
         handle.isHidden = !lyrics
         closeButton.isHidden = lyrics
         globeButton.isHidden = !lyrics
