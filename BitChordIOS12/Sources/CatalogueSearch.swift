@@ -93,13 +93,22 @@ final class CatalogueSearch {
     // MARK: - Collections
 
     /// The songs on an album, in track order.
+    ///
+    /// `album.getAlbumDetails` was retired by the catalogue and now answers
+    /// `INPUT_INVALID / operation is not supported`, which is why every album
+    /// page came up saying there was nothing to see. `content.getAlbumDetails`
+    /// is the operation that still returns the tracklist, and it puts the songs
+    /// under `list`.
     func songs(inAlbum albumID: String, completion: @escaping ([Track]) -> Void) {
-        get(call: "album.getAlbumDetails", params: ["albumid": albumID]) { json in
+        get(call: "content.getAlbumDetails", params: ["albumid": albumID]) { json in
             guard let json = json else {
                 completion([])
                 return
             }
             var rows = (json["songs"] as? [[String: Any]]) ?? []
+            if rows.isEmpty {
+                rows = (json["list"] as? [[String: Any]]) ?? []
+            }
             // Some responses wrap the album in a map keyed by its own id.
             if rows.isEmpty {
                 for value in json.values {
