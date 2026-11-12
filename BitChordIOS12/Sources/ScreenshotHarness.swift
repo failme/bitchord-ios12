@@ -53,6 +53,11 @@ enum ScreenshotHarness {
             }
             PlayerService.shared.play(tracks: [track], startingAt: 0)
             root.presentNowPlayingFromRoot()
+            // The vocal enters around half a minute in; seek there so the
+            // capture shows the sweep mid-line instead of a silent intro.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
+                PlayerService.shared.seek(toFraction: 0.16)
+            }
             DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
                 if let player = root.presentedViewController as? NowPlayingViewController {
                     player.showLyricsForScreenshots()
