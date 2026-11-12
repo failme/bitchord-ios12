@@ -257,7 +257,8 @@ final class HomeViewController: UIViewController {
             shelfViews[title] = row
         }
 
-        emptyLabel.isHidden = !shelves.isEmpty
-        scrollView.isHidden = shelves.isEmpty
+        let hasFeed = !shelves.isEmpty || !topPicks.isHidden
+        emptyLabel.isHidden = hasFeed
+        scrollView.isHidden = !hasFeed
     }
 }

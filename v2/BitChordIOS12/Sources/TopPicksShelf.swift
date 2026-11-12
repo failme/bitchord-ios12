@@ -5,7 +5,7 @@ import UIKit
 /// title and its "Single · 2026" style detail.
 final class TopPicksShelfView: UIView {
     static let cardWidth: CGFloat = 300
-    static let rowHeight: CGFloat = 356
+    static let rowHeight: CGFloat = 404
 
     private let titleLabel = UILabel()
     private let collectionView: UICollectionView
@@ -17,7 +17,7 @@ final class TopPicksShelfView: UIView {
         let layout = UICollectionViewFlowLayout()
         layout.scrollDirection = .horizontal
         layout.itemSize = CGSize(width: TopPicksShelfView.cardWidth,
-                                 height: TopPicksShelfView.rowHeight - 40)
+                                 height: TopPicksShelfView.rowHeight - 36)
         layout.minimumLineSpacing = 12
         layout.sectionInset = UIEdgeInsets(top: 0, left: 16, bottom: 0, right: 16)
         collectionView = UICollectionView(frame: .zero, collectionViewLayout: layout)
