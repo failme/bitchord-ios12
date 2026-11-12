@@ -204,8 +204,8 @@ final class NowPlayingViewController: UIViewController {
         translitButton.setTitleColor(UIColor(white: 1, alpha: 0.85), for: .normal)
 
         volumeSlider.translatesAutoresizingMaskIntoConstraints = false
-        volumeSlider.minimumTrackImage = Theme.trackImage(Theme.primaryText)
-        volumeSlider.maximumTrackImage = Theme.trackImage(Theme.outline)
+        volumeSlider.setMinimumTrackImage(Theme.trackImage(Theme.primaryText), for: .normal)
+        volumeSlider.setMaximumTrackImage(Theme.trackImage(Theme.outline), for: .normal)
         volumeSlider.setThumbImage(Theme.thumbImage(), for: .normal)
         volumeSlider.value = 1
         volumeSlider.addTarget(self, action: #selector(volumeChanged), for: .valueChanged)
