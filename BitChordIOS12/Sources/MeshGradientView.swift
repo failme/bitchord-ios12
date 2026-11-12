@@ -11,7 +11,7 @@ final class MeshGradientView: UIView {
     /// Four colours, in blob order. Setting a new palette re-renders.
     var palette: [UIColor] = Theme.meshFallbackPalette {
         didSet {
-            guard palette.count == didSet.count || true else { return }
+            renderKey = ""
             render()
         }
     }
@@ -21,18 +21,19 @@ final class MeshGradientView: UIView {
 
     override init(frame: CGRect) {
         super.init(frame: frame)
-        backgroundColor = .black
-        clipsToBounds = true
-        imageView.contentMode = .scaleAspectFill
-        imageView.clipsToBounds = true
-        addSubview(imageView)
-        render()
+        setup()
     }
 
     required init?(coder: NSCoder) {
         super.init(coder: coder)
+        setup()
+    }
+
+    private func setup() {
         backgroundColor = .black
         clipsToBounds = true
+        imageView.contentMode = .scaleAspectFill
+        imageView.clipsToBounds = true
         addSubview(imageView)
     }
 
@@ -54,12 +55,12 @@ final class MeshGradientView: UIView {
     private func render() {
         let size = bounds.size
         guard size.width > 1, size.height > 1 else { return }
-        let colors = (palette.isEmpty ? Theme.meshFallbackPalette : palette)
-        if colors.count < 4 { return }
-        let key = String(format: "%.0fx%.0f", size.width, size.height) + colors.map { $0.hexString }.joined()
+        let colours = palette.count >= 4 ? palette : Theme.meshFallbackPalette
+        let key = String(format: "%.0fx%.0f", size.width, size.height)
+            + colours.map { $0.hexString }.joined()
         guard key != renderKey else { return }
         renderKey = key
-        imageView.image = MeshGradientView.image(size: size, colors: colors)
+        imageView.image = MeshGradientView.image(size: size, colors: colours)
     }
 
     /// Draws the four blobs and softens them once, at image scale, rather than
@@ -73,7 +74,8 @@ final class MeshGradientView: UIView {
         let format = UIGraphicsImageRendererFormat()
         format.opaque = true
         format.scale = 1
-        let drawn = UIGraphicsImageRenderer(size: canvas, format: format).image { context in
+        let drawn = UIGraphicsImageRenderer(size: canvas, format: format).image { rendererContext in
+            let cg = rendererContext.cgContext
             colors[0].dimmed(to: 0.12).setFill()
             UIRectFill(CGRect(origin: .zero, size: canvas))
 
@@ -81,36 +83,25 @@ final class MeshGradientView: UIView {
             for (index, colour) in colors.prefix(4).enumerated() {
                 let anchor = anchors[index]
                 let centre = CGPoint(x: anchor.x * canvas.width, y: anchor.y * canvas.height)
-                let stops = 8
-                var components: [CGFloat] = []
-                for step in 0...stops {
-                    let t = CGFloat(step) / CGFloat(stops)
-                    let alpha = 0.85 * (1 - smootherStep(t))
-                    let resolved = colour.withAlphaComponent(alpha)
-                    var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, whiteAlpha: CGFloat = 0
-                    resolved.getRed(&red, green: &green, blue: &blue, alpha: &whiteAlpha)
-                    components.append(contentsOf: [red, green, blue, whiteAlpha])
+
+                var locations: [CGFloat] = []
+                var swatches: [CGColor] = []
+                let steps = 8
+                for step in 0...steps {
+                    let t = CGFloat(step) / CGFloat(steps)
+                    locations.append(t)
+                    swatches.append(colour.withAlphaComponent(0.85 * (1 - smootherStep(t))).cgColor)
                 }
                 guard let space = CGColorSpace(name: CGColorSpace.sRGB),
-                      let colours = components.isEmpty ? nil : {
-                          var list: [CGColor] = []
-                          var index = 0
-                          while index + 3 < components.count {
-                              list.append(UIColor(red: components[index],
-                                                  green: components[index + 1],
-                                                  blue: components[index + 2],
-                                                  alpha: components[index + 3]).cgColor)
-                              index += 4
-                          }
-                          return list
-                      }(),
-                      let gradient = CGGradient(colorsSpace: space, colors: colours as CFArray, locations: nil) else {
+                      let gradient = CGGradient(colorsSpace: space,
+                                                colors: swatches as CFArray,
+                                                locations: locations) else {
                     continue
                 }
-                context.cgContext.drawRadialGradient(gradient,
-                                                     startCenter: centre, startRadius: 0,
-                                                     endCenter: centre, endRadius: radius,
-                                                     options: [.drawsAfterEndLocation])
+                cg.drawRadialGradient(gradient,
+                                      startCenter: centre, startRadius: 0,
+                                      endCenter: centre, endRadius: radius,
+                                      options: [.drawsAfterEndLocation])
             }
 
             // Scrim: white text has to stay readable over bright art.
@@ -122,12 +113,14 @@ final class MeshGradientView: UIView {
         }
 
         // One blur for the whole backdrop, then crop back to the frame.
-        guard let source = drawn.cgImage else { return drawn }
-        guard let blurred = blur(source, radius: 42) else { return drawn }
-        let crop = CGRect(x: (canvas.width - size.width) / 2,
-                          y: (canvas.height - size.height) / 2,
-                          width: size.width, height: size.height)
-        guard let cropped = blurred.cropping(to: crop) else { return drawn }
+        guard let source = drawn.cgImage,
+              let blurred = blur(source, radius: 42),
+              let cropped = blurred.cropping(to: CGRect(x: (canvas.width - size.width) / 2,
+                                                        y: (canvas.height - size.height) / 2,
+                                                        width: size.width,
+                                                        height: size.height)) else {
+            return drawn
+        }
         return UIImage(cgImage: cropped, scale: 1, orientation: .up)
     }
 
@@ -187,7 +180,7 @@ extension Theme {
         return expanded.map { $0.tuned() }
     }
 
-    /// Buckets a 32×32 downsample by hue so the palette comes from the picture's
+    /// Buckets a 32x32 downsample by hue so the palette comes from the picture's
     /// dominant colour families rather than from whichever pixel came first.
     private static func quantise(_ image: UIImage) -> [UIColor]? {
         guard let source = image.cgImage else { return nil }
@@ -195,12 +188,15 @@ extension Theme {
         guard let context = CGContext(data: nil, width: dimension, height: dimension,
                                       bitsPerComponent: 8, bytesPerRow: dimension * 4,
                                       space: CGColorSpaceCreateDeviceRGB(),
-                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else {
+            return nil
+        }
         context.interpolationQuality = .low
         context.draw(source, in: CGRect(x: 0, y: 0, width: dimension, height: dimension))
         guard let data = context.data else { return nil }
         let pixels = data.bindMemory(to: UInt8.self, capacity: dimension * dimension * 4)
 
+        var order: [Int] = []
         var buckets: [Int: (colour: UIColor, count: Int)] = [:]
         for index in 0..<(dimension * dimension) {
             let offset = index * 4
@@ -210,18 +206,22 @@ extension Theme {
             let light = 0.299 * red + 0.587 * green + 0.114 * blue
             // Near-black and near-white sleeves carry no hue worth a blob.
             guard light > 0.08, light < 0.94 else { continue }
+            let colour = UIColor(red: red, green: green, blue: blue, alpha: 1)
             var hue: CGFloat = 0, saturation: CGFloat = 0, brightness: CGFloat = 0, alpha: CGFloat = 0
-            UIColor(red: red, green: green, blue: blue, alpha: 1)
-                .getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha)
+            colour.getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha)
             let key = Int((hue * 360) / 24)
             if var existing = buckets[key] {
                 existing.count += 1
                 buckets[key] = existing
             } else {
-                buckets[key] = (UIColor(red: red, green: green, blue: blue, alpha: 1), 1)
+                buckets[key] = (colour, 1)
+                order.append(key)
             }
         }
-        return buckets.values.sorted { $0.count > $1.count }.map { $0.colour }
+        let sorted = order.sorted { first, second in
+            (buckets[first]?.count ?? 0) > (buckets[second]?.count ?? 0)
+        }
+        return sorted.compactMap { buckets[$0]?.colour }
     }
 
     private static func isClose(_ a: UIColor, _ b: UIColor) -> Bool {
@@ -231,13 +231,6 @@ extension Theme {
         b.getHue(&hueB, saturation: &satB, brightness: &briB, alpha: &alphaB)
         let gap = min(abs(hueA - hueB) * 360, 360 - abs(hueA - hueB) * 360)
         return gap < 15 && abs(briA - briB) < 0.12
-    }
-
-    private static func toHSL(_ colour: UIColor) -> (hue: CGFloat, saturation: CGFloat, lightness: CGFloat) {
-        var hue: CGFloat = 0, saturation: CGFloat = 0, brightness: CGFloat = 0, alpha: CGFloat = 0
-        colour.getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha)
-        let lightness = brightness * (1 - saturation / 2)
-        return (hue, saturation, lightness)
     }
 }
 
@@ -262,9 +255,9 @@ extension UIColor {
     func shifted(hue shift: CGFloat, lightness: CGFloat) -> UIColor {
         var hue: CGFloat = 0, saturation: CGFloat = 0, brightness: CGFloat = 0, alpha: CGFloat = 0
         getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha)
-        let moved = (hue + shift / 360).truncatingRemainder(dividingBy: 1)
-        return UIColor(hue: moved < 0 ? moved + 1 : moved,
-                       saturation: saturation,
+        var moved = (hue + shift / 360).truncatingRemainder(dividingBy: 1)
+        if moved < 0 { moved += 1 }
+        return UIColor(hue: moved, saturation: saturation,
                        brightness: min(1, brightness + lightness), alpha: 1)
     }
 
