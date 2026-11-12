@@ -5,7 +5,7 @@ import UIKit
 /// list sits straight under it, and one tap on Play queues the whole thing.
 final class CollectionViewController: UIViewController {
     /// Fills in the tracks when the page opens.
-    var loader: ((([Track]) -> Void) -> Void)?
+    var loader: ((@escaping ([Track]) -> Void) -> Void)?
 
     private let heading: String
     private let detail: String
