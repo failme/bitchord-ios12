@@ -76,7 +76,7 @@ final class MeshGradientView: UIView {
         format.scale = 1
         let drawn = UIGraphicsImageRenderer(size: canvas, format: format).image { rendererContext in
             let cg = rendererContext.cgContext
-            colors[0].dimmed(to: 0.12).setFill()
+            colors[0].dimmed(to: 0.20).setFill()
             UIRectFill(CGRect(origin: .zero, size: canvas))
 
             let radius = max(canvas.width, canvas.height) * 0.62
@@ -105,16 +105,16 @@ final class MeshGradientView: UIView {
             }
 
             // Scrim: white text has to stay readable over bright art.
-            UIColor.black.withAlphaComponent(0.10).setFill()
+            UIColor.black.withAlphaComponent(0.04).setFill()
             UIRectFill(CGRect(x: 0, y: 0, width: canvas.width, height: canvas.height * 0.45))
-            UIColor.black.withAlphaComponent(0.38).setFill()
+            UIColor.black.withAlphaComponent(0.20).setFill()
             UIRectFill(CGRect(x: 0, y: canvas.height * 0.45,
                               width: canvas.width, height: canvas.height * 0.55))
         }
 
         // One blur for the whole backdrop, then crop back to the frame.
         guard let source = drawn.cgImage,
-              let blurred = blur(source, radius: 42),
+              let blurred = blur(source, radius: 34),
               let cropped = blurred.cropping(to: CGRect(x: (canvas.width - size.width) / 2,
                                                         y: (canvas.height - size.height) / 2,
                                                         width: size.width,

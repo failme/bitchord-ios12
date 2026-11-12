@@ -8,6 +8,8 @@ final class NowPlayingViewController: UIViewController {
     private let backdropView = UIImageView()
     private let meshView = MeshGradientView()
     private let blurView = UIVisualEffectView(effect: UIBlurEffect(style: .dark))
+    private let scrimView = UIView()
+    private let scrimLayer = CAGradientLayer()
     private let glowView = UIView()
     private let glowLayer = CAGradientLayer()
     private let lyricsTable = UITableView(frame: .zero, style: .plain)
@@ -87,6 +89,7 @@ final class NowPlayingViewController: UIViewController {
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
+        scrimLayer.frame = scrimView.bounds
         glowLayer.frame = glowView.bounds
         glowLayer.cornerRadius = 30
     }
@@ -107,6 +110,16 @@ final class NowPlayingViewController: UIViewController {
 
         blurView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(blurView)
+
+        scrimView.translatesAutoresizingMaskIntoConstraints = false
+        scrimView.isUserInteractionEnabled = false
+        scrimView.layer.addSublayer(scrimLayer)
+        scrimLayer.colors = [UIColor.black.withAlphaComponent(0.10).cgColor,
+                             UIColor.black.withAlphaComponent(0.38).cgColor,
+                             UIColor.black.withAlphaComponent(0.72).cgColor]
+        scrimLayer.locations = [0, 0.45, 1]
+        scrimView.isHidden = true
+        view.addSubview(scrimView)
 
         glowView.translatesAutoresizingMaskIntoConstraints = false
         glowView.layer.addSublayer(glowLayer)
@@ -334,6 +347,11 @@ final class NowPlayingViewController: UIViewController {
         titleUnderClose = titleLabel.topAnchor.constraint(equalTo: closeButton.bottomAnchor,
                                                           constant: 10)
         NSLayoutConstraint.activate([
+            scrimView.topAnchor.constraint(equalTo: view.topAnchor),
+            scrimView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            scrimView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            scrimView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+
             backdropView.topAnchor.constraint(equalTo: view.topAnchor),
             backdropView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             backdropView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
@@ -509,7 +527,10 @@ final class NowPlayingViewController: UIViewController {
         playButton.backgroundColor = lyrics ? .clear : .white
         playButton.tintColor = lyrics ? .white : .black
         playButton.setImage(Icons.image(PlayerService.shared.isPlaying ? .pause : .play, size: 48), for: .normal)
-        backdropView.alpha = lyrics ? 1 : 0.85
+        // In lyrics mode the cover itself is the backdrop: the dark blur
+        // effect above it softens it exactly the way the real panel does.
+        backdropView.alpha = lyrics ? 0.9 : 0
+        scrimView.isHidden = !lyrics
         handle.isHidden = !lyrics
         closeButton.isHidden = lyrics
         globeButton.isHidden = !lyrics
