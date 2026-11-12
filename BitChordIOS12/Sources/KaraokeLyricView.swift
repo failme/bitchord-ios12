@@ -17,7 +17,7 @@ final class KaraokeLineView: UIView {
     private var container: NSTextContainer?
     private var builtWidth: CGFloat = 0
 
-    private let verticalPadding: CGFloat = 10
+    private let verticalPadding: CGFloat = 12
 
     /// Unsung text stays white and dimmed rather than turning grey; over the
     /// blurred cover that is what the real panel looks like.
@@ -60,7 +60,7 @@ final class KaraokeLineView: UIView {
             options: [.usesLineFragmentOrigin, .usesFontLeading],
             attributes: [.font: font, .paragraphStyle: style],
             context: nil)
-        return ceil(bounds.height) + 20
+        return ceil(bounds.height) + 24
     }
 
     override func layoutSubviews() {

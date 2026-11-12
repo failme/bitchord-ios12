@@ -107,6 +107,14 @@ enum TTMLLyrics {
         guard let match = regex.firstMatch(in: attributes, options: [],
                                            range: NSRange(location: 0, length: ns.length)) else { return nil }
         let raw = ns.substring(with: match.range(at: 1))
+        // Apple writes a plain second count, `hh:mm:ss.sss`, or a suffixed
+        // count like `0.12s` / `12500ms`; the suffix must come off first.
+        if raw.hasSuffix("ms"), let ms = Double(raw.dropLast(2)) {
+            return ms / 1000
+        }
+        if raw.hasSuffix("s"), let secs = Double(raw.dropLast(1)) {
+            return secs
+        }
         // Apple writes either a plain second count or `hh:mm:ss.sss`.
         let pieces = raw.split(separator: ":")
         if pieces.count == 3 {

@@ -52,10 +52,10 @@ enum Icons {
             p.close()
             p.fill()
         case .pause:
-            UIBezierPath(roundedRect: CGRect(x: 0.30 * s, y: 0.25 * s, width: 0.15 * s, height: 0.50 * s),
-                         cornerRadius: 0.04 * s).fill()
-            UIBezierPath(roundedRect: CGRect(x: 0.55 * s, y: 0.25 * s, width: 0.15 * s, height: 0.50 * s),
-                         cornerRadius: 0.04 * s).fill()
+            UIBezierPath(roundedRect: CGRect(x: 0.27 * s, y: 0.25 * s, width: 0.18 * s, height: 0.50 * s),
+                         cornerRadius: 0.05 * s).fill()
+            UIBezierPath(roundedRect: CGRect(x: 0.55 * s, y: 0.25 * s, width: 0.18 * s, height: 0.50 * s),
+                         cornerRadius: 0.05 * s).fill()
         case .previous:
             UIBezierPath(roundedRect: CGRect(x: 0.22 * s, y: 0.26 * s, width: 0.10 * s, height: 0.48 * s),
                          cornerRadius: 0.03 * s).fill()

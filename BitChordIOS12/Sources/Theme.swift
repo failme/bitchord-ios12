@@ -102,9 +102,9 @@ enum Theme {
 
     // MARK: - Scrubber
 
-    /// A 2pt track image: the thin-slider look in `UISlider` form (iOS 12-safe).
+    /// A 4pt track image: the thin-slider look in `UISlider` form (iOS 12-safe).
     static func trackImage(_ color: UIColor) -> UIImage {
-        let size = CGSize(width: 4, height: 2)
+        let size = CGSize(width: 4, height: 4)
         let image = UIGraphicsImageRenderer(size: size).image { _ in
             color.setFill()
             UIRectFill(CGRect(origin: .zero, size: size))

@@ -97,6 +97,14 @@ final class NowPlayingViewController: UIViewController {
     // MARK: - Layout
 
     private func buildLayout() {
+        let squat = UIScreen.main.bounds.height < 700
+        let headerGap: CGFloat = squat ? 8 : 12
+        let headerHeight: CGFloat = squat ? 52 : 56
+        let lyricGap: CGFloat = squat ? 12 : 16
+        let stackGap: CGFloat = squat ? 8 : 12
+        let playSide: CGFloat = squat ? 56 : 64
+        let footGap: CGFloat = squat ? 10 : 14
+        let bottomGap: CGFloat = squat ? 16 : 26
         backdropView.translatesAutoresizingMaskIntoConstraints = false
         backdropView.contentMode = .scaleAspectFill
         backdropView.clipsToBounds = true
@@ -179,7 +187,7 @@ final class NowPlayingViewController: UIViewController {
         headerArtwork.translatesAutoresizingMaskIntoConstraints = false
         headerArtwork.contentMode = .scaleAspectFill
         headerArtwork.clipsToBounds = true
-        headerArtwork.layer.cornerRadius = 6
+        headerArtwork.layer.cornerRadius = 10
         headerArtwork.backgroundColor = Theme.surfaceVariant
         compactHeader.addSubview(headerArtwork)
 
@@ -216,7 +224,7 @@ final class NowPlayingViewController: UIViewController {
             button.isHidden = true
             view.addSubview(button)
         }
-        globeButton.setImage(Icons.image(.globe, size: 20), for: .normal)
+        globeButton.setImage(Icons.image(.globe, size: 18), for: .normal)
         translitButton.titleLabel?.font = Theme.font(15, weight: .semibold)
         translitButton.setTitle("文A", for: .normal)
         translitButton.setTitleColor(UIColor(white: 1, alpha: 0.85), for: .normal)
@@ -238,14 +246,14 @@ final class NowPlayingViewController: UIViewController {
 
         modeButton.translatesAutoresizingMaskIntoConstraints = false
         modeButton.tintColor = Theme.primaryText
-        modeButton.setImage(Icons.image(.bubble, size: 20), for: .normal)
+        modeButton.setImage(Icons.image(.bubble, size: 22), for: .normal)
         modeButton.addTarget(self, action: #selector(toggleMode), for: .touchUpInside)
         modeButton.isHidden = true
         view.addSubview(modeButton)
 
         outputButton.translatesAutoresizingMaskIntoConstraints = false
         outputButton.tintColor = Theme.primaryText
-        outputButton.setImage(Icons.image(.cast, size: 20), for: .normal)
+        outputButton.setImage(Icons.image(.cast, size: 22), for: .normal)
         outputButton.addTarget(self, action: #selector(showOutput), for: .touchUpInside)
         view.addSubview(outputButton)
 
@@ -333,8 +341,8 @@ final class NowPlayingViewController: UIViewController {
         configureTransportButton(nextButton, icon: .next, size: 40, action: #selector(goNext))
         configureTransportButton(repeatButton, icon: .repeatAll, size: 20, action: #selector(goRepeat))
 
-        configureTransportButton(likeButton, icon: .heart, size: 20, action: #selector(toggleLike))
-        configureTransportButton(queueButton, icon: .list, size: 20, action: #selector(showQueue))
+        configureTransportButton(likeButton, icon: .heart, size: 22, action: #selector(toggleLike))
+        configureTransportButton(queueButton, icon: .list, size: 22, action: #selector(showQueue))
 
         let safe = view.safeAreaLayoutGuide
         glowLayer.startPoint = CGPoint(x: 0.5, y: 0)
@@ -343,7 +351,7 @@ final class NowPlayingViewController: UIViewController {
                                                             constant: 16)
         lyricsTopDefault = lyricsTable.topAnchor.constraint(equalTo: artworkView.topAnchor)
         lyricsTopCompact = lyricsTable.topAnchor.constraint(equalTo: compactHeader.bottomAnchor,
-                                                            constant: 16)
+                                                            constant: lyricGap)
         titleUnderClose = titleLabel.topAnchor.constraint(equalTo: closeButton.bottomAnchor,
                                                           constant: 10)
         NSLayoutConstraint.activate([
@@ -373,6 +381,8 @@ final class NowPlayingViewController: UIViewController {
 
             toggleButton.centerYAnchor.constraint(equalTo: closeButton.centerYAnchor),
             toggleButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
+            toggleButton.widthAnchor.constraint(equalToConstant: 36),
+            toggleButton.heightAnchor.constraint(equalToConstant: 36),
 
             artworkView.topAnchor.constraint(equalTo: closeButton.bottomAnchor, constant: 4),
             artworkView.centerXAnchor.constraint(equalTo: view.centerXAnchor),
@@ -388,10 +398,10 @@ final class NowPlayingViewController: UIViewController {
             handle.widthAnchor.constraint(equalToConstant: 36),
             handle.heightAnchor.constraint(equalToConstant: 5),
 
-            compactHeader.topAnchor.constraint(equalTo: handle.bottomAnchor, constant: 12),
+            compactHeader.topAnchor.constraint(equalTo: handle.bottomAnchor, constant: headerGap),
             compactHeader.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
             compactHeader.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
-            compactHeader.heightAnchor.constraint(equalToConstant: 44),
+            compactHeader.heightAnchor.constraint(equalToConstant: headerHeight),
 
             lyricsSourceLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 32),
             lyricsSourceLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
@@ -417,12 +427,12 @@ final class NowPlayingViewController: UIViewController {
             diagnosticsLabel.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
             diagnosticsLabel.trailingAnchor.constraint(equalTo: titleLabel.trailingAnchor),
 
-            volumeSlider.bottomAnchor.constraint(equalTo: likeButton.topAnchor, constant: -14),
+            volumeSlider.bottomAnchor.constraint(equalTo: likeButton.topAnchor, constant: -footGap),
             volumeSlider.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 44),
             volumeSlider.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -44),
             volumeSlider.heightAnchor.constraint(equalToConstant: 18),
 
-            playButton.bottomAnchor.constraint(equalTo: volumeSlider.topAnchor, constant: -22),
+            playButton.bottomAnchor.constraint(equalTo: volumeSlider.topAnchor, constant: squat ? -14 : -22),
 
             modeButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 30),
             modeButton.centerYAnchor.constraint(equalTo: likeButton.centerYAnchor),
@@ -449,13 +459,13 @@ final class NowPlayingViewController: UIViewController {
 
             globeButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
             globeButton.bottomAnchor.constraint(equalTo: lyricsSourceLabel.topAnchor, constant: -10),
-            globeButton.widthAnchor.constraint(equalToConstant: 40),
-            globeButton.heightAnchor.constraint(equalToConstant: 40),
+            globeButton.widthAnchor.constraint(equalToConstant: 36),
+            globeButton.heightAnchor.constraint(equalToConstant: 36),
 
             translitButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
             translitButton.centerYAnchor.constraint(equalTo: globeButton.centerYAnchor),
-            translitButton.widthAnchor.constraint(equalToConstant: 40),
-            translitButton.heightAnchor.constraint(equalToConstant: 40),
+            translitButton.widthAnchor.constraint(equalToConstant: 36),
+            translitButton.heightAnchor.constraint(equalToConstant: 36),
             slider.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
             slider.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
 
@@ -465,10 +475,10 @@ final class NowPlayingViewController: UIViewController {
             remainingLabel.topAnchor.constraint(equalTo: elapsedLabel.topAnchor),
             remainingLabel.trailingAnchor.constraint(equalTo: slider.trailingAnchor),
 
-            playButton.topAnchor.constraint(equalTo: elapsedLabel.bottomAnchor, constant: 12),
+            playButton.topAnchor.constraint(equalTo: elapsedLabel.bottomAnchor, constant: stackGap),
             playButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            playButton.heightAnchor.constraint(equalToConstant: 64),
-            playButton.widthAnchor.constraint(equalToConstant: 64),
+            playButton.heightAnchor.constraint(equalToConstant: playSide),
+            playButton.widthAnchor.constraint(equalToConstant: playSide),
 
             previousButton.centerYAnchor.constraint(equalTo: playButton.centerYAnchor),
             previousButton.trailingAnchor.constraint(equalTo: playButton.leadingAnchor, constant: -12),
@@ -490,7 +500,7 @@ final class NowPlayingViewController: UIViewController {
             repeatButton.widthAnchor.constraint(equalToConstant: 44),
             repeatButton.heightAnchor.constraint(equalToConstant: 44),
 
-            likeButton.bottomAnchor.constraint(equalTo: safe.bottomAnchor, constant: -26),
+            likeButton.bottomAnchor.constraint(equalTo: safe.bottomAnchor, constant: -bottomGap),
             likeButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 40),
             likeButton.widthAnchor.constraint(equalToConstant: 44),
             likeButton.heightAnchor.constraint(equalToConstant: 44),
@@ -551,7 +561,7 @@ final class NowPlayingViewController: UIViewController {
         toggleButton.backgroundColor = lyrics ? UIColor(white: 1, alpha: 0.1) : .clear
         toggleButton.layer.cornerRadius = 22
         slider.setThumbImage(lyrics ? UIImage() : Theme.thumbImage(), for: .normal)
-        toggleButton.setImage(Icons.image(.ellipsis, size: 20), for: .normal)
+        toggleButton.setImage(Icons.image(.ellipsis, size: 18), for: .normal)
         lyricsTopCompact?.isActive = lyrics
         lyricsTopDefault?.isActive = !lyrics
         titleUnderArtwork?.isActive = true
@@ -632,9 +642,15 @@ final class NowPlayingViewController: UIViewController {
             lyricsSynced = service.lyricsAreSynced
             lyricHighlight = -1
             lyricHeights.removeAll()
-            lyricsSourceLabel.text = service.lyricsSource.isEmpty
-                ? nil
-                : "Lyrics by " + service.lyricsSource
+            if service.lyricsSource.isEmpty {
+                lyricsSourceLabel.attributedText = nil
+            } else {
+                lyricsSourceLabel.attributedText = NSAttributedString(
+                    string: "Lyrics by " + service.lyricsSource,
+                    attributes: [.font: Theme.font(13),
+                                 .foregroundColor: Theme.secondaryText,
+                                 .underlineStyle: NSUnderlineStyle.single.rawValue])
+            }
             lyricsTable.reloadData()
             if !currentLyrics.isEmpty {
                 lyricsTable.setContentOffset(.zero, animated: false)
@@ -795,7 +811,14 @@ extension NowPlayingViewController {
     /// The active line is large and bold, everything else steps down a size and
     /// a weight — the proportions the real lyrics panel uses.
     static func lyricFont(active: Bool) -> UIFont {
-        return active ? Theme.font(34, weight: .bold) : Theme.font(28, weight: .semibold)
+        let height = UIScreen.main.bounds.height
+        if height < 600 {
+            return active ? Theme.font(27, weight: .bold) : Theme.font(20, weight: .semibold)
+        }
+        if height < 750 {
+            return active ? Theme.font(29, weight: .bold) : Theme.font(21, weight: .semibold)
+        }
+        return active ? Theme.font(31, weight: .bold) : Theme.font(22, weight: .semibold)
     }
 }
 
@@ -823,7 +846,7 @@ extension NowPlayingViewController: UITableViewDataSource, UITableViewDelegate {
     func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
         if let cached = lyricHeights[indexPath.row] { return cached }
         guard indexPath.row < currentLyrics.count else { return 34 }
-        let width = max(1, tableView.bounds.width - 48)
+        let width = max(1, tableView.bounds.width - 64)
         let height = KaraokeLineView.height(
             text: currentLyrics[indexPath.row].text,
             font: NowPlayingViewController.lyricFont(active: indexPath.row == lyricHighlight),
