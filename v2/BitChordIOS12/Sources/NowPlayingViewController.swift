@@ -402,10 +402,6 @@ final class NowPlayingViewController: UIViewController {
             closeButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
             closeButton.heightAnchor.constraint(equalToConstant: 36),
 
-            toggleButton.centerYAnchor.constraint(equalTo: closeButton.centerYAnchor),
-            toggleButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
-            toggleButton.widthAnchor.constraint(equalToConstant: 36),
-            toggleButton.heightAnchor.constraint(equalToConstant: 36),
 
             artworkView.topAnchor.constraint(equalTo: stationLabel.bottomAnchor, constant: 20),
             artworkView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 30),
@@ -568,9 +564,10 @@ final class NowPlayingViewController: UIViewController {
         // The real panel draws the transport straight on the background, with
         // no white disc behind the pause.
         playButton.backgroundColor = .clear
+        playButton.layer.shadowOpacity = 0
         playButton.tintColor = Theme.primaryText
         playButton.imageEdgeInsets = .zero
-        playButton.setImage(Icons.image(PlayerService.shared.isPlaying ? .pause : .play, size: 48), for: .normal)
+        playButton.setImage(Icons.image(PlayerService.shared.isPlaying ? .pause : .play, size: 44), for: .normal)
         // In lyrics mode the cover itself is the backdrop: the dark blur
         // effect above it softens it exactly the way the real panel does.
         backdropView.alpha = lyrics ? 0.9 : 0
@@ -578,7 +575,7 @@ final class NowPlayingViewController: UIViewController {
         // underneath instead of hiding it.
         meshView.alpha = lyrics ? 0.55 : 1
         scrimView.isHidden = !lyrics
-        handle.isHidden = lyrics
+        handle.isHidden = false
         stationLabel.isHidden = lyrics
         peekLabel.isHidden = lyrics
         closeButton.isHidden = true
