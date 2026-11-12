@@ -8,6 +8,7 @@ final class HomeViewController: UIViewController {
     private let emptyLabel = UILabel()
     private let greetingLabel = UILabel()
     private let releasesShelf = CardShelfView()
+    private let topPicks = TopPicksShelfView()
     private var albums: [CatalogueAlbum] = []
 
     private var remoteQuickPicks: [Track] = []
@@ -58,14 +59,25 @@ final class HomeViewController: UIViewController {
             header.heightAnchor.constraint(equalToConstant: 46),
             logo.leadingAnchor.constraint(equalTo: header.leadingAnchor, constant: Theme.gutter),
             logo.centerYAnchor.constraint(equalTo: header.centerYAnchor),
-            logo.widthAnchor.constraint(equalToConstant: 46),
-            logo.heightAnchor.constraint(equalToConstant: 30.5),
+            logo.widthAnchor.constraint(equalToConstant: 56),
+            logo.heightAnchor.constraint(equalToConstant: 37),
             avatar.trailingAnchor.constraint(equalTo: header.trailingAnchor, constant: -Theme.gutter),
             avatar.centerYAnchor.constraint(equalTo: header.centerYAnchor),
             avatar.widthAnchor.constraint(equalToConstant: 38),
             avatar.heightAnchor.constraint(equalToConstant: 38)
         ])
         stack.addArrangedSubview(header)
+
+        // The real feed opens with the large Top Picks cards, not a small shelf.
+        topPicks.translatesAutoresizingMaskIntoConstraints = false
+        topPicks.heightAnchor.constraint(equalToConstant: TopPicksShelfView.rowHeight).isActive = true
+        topPicks.isHidden = true
+        topPicks.onSelect = { [weak self] index in
+            guard let self = self else { return }
+            PlayerService.shared.play(tracks: self.remoteQuickPicks, startingAt: index)
+            self.presentNowPlayingFromRoot()
+        }
+        stack.addArrangedSubview(topPicks)
 
         emptyLabel.text = "Play something and it will show up here."
         emptyLabel.textColor = Theme.secondaryText
@@ -124,6 +136,8 @@ final class HomeViewController: UIViewController {
         InnerTube.shared.search("Top songs \(year)", filter: .songs) { [weak self] tracks, _ in
             guard let self = self, let tracks = tracks, !tracks.isEmpty else { return }
             self.remoteQuickPicks = Array(tracks.prefix(20))
+            self.topPicks.configure(tracks: self.remoteQuickPicks)
+            self.topPicks.isHidden = false
             self.rebuild()
         }
     }
@@ -153,7 +167,7 @@ final class HomeViewController: UIViewController {
                                       subtitle: bits.joined(separator: " · "),
                                       artworkURL: album.artwork))
             }
-            self.releasesShelf.configure(title: "New releases", items: cards)
+            self.releasesShelf.configure(title: "Albums & singles", items: cards)
             self.releasesShelf.onSelect = { [weak self] index in
                 guard let self = self, index < self.albums.count else { return }
                 self.openAlbum(self.albums[index])
@@ -198,9 +212,6 @@ final class HomeViewController: UIViewController {
     @objc private func rebuild() {
         let store = LibraryStore.shared
         var shelves: [(String, [Track])] = []
-        if !remoteQuickPicks.isEmpty {
-            shelves.append(("Quick picks", remoteQuickPicks))
-        }
         if let continueTrack = store.continueListeningTrack {
             shelves.append(("Continue listening", [continueTrack]))
         }
