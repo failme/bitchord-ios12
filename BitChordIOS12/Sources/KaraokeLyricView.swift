@@ -193,8 +193,8 @@ final class KaraokeLyricCell: UITableViewCell {
         contentView.addSubview(view)
         NSLayoutConstraint.activate([
             view.topAnchor.constraint(equalTo: contentView.topAnchor),
-            view.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
-            view.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+            view.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 24),
+            view.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -24),
             view.bottomAnchor.constraint(equalTo: contentView.bottomAnchor)
         ])
         lineView = view

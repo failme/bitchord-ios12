@@ -12,6 +12,8 @@ final class NowPlayingViewController: UIViewController {
     private let glowLayer = CAGradientLayer()
     private let lyricsTable = UITableView(frame: .zero, style: .plain)
     private let lyricsSourceLabel = UILabel()
+    private var titleUnderArtwork: NSLayoutConstraint?
+    private var titleUnderClose: NSLayoutConstraint?
     private let titleLabel = UILabel()
     private let artistLabel = UILabel()
     private let badgeLabel = UILabel()
@@ -214,6 +216,10 @@ final class NowPlayingViewController: UIViewController {
         let safe = view.safeAreaLayoutGuide
         glowLayer.startPoint = CGPoint(x: 0.5, y: 0)
         glowLayer.endPoint = CGPoint(x: 0.5, y: 1)
+        titleUnderArtwork = titleLabel.topAnchor.constraint(equalTo: artworkView.bottomAnchor,
+                                                            constant: 16)
+        titleUnderClose = titleLabel.topAnchor.constraint(equalTo: closeButton.bottomAnchor,
+                                                          constant: 10)
         NSLayoutConstraint.activate([
             backdropView.topAnchor.constraint(equalTo: view.topAnchor),
             backdropView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
@@ -242,16 +248,16 @@ final class NowPlayingViewController: UIViewController {
             artworkView.widthAnchor.constraint(equalTo: view.widthAnchor, multiplier: 0.80),
             artworkView.heightAnchor.constraint(equalTo: artworkView.widthAnchor),
 
-            lyricsTable.topAnchor.constraint(equalTo: artworkView.topAnchor),
+            lyricsTable.topAnchor.constraint(equalTo: artistLabel.bottomAnchor, constant: 14),
             lyricsTable.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             lyricsTable.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            lyricsTable.heightAnchor.constraint(equalTo: artworkView.heightAnchor),
+            lyricsTable.bottomAnchor.constraint(equalTo: lyricsSourceLabel.topAnchor, constant: -8),
 
-            lyricsSourceLabel.topAnchor.constraint(equalTo: lyricsTable.bottomAnchor, constant: 8),
             lyricsSourceLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
             lyricsSourceLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
+            lyricsSourceLabel.bottomAnchor.constraint(equalTo: slider.topAnchor, constant: -12),
 
-            titleLabel.topAnchor.constraint(equalTo: artworkView.bottomAnchor, constant: 16),
+            titleUnderArtwork ?? titleLabel.topAnchor.constraint(equalTo: artworkView.bottomAnchor, constant: 16),
             titleLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
             titleLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
 
@@ -330,6 +336,8 @@ final class NowPlayingViewController: UIViewController {
     private func applyMode(lyrics: Bool) {
         showingLyrics = lyrics
         artworkView.isHidden = lyrics
+        titleUnderArtwork?.isActive = !lyrics
+        titleUnderClose?.isActive = lyrics
         lyricsTable.isHidden = !lyrics
         lyricsSourceLabel.isHidden = !lyrics
         toggleButton.setTitle(lyrics ? "Artwork" : "Lyrics", for: .normal)
