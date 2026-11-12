@@ -215,7 +215,9 @@ jobs:
           CONTAINER=$(xcrun simctl get_app_container "$UDID" "$BUNDLE" data)
           mkdir -p "$CONTAINER/Documents/shots"
           xcrun simctl launch "$UDID" "$BUNDLE" -BCScreenshots "$CONTAINER/Documents/shots"
-          sleep 18
+          # The harness walks the tabs, then plays a track and opens the
+          # lyrics panel, which needs its provider call to land first.
+          sleep 45
           rm -rf shots && mkdir -p shots
           cp -R "$CONTAINER/Documents/shots/." shots/ || true
           ls -l shots
