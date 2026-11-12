@@ -137,14 +137,14 @@ final class NowPlayingViewController: UIViewController {
         ])
 
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
-        titleLabel.font = Theme.font(22, weight: .bold)
+        titleLabel.font = Theme.font(.headlineMedium)
         titleLabel.textColor = Theme.primaryText
         titleLabel.numberOfLines = 2
         titleLabel.textAlignment = .left
         view.addSubview(titleLabel)
 
         artistLabel.translatesAutoresizingMaskIntoConstraints = false
-        artistLabel.font = Theme.font(15)
+        artistLabel.font = Theme.font(.bodyLarge)
         artistLabel.textColor = Theme.secondaryText
         artistLabel.textAlignment = .left
         view.addSubview(artistLabel)

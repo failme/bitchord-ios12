@@ -13,10 +13,78 @@ enum Theme {
     static let primaryText = UIColor.white
     static let secondaryText = UIColor(red: 0x8E / 255.0, green: 0x8E / 255.0, blue: 0x93 / 255.0, alpha: 1)
     static let outline = UIColor(red: 0x2C / 255.0, green: 0x2C / 255.0, blue: 0x2E / 255.0, alpha: 1)
-    /// Upstream's signature red, the one constant that stays red in every theme.
-    static let accent = UIColor(red: 0xFA / 255.0, green: 0x2D / 255.0, blue: 0x48 / 255.0, alpha: 1)
+    /// Upstream's primary is white — playback controls, accents, the selected
+    /// tab. The red is Replay's rank badge and nothing else.
+    static let accent = UIColor.white
+    static let replayRed = UIColor(red: 0xFA / 255.0, green: 0x2D / 255.0, blue: 0x48 / 255.0, alpha: 1)
+
+    /// The page inset every screen shares.
+    static let gutter: CGFloat = 16
+    /// A row's thumbnail box.
+    static let rowArtwork: CGFloat = 52
 
     // MARK: - Type
+
+    /// Upstream's scale (`BitChordTypography`). Every weight there is asked for
+    /// one cut bolder than it draws, because Apple Music's own screens came out
+    /// lighter; the weights below are the cuts the real app actually paints.
+    enum TextStyle {
+        case displayLarge, headlineLarge, headlineMedium, titleLarge
+        case titleMedium, bodyLarge, bodyMedium, labelMedium, labelSmall
+
+        var size: CGFloat {
+            switch self {
+            case .displayLarge: return 34
+            case .headlineLarge: return 30
+            case .headlineMedium: return 22
+            case .titleLarge: return 20
+            case .titleMedium: return 16
+            case .bodyLarge: return 16
+            case .bodyMedium: return 14
+            case .labelMedium: return 12
+            case .labelSmall: return 11
+            }
+        }
+
+        var weight: UIFont.Weight {
+            switch self {
+            case .displayLarge, .headlineLarge: return .bold
+            case .headlineMedium, .titleLarge: return .semibold
+            case .titleMedium, .labelMedium, .labelSmall: return .medium
+            case .bodyLarge, .bodyMedium: return .regular
+            }
+        }
+
+        /// Measured off Apple Music: small text opens up, large titles close.
+        var kerning: CGFloat {
+            switch self {
+            case .displayLarge: return -0.5
+            case .headlineLarge: return -0.4
+            case .headlineMedium: return -0.25
+            case .titleLarge: return -0.2
+            case .titleMedium: return 0.05
+            case .bodyLarge: return 0.2
+            case .bodyMedium: return 0.3
+            case .labelMedium: return 0.25
+            case .labelSmall: return 0.3
+            }
+        }
+    }
+
+    static func font(_ style: TextStyle) -> UIFont {
+        return UIFont.systemFont(ofSize: style.size, weight: style.weight)
+    }
+
+    static func kerning(_ style: TextStyle) -> CGFloat {
+        return style.kerning
+    }
+
+    static func attributed(_ text: String, _ style: TextStyle, color: UIColor) -> NSAttributedString {
+        return NSAttributedString(string: text,
+                                   attributes: [.font: font(style),
+                                                .foregroundColor: color,
+                                                .kern: style.kerning])
+    }
 
     static func font(_ size: CGFloat, weight: UIFont.Weight = .regular) -> UIFont {
         return UIFont.systemFont(ofSize: size, weight: weight)

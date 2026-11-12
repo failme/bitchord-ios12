@@ -18,7 +18,7 @@ final class SearchViewController: UIViewController {
     private let fieldIcon = UIImageView()
     private let field = UITextField()
     private let clearButton = UIButton(type: .system)
-    private let selector = UISegmentedControl(items: ["Songs", "Artists", "Albums"])
+    private let selector = PillSelectorView(titles: ["Songs", "Artists", "Albums"])
     private let tableView = UITableView(frame: .zero, style: .plain)
     private let emptyLabel = UILabel()
     private let spinner = UIActivityIndicatorView(frame: CGRect(x: 0, y: 0, width: 20, height: 20))
@@ -91,7 +91,7 @@ final class SearchViewController: UIViewController {
             fieldContainer.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
             fieldContainer.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
             fieldContainer.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
-            fieldContainer.heightAnchor.constraint(equalToConstant: 40),
+            fieldContainer.heightAnchor.constraint(equalToConstant: 46),
 
             fieldIcon.leadingAnchor.constraint(equalTo: fieldContainer.leadingAnchor, constant: 11),
             fieldIcon.centerYAnchor.constraint(equalTo: fieldContainer.centerYAnchor),
@@ -112,25 +112,21 @@ final class SearchViewController: UIViewController {
 
     private func buildSelector() {
         selector.translatesAutoresizingMaskIntoConstraints = false
-        selector.selectedSegmentIndex = 0
-        selector.tintColor = Theme.primaryText
-        if #available(iOS 13.0, *) {
-            selector.selectedSegmentTintColor = Theme.surfaceVariant
-        }
-        selector.setTitleTextAttributes([.foregroundColor: Theme.secondaryText,
-                                         .font: Theme.font(13, weight: .semibold)],
-                                        for: .normal)
-        selector.setTitleTextAttributes([.foregroundColor: Theme.primaryText,
-                                         .font: Theme.font(13, weight: .semibold)],
-                                        for: .selected)
-        selector.addTarget(self, action: #selector(selectorChanged), for: .valueChanged)
         selector.isHidden = true
+        selector.onSelect = { [weak self] index in
+            guard let self = self, let picked = Mode(rawValue: index) else { return }
+            self.modeChosen = true
+            self.mode = picked
+            self.tableView.setContentOffset(.zero, animated: false)
+            self.tableView.reloadData()
+            self.refresh()
+        }
         view.addSubview(selector)
         NSLayoutConstraint.activate([
             selector.topAnchor.constraint(equalTo: fieldContainer.bottomAnchor, constant: 10),
-            selector.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
-            selector.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
-            selector.heightAnchor.constraint(equalToConstant: 32)
+            selector.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: Theme.gutter),
+            selector.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -Theme.gutter),
+            selector.heightAnchor.constraint(equalToConstant: 40)
         ])
     }
 
@@ -239,7 +235,7 @@ final class SearchViewController: UIViewController {
             // The first batch decides the tab, unless the user already picked one.
             if !modeChosen {
                 mode = songs.isEmpty && !artists.isEmpty ? .artists : .songs
-                selector.selectedSegmentIndex = mode.rawValue
+                selector.select(mode.rawValue, animated: false)
             }
             selector.isHidden = (songs.isEmpty && artists.isEmpty && albums.isEmpty)
             tableView.reloadData()
@@ -277,14 +273,6 @@ final class SearchViewController: UIViewController {
         field.text = ""
         textChanged()
         field.becomeFirstResponder()
-    }
-
-    @objc private func selectorChanged() {
-        modeChosen = true
-        mode = Mode(rawValue: selector.selectedSegmentIndex) ?? .songs
-        tableView.setContentOffset(.zero, animated: false)
-        tableView.reloadData()
-        refresh()
     }
 
     private func openArtist(_ artist: CatalogueArtist) {

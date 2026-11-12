@@ -15,7 +15,7 @@ final class ShelfRowView: UIView {
     private let collectionView: UICollectionView
     private var tracks: [Track] = []
 
-    static let cardWidth: CGFloat = 152
+    static let cardWidth: CGFloat = 150
     static let rowHeight: CGFloat = 252
 
     override init(frame: CGRect) {
@@ -23,7 +23,7 @@ final class ShelfRowView: UIView {
         layout.scrollDirection = .horizontal
         layout.itemSize = CGSize(width: ShelfRowView.cardWidth, height: ShelfRowView.rowHeight - 36)
         layout.minimumLineSpacing = 12
-        layout.sectionInset = UIEdgeInsets(top: 0, left: 20, bottom: 0, right: 20)
+        layout.sectionInset = UIEdgeInsets(top: 0, left: Theme.gutter, bottom: 0, right: Theme.gutter)
         collectionView = UICollectionView(frame: .zero, collectionViewLayout: layout)
         super.init(frame: frame)
         build()
@@ -34,7 +34,7 @@ final class ShelfRowView: UIView {
         layout.scrollDirection = .horizontal
         layout.itemSize = CGSize(width: ShelfRowView.cardWidth, height: ShelfRowView.rowHeight - 36)
         layout.minimumLineSpacing = 12
-        layout.sectionInset = UIEdgeInsets(top: 0, left: 20, bottom: 0, right: 20)
+        layout.sectionInset = UIEdgeInsets(top: 0, left: Theme.gutter, bottom: 0, right: Theme.gutter)
         collectionView = UICollectionView(frame: .zero, collectionViewLayout: layout)
         super.init(coder: coder)
         build()
@@ -44,7 +44,7 @@ final class ShelfRowView: UIView {
         backgroundColor = .clear
 
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
-        titleLabel.font = Theme.font(20, weight: .bold)
+        titleLabel.font = Theme.font(.titleLarge)
         titleLabel.textColor = Theme.primaryText
         addSubview(titleLabel)
 
@@ -66,7 +66,7 @@ final class ShelfRowView: UIView {
 
         NSLayoutConstraint.activate([
             titleLabel.topAnchor.constraint(equalTo: topAnchor),
-            titleLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+            titleLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Theme.gutter),
             titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: playButton.leadingAnchor, constant: -8),
 
             playButton.centerYAnchor.constraint(equalTo: titleLabel.centerYAnchor),
@@ -146,7 +146,7 @@ final class CardShelfView: UIView {
         layout.scrollDirection = .horizontal
         layout.itemSize = CGSize(width: ShelfRowView.cardWidth, height: CardShelfView.rowHeight - 36)
         layout.minimumLineSpacing = 12
-        layout.sectionInset = UIEdgeInsets(top: 0, left: 20, bottom: 0, right: 20)
+        layout.sectionInset = UIEdgeInsets(top: 0, left: Theme.gutter, bottom: 0, right: Theme.gutter)
         return UICollectionView(frame: .zero, collectionViewLayout: layout)
     }
 
@@ -154,7 +154,7 @@ final class CardShelfView: UIView {
         backgroundColor = .clear
 
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
-        titleLabel.font = Theme.font(20, weight: .bold)
+        titleLabel.font = Theme.font(.titleLarge)
         titleLabel.textColor = Theme.primaryText
         addSubview(titleLabel)
 
@@ -168,7 +168,7 @@ final class CardShelfView: UIView {
 
         NSLayoutConstraint.activate([
             titleLabel.topAnchor.constraint(equalTo: topAnchor),
-            titleLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+            titleLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Theme.gutter),
             titleLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
 
             collectionView.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 12),
@@ -234,13 +234,13 @@ final class CardItemCell: UICollectionViewCell {
         contentView.addSubview(artworkView)
 
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
-        titleLabel.font = Theme.font(13, weight: .semibold)
+        titleLabel.font = Theme.font(.bodyMedium)
         titleLabel.textColor = Theme.primaryText
         titleLabel.numberOfLines = 2
         contentView.addSubview(titleLabel)
 
         subtitleLabel.translatesAutoresizingMaskIntoConstraints = false
-        subtitleLabel.font = Theme.font(12)
+        subtitleLabel.font = Theme.font(.labelMedium)
         subtitleLabel.textColor = Theme.secondaryText
         subtitleLabel.numberOfLines = 1
         contentView.addSubview(subtitleLabel)
@@ -310,7 +310,7 @@ final class ChipRowView: UIView {
         layout.scrollDirection = .horizontal
         layout.estimatedItemSize = CGSize(width: 80, height: 34)
         layout.minimumLineSpacing = 8
-        layout.sectionInset = UIEdgeInsets(top: 0, left: 20, bottom: 0, right: 20)
+        layout.sectionInset = UIEdgeInsets(top: 0, left: Theme.gutter, bottom: 0, right: Theme.gutter)
         return UICollectionView(frame: .zero, collectionViewLayout: layout)
     }
 
@@ -419,13 +419,13 @@ final class ArtworkCardCell: UICollectionViewCell {
         contentView.addSubview(artworkView)
 
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
-        titleLabel.font = Theme.font(13, weight: .semibold)
+        titleLabel.font = Theme.font(.bodyMedium)
         titleLabel.textColor = Theme.primaryText
         titleLabel.numberOfLines = 2
         contentView.addSubview(titleLabel)
 
         subtitleLabel.translatesAutoresizingMaskIntoConstraints = false
-        subtitleLabel.font = Theme.font(12)
+        subtitleLabel.font = Theme.font(.labelMedium)
         subtitleLabel.textColor = Theme.secondaryText
         subtitleLabel.numberOfLines = 1
         contentView.addSubview(subtitleLabel)
