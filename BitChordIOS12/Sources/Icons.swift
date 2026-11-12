@@ -228,9 +228,16 @@ enum Icons {
             stroke(arc2, width: w * 0.85)
             UIBezierPath(ovalIn: CGRect(x: 0.22 * s, y: 0.70 * s, width: 0.09 * s, height: 0.09 * s)).fill()
         case .bubble:
-            let box = UIBezierPath(roundedRect: CGRect(x: 0.16 * s, y: 0.18 * s, width: 0.68 * s, height: 0.56 * s),
-                                   cornerRadius: 0.16 * s)
-            stroke(box)
+            let box = UIBezierPath(roundedRect: CGRect(x: 0.14 * s, y: 0.16 * s, width: 0.72 * s, height: 0.60 * s),
+                                   cornerRadius: 0.17 * s)
+            box.fill()
+            // Punch the dots out of the solid bubble, as the real footer draws it.
+            cg.setBlendMode(.clear)
+            for dx in [-0.15, 0.0, 0.15] {
+                UIBezierPath(ovalIn: CGRect(x: (0.5 + CGFloat(dx) - 0.038) * s, y: 0.43 * s,
+                                            width: 0.076 * s, height: 0.076 * s)).fill()
+            }
+            cg.setBlendMode(.normal)
             for dx in [-0.14, 0.0, 0.14] {
                 UIBezierPath(ovalIn: CGRect(x: (0.5 + CGFloat(dx) - 0.035) * s, y: 0.44 * s,
                                             width: 0.07 * s, height: 0.07 * s)).fill()

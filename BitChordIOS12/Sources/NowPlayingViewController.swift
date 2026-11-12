@@ -171,13 +171,13 @@ final class NowPlayingViewController: UIViewController {
         compactHeader.addSubview(headerArtwork)
 
         headerTitle.translatesAutoresizingMaskIntoConstraints = false
-        headerTitle.font = Theme.font(17, weight: .semibold)
+        headerTitle.font = Theme.font(18, weight: .semibold)
         headerTitle.textColor = Theme.primaryText
         headerTitle.lineBreakMode = .byTruncatingTail
         compactHeader.addSubview(headerTitle)
 
         headerArtist.translatesAutoresizingMaskIntoConstraints = false
-        headerArtist.font = Theme.font(14)
+        headerArtist.font = Theme.font(15)
         headerArtist.textColor = Theme.secondaryText
         headerArtist.lineBreakMode = .byTruncatingTail
         compactHeader.addSubview(headerArtist)
@@ -185,8 +185,8 @@ final class NowPlayingViewController: UIViewController {
         NSLayoutConstraint.activate([
             headerArtwork.leadingAnchor.constraint(equalTo: compactHeader.leadingAnchor),
             headerArtwork.centerYAnchor.constraint(equalTo: compactHeader.centerYAnchor),
-            headerArtwork.widthAnchor.constraint(equalToConstant: 40),
-            headerArtwork.heightAnchor.constraint(equalToConstant: 40),
+            headerArtwork.widthAnchor.constraint(equalToConstant: 48),
+            headerArtwork.heightAnchor.constraint(equalToConstant: 48),
             headerTitle.leadingAnchor.constraint(equalTo: headerArtwork.trailingAnchor, constant: 10),
             headerTitle.trailingAnchor.constraint(equalTo: compactHeader.trailingAnchor),
             headerTitle.bottomAnchor.constraint(equalTo: compactHeader.centerYAnchor, constant: -1),
@@ -308,7 +308,7 @@ final class NowPlayingViewController: UIViewController {
         }
 
         configureTransportButton(shuffleButton, icon: .shuffle, size: 20, action: #selector(goShuffle))
-        configureTransportButton(previousButton, icon: .previous, size: 28, action: #selector(goPrevious))
+        configureTransportButton(previousButton, icon: .previous, size: 30, action: #selector(goPrevious))
         configureTransportButton(playButton, icon: .play, size: 26, action: #selector(togglePlay))
         playButton.backgroundColor = .white
         playButton.layer.cornerRadius = 32
@@ -317,7 +317,7 @@ final class NowPlayingViewController: UIViewController {
         playButton.layer.shadowOpacity = 0.35
         playButton.layer.shadowRadius = 12
         playButton.layer.shadowOffset = CGSize(width: 0, height: 6)
-        configureTransportButton(nextButton, icon: .next, size: 28, action: #selector(goNext))
+        configureTransportButton(nextButton, icon: .next, size: 30, action: #selector(goNext))
         configureTransportButton(repeatButton, icon: .repeatAll, size: 20, action: #selector(goRepeat))
 
         configureTransportButton(likeButton, icon: .heart, size: 20, action: #selector(toggleLike))
@@ -504,6 +504,11 @@ final class NowPlayingViewController: UIViewController {
         badgeLabel.isHidden = lyrics
         statusLabel.isHidden = lyrics
         diagnosticsLabel.isHidden = lyrics
+        // The real panel draws the transport straight on the background, with
+        // no white disc behind the pause.
+        playButton.backgroundColor = lyrics ? .clear : .white
+        playButton.tintColor = lyrics ? .white : .black
+        playButton.setImage(Icons.image(service.isPlaying ? .pause : .play, size: 30), for: .normal)
         handle.isHidden = !lyrics
         closeButton.isHidden = lyrics
         globeButton.isHidden = !lyrics
