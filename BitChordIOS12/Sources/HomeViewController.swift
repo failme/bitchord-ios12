@@ -129,9 +129,20 @@ final class HomeViewController: UIViewController {
     /// A second shelf straight from the catalogue, so a first launch has more
     /// on it than one row of picks.
     private func loadNewReleases() {
-        CatalogueSearch.shared.albums("New album releases") { [weak self] albums in
-            guard let self = self, !albums.isEmpty else { return }
-            self.albums = Array(albums.prefix(12))
+        CatalogueSearch.shared.albums("Latest albums") { [weak self] albums in
+            guard let self = self else { return }
+            // The catalogue answers a "new releases" query with compilations
+            // literally called "Releases", "New Releases", "Recent Releases"…
+            // They are not albums anyone meant to browse, so they are dropped
+            // and the shelf keeps only rows with a real name.
+            let generic: Set<String> = ["releases", "new releases", "recent releases",
+                                        "latest releases", "all music releases", "releases 2026"]
+            let named = albums.filter { album in
+                let key = album.title.lowercased().trimmingCharacters(in: .whitespaces)
+                return !generic.contains(key) && !key.hasSuffix(" releases")
+            }
+            guard !named.isEmpty else { return }
+            self.albums = Array(named.prefix(12))
             var cards: [CardItem] = []
             for album in self.albums {
                 let bits = [album.artist, album.year].filter { !$0.isEmpty }

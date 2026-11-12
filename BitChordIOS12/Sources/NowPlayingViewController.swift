@@ -248,14 +248,15 @@ final class NowPlayingViewController: UIViewController {
             artworkView.widthAnchor.constraint(equalTo: view.widthAnchor, multiplier: 0.80),
             artworkView.heightAnchor.constraint(equalTo: artworkView.widthAnchor),
 
-            lyricsTable.topAnchor.constraint(equalTo: artistLabel.bottomAnchor, constant: 14),
+            lyricsTable.topAnchor.constraint(equalTo: artworkView.topAnchor),
             lyricsTable.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             lyricsTable.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            lyricsTable.bottomAnchor.constraint(equalTo: lyricsSourceLabel.topAnchor, constant: -8),
+            lyricsTable.bottomAnchor.constraint(equalTo: lyricsSourceLabel.topAnchor, constant: -4),
 
             lyricsSourceLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
             lyricsSourceLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
-            lyricsSourceLabel.bottomAnchor.constraint(equalTo: slider.topAnchor, constant: -12),
+            lyricsSourceLabel.bottomAnchor.constraint(equalTo: artworkView.bottomAnchor,
+                                                       constant: -2),
 
             titleUnderArtwork ?? titleLabel.topAnchor.constraint(equalTo: artworkView.bottomAnchor, constant: 16),
             titleLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
@@ -336,8 +337,10 @@ final class NowPlayingViewController: UIViewController {
     private func applyMode(lyrics: Bool) {
         showingLyrics = lyrics
         artworkView.isHidden = lyrics
-        titleUnderArtwork?.isActive = !lyrics
-        titleUnderClose?.isActive = lyrics
+        // The panel keeps the title under the cover: the scrubber and transport
+        // hang off that chain, so moving it would pull them up the screen.
+        titleUnderArtwork?.isActive = true
+        titleUnderClose?.isActive = false
         lyricsTable.isHidden = !lyrics
         lyricsSourceLabel.isHidden = !lyrics
         toggleButton.setTitle(lyrics ? "Artwork" : "Lyrics", for: .normal)
