@@ -22,6 +22,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         window.rootViewController = RootViewController(nibName: nil, bundle: nil)
         window.makeKeyAndVisible()
         self.window = window
+        ScreenshotHarness.runIfRequested()
         return true
     }
 }

@@ -133,6 +133,11 @@ final class RootViewController: UIViewController {
         }
     }
 
+    /// Drives the tabs for the screenshot harness.
+    func showTab(_ index: Int) {
+        install(index)
+    }
+
     // MARK: - Now playing
 
     func presentNowPlaying() {

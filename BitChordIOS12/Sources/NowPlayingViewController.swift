@@ -6,6 +6,7 @@ final class NowPlayingViewController: UIViewController {
     private let closeButton = UIButton(type: .system)
     private let artworkView = UIImageView()
     private let backdropView = UIImageView()
+    private let meshView = MeshGradientView()
     private let blurView = UIVisualEffectView(effect: UIBlurEffect(style: .dark))
     private let glowView = UIView()
     private let glowLayer = CAGradientLayer()
@@ -75,8 +76,13 @@ final class NowPlayingViewController: UIViewController {
         backdropView.translatesAutoresizingMaskIntoConstraints = false
         backdropView.contentMode = .scaleAspectFill
         backdropView.clipsToBounds = true
-        backdropView.alpha = 0.55
+        backdropView.alpha = 0
         view.addSubview(backdropView)
+
+        // The mesh sits under everything: four blobs sampled from the cover,
+        // blurred once into the Apple Music backdrop upstream draws.
+        meshView.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(meshView)
 
         blurView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(blurView)
@@ -122,6 +128,13 @@ final class NowPlayingViewController: UIViewController {
         lyricsTable.register(KaraokeLyricCell.self,
                              forCellReuseIdentifier: KaraokeLyricCell.reuseIdentifier)
         view.addSubview(lyricsTable)
+
+        NSLayoutConstraint.activate([
+            meshView.topAnchor.constraint(equalTo: view.topAnchor),
+            meshView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            meshView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            meshView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+        ])
 
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
         titleLabel.font = Theme.font(22, weight: .bold)
@@ -342,13 +355,21 @@ final class NowPlayingViewController: UIViewController {
             titleLabel.text = track.title
         }
         artistLabel.text = track.artist.isEmpty ? "Unknown artist" : track.artist
-        let source = AudioEngine.shared.currentSourceLabel
-        let badge = (source.isEmpty ? track.displayAudioQualityBadge : source).uppercased()
-        let styled = NSMutableAttributedString(string: badge)
-        let full = NSRange(location: 0, length: styled.length)
-        styled.addAttribute(.kern, value: 0.8, range: full)
-        styled.addAttribute(.foregroundColor, value: Theme.secondaryText, range: full)
-        badgeLabel.attributedText = styled
+        // The source tag reads "JIOSAAVN 320KBPS" on every track. Useful when
+        // something will not play, noise the rest of the time, so it is only
+        // shown when the listener turns debug information on.
+        if SettingsStore.shared.showDebugInfo {
+            let source = AudioEngine.shared.currentSourceLabel
+            let badge = (source.isEmpty ? track.displayAudioQualityBadge : source).uppercased()
+            let styled = NSMutableAttributedString(string: badge)
+            let full = NSRange(location: 0, length: styled.length)
+            styled.addAttribute(.kern, value: 0.8, range: full)
+            styled.addAttribute(.foregroundColor, value: Theme.secondaryText, range: full)
+            badgeLabel.attributedText = styled
+        } else {
+            badgeLabel.attributedText = nil
+            badgeLabel.text = nil
+        }
         statusLabel.text = service.statusText.isEmpty ? nil : service.statusText
         playButton.setImage(Icons.image(service.isPlaying ? .pause : .play, size: 26), for: .normal)
         nextButton.isEnabled = service.currentIndex + 1 < service.queue.count
@@ -394,6 +415,7 @@ final class NowPlayingViewController: UIViewController {
     /// backdrop and the edge-color glow the cover fades into.
     private func applyArtwork(_ image: UIImage?) {
         artworkView.image = image
+        meshView.palette = Theme.meshPalette(of: image)
         UIView.transition(with: backdropView, duration: 0.4, options: .transitionCrossDissolve, animations: {
             self.backdropView.image = image
         }, completion: nil)
@@ -413,7 +435,9 @@ final class NowPlayingViewController: UIViewController {
         if !slider.isTracking {
             slider.value = total > 0 ? Float(min(1, max(0, position / total))) : 0
         }
-        diagnosticsLabel.text = AudioEngine.shared.diagnosticsSummary
+        diagnosticsLabel.text = SettingsStore.shared.showDebugInfo
+            ? AudioEngine.shared.diagnosticsSummary
+            : nil
         elapsedLabel.text = Theme.format(position)
         remainingLabel.text = total > 0 ? "-" + Theme.format(max(0, total - position)) : ""
         updateHighlight(at: position)

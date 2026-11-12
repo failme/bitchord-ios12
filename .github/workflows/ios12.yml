@@ -165,3 +165,61 @@ jobs:
           name: BitChordIOS12-simulator
           path: BitChordIOS12-simulator.zip
           retention-days: 30
+  screenshots:
+    runs-on: macos-15
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Build for simulator
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project BitChordIOS12.xcodeproj \
+            -scheme BitChordIOS12 \
+            -sdk iphonesimulator \
+            -configuration Release \
+            -derivedDataPath build-shots \
+            IPHONEOS_DEPLOYMENT_TARGET=12.0 \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build 2>&1 | tee shots-build.log
+
+      - name: Capture screens
+        run: |
+          set -o pipefail
+          APP="build-shots/Build/Products/Release-iphonesimulator/BitChordIOS12.app"
+          test -d "$APP"
+          BUNDLE=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")
+          RUNTIME=$(xcrun simctl list runtimes | grep -E 'iOS (1[7-9]|2[0-9])' | tail -1 | sed -E 's/.*(com\.apple\.CoreSimulator\.SimRuntime\.[^ ]+).*/\1/')
+          TYPE=$(xcrun simctl list devicetypes | grep -m1 'iPhone 1[5-9]' | sed -E 's/.*(com\.apple\.CoreSimulator\.SimDeviceType\.[^ ]+).*/\1/')
+          echo "runtime=$RUNTIME type=$TYPE"
+          UDID=$(xcrun simctl create BC-Screens "$TYPE" "$RUNTIME")
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl install "$UDID" "$APP"
+          CONTAINER=$(xcrun simctl get_app_container "$UDID" "$BUNDLE" data)
+          mkdir -p "$CONTAINER/Documents/shots"
+          xcrun simctl launch "$UDID" "$BUNDLE" -BCScreenshots "$CONTAINER/Documents/shots"
+          sleep 18
+          rm -rf shots && mkdir -p shots
+          cp -R "$CONTAINER/Documents/shots/." shots/ || true
+          ls -l shots
+          ls shots/*.png > /dev/null
+
+      - name: Upload screens
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: BitChordIOS12-screenshots
+          path: |
+            shots
+            shots-build.log
+          retention-days: 14

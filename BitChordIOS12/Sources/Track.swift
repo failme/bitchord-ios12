@@ -20,6 +20,9 @@ struct Track: Codable, Hashable {
     var sourceId: String?
     /// Whether the catalogue flagged the track explicit (Apple-style E badge).
     var isExplicit = false
+    /// Catalogue artwork. A JioSaavn row has no YouTube id to derive a
+    /// thumbnail from, so the URL travels with the track instead.
+    var artwork: String?
 
     var id: String { return videoID }
 
@@ -53,10 +56,11 @@ struct Track: Codable, Hashable {
     }
 
     var artworkURL: URL? {
+        if let artwork = artwork, let url = URL(string: artwork) { return url }
         return URL(string: "https://i.ytimg.com/vi/\(videoID)/mqdefault.jpg")
     }
 
     var largeArtworkURL: URL? {
-        return URL(string: "https://i.ytimg.com/vi/\(videoID)/hqdefault.jpg")
+        return artworkURL
     }
 }

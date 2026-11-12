@@ -449,7 +449,7 @@ final class ArtworkCardCell: UICollectionViewCell {
     func configure(with track: Track) {
         currentVideoID = track.videoID
         titleLabel.text = track.title
-        subtitleLabel.text = track.artist.isEmpty ? AudioEngine.shared.currentSourceLabel : track.artist
+        subtitleLabel.text = track.artist
 
         artworkTask?.cancel()
         let url = track.largeArtworkURL

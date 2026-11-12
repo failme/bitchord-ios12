@@ -80,6 +80,14 @@ final class SettingsStore {
         get { return bool("BitChord.Audio.AutoPlay", true) }
         set { set(newValue, for: "BitChord.Audio.AutoPlay") }
     }
+
+    /// Whether the player prints its own diagnostics: stream source, quality
+    /// and engine counters. Off unless asked for — that is a developer view,
+    /// not chrome the listener should have to read on every track.
+    var showDebugInfo: Bool {
+        get { return bool("BitChord.Misc.ShowDebugInfo", false) }
+        set { set(newValue, for: "BitChord.Misc.ShowDebugInfo") }
+    }
 }
 
 /// The upstream sections and keys, with an honest availability verdict for each.
@@ -263,6 +271,9 @@ enum SettingsCatalog {
         ]),
 
         SettingSection(title: "Performance & advanced", items: [
+            SettingItem(key: "BitChord.Misc.ShowDebugInfo", title: "Show debug info",
+                        detail: "Stream source, quality and engine counters",
+                        kind: .toggle(false)),
             SettingItem(key: "BitChord.Advanced.StatsForNerds", title: "Stats for nerds",
                         kind: .unavailable("Telemetry overlay is not ported.")),
             SettingItem(key: "BitChord.Performance.HighPerformanceMode", title: "High performance mode",
