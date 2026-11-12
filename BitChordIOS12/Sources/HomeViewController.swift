@@ -15,13 +15,13 @@ final class HomeViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = "Home"
+        title = ""
         navigationItem.rightBarButtonItem = UIBarButtonItem(image: Icons.image(.gear, size: 22),
                                                             style: .plain,
                                                             target: self,
                                                             action: #selector(openSettings))
         view.backgroundColor = Theme.background
-        navigationItem.largeTitleDisplayMode = .always
+        navigationItem.largeTitleDisplayMode = .never
 
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.alwaysBounceVertical = true
@@ -35,8 +35,9 @@ final class HomeViewController: UIViewController {
         scrollView.addSubview(stack)
 
         greetingLabel.text = greeting()
-        greetingLabel.font = Theme.font(15)
-        greetingLabel.textColor = Theme.secondaryText
+        // Upstream opens Home with the greeting as the heading, not a page title
+        // above a second, smaller line.
+        greetingLabel.attributedText = Theme.attributed(greeting(), .headlineLarge, color: Theme.primaryText)
         greetingLabel.numberOfLines = 2
         stack.addArrangedSubview(greetingLabel)
 
@@ -49,7 +50,7 @@ final class HomeViewController: UIViewController {
         emptyLabel.translatesAutoresizingMaskIntoConstraints = false
 
         NSLayoutConstraint.activate([
-            scrollView.topAnchor.constraint(equalTo: view.topAnchor),
+            scrollView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
             scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
