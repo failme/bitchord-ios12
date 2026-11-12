@@ -218,6 +218,7 @@ final class SettingsCell: UITableViewCell {
             detailLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 2),
             detailLabel.trailingAnchor.constraint(equalTo: titleLabel.trailingAnchor),
 
+            cardView.heightAnchor.constraint(greaterThanOrEqualToConstant: 64),
             chevron.trailingAnchor.constraint(equalTo: cardView.trailingAnchor, constant: -18),
             chevron.centerYAnchor.constraint(equalTo: cardView.centerYAnchor),
             chevron.widthAnchor.constraint(equalToConstant: 9),
@@ -255,8 +256,9 @@ final class SettingsCell: UITableViewCell {
                 ? String(format: "%.2g%@", value, unit)
                 : "\(Int(value))\(unit)"
             showsChevron = true
-        case .unavailable(let reason):
-            detailLabel.text = reason
+        case .unavailable:
+            // The real app greys the row out; it does not explain the port.
+            detailLabel.text = nil
             available = false
         case .toggle:
             showsChevron = false

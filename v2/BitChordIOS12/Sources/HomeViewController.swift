@@ -79,14 +79,6 @@ final class HomeViewController: UIViewController {
         }
         stack.addArrangedSubview(topPicks)
 
-        emptyLabel.text = "Play something and it will show up here."
-        emptyLabel.textColor = Theme.secondaryText
-        emptyLabel.font = Theme.font(14)
-        emptyLabel.textAlignment = .center
-        emptyLabel.numberOfLines = 0
-        view.addSubview(emptyLabel)
-        emptyLabel.translatesAutoresizingMaskIntoConstraints = false
-
         NSLayoutConstraint.activate([
             scrollView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
             scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
@@ -99,10 +91,6 @@ final class HomeViewController: UIViewController {
             stack.bottomAnchor.constraint(equalTo: scrollView.bottomAnchor, constant: -28),
             stack.widthAnchor.constraint(equalTo: scrollView.widthAnchor),
 
-            emptyLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            emptyLabel.centerYAnchor.constraint(equalTo: view.centerYAnchor),
-            emptyLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 32),
-            emptyLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -32)
         ])
 
         NotificationCenter.default.addObserver(self,
@@ -140,7 +128,6 @@ final class HomeViewController: UIViewController {
             self.topPicks.isHidden = false
             // rebuild() can return early when the shelf shape is unchanged, so
             // the empty state is cleared here, where the feed first appears.
-            self.emptyLabel.isHidden = true
             self.scrollView.isHidden = false
             self.rebuild()
         }
@@ -261,8 +248,6 @@ final class HomeViewController: UIViewController {
             shelfViews[title] = row
         }
 
-        let hasFeed = !shelves.isEmpty || !topPicks.isHidden
-        emptyLabel.isHidden = hasFeed
-        scrollView.isHidden = !hasFeed
+        scrollView.isHidden = shelves.isEmpty && topPicks.isHidden
     }
 }
