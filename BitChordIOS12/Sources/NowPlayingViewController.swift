@@ -708,7 +708,7 @@ final class NowPlayingViewController: UIViewController {
 
     private func updateHighlight(at position: TimeInterval) {
         guard lyricsSynced, !currentLyrics.isEmpty else { return }
-        var index = 0
+        var index = -1
         for (offset, line) in currentLyrics.enumerated() {
             if line.time <= position {
                 index = offset
@@ -721,7 +721,7 @@ final class NowPlayingViewController: UIViewController {
             // The active line is set larger, so its measured height is stale.
             lyricHeights.removeAll()
             lyricsTable.reloadData()
-            if !userScrolling {
+            if index >= 0, !userScrolling {
                 lyricsTable.scrollToRow(at: IndexPath(row: index, section: 0), at: .middle, animated: true)
             }
             return
@@ -836,9 +836,10 @@ extension NowPlayingViewController: UITableViewDataSource, UITableViewDelegate {
             lyricCell.configure(line: currentLyrics[row],
                                 font: NowPlayingViewController.lyricFont(active: row == lyricHighlight),
                                 position: cellPosition)
-            // The active line's unsung half is white at half strength; the lines
-            // around it are the panel's solid grey, not a dimmed white.
-            lyricCell.dimmed = row == lyricHighlight ? .white : Theme.secondaryText
+            // Every row waits in grey; the karaoke overlay turns the words
+            // white as they are sung. Painting the active row white up front
+            // would hide the sweep entirely.
+            lyricCell.dimmed = Theme.secondaryText
         }
         return cell
     }
