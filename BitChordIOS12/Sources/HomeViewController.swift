@@ -16,10 +16,6 @@ final class HomeViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         title = ""
-        navigationItem.rightBarButtonItem = UIBarButtonItem(image: Icons.image(.gear, size: 22),
-                                                            style: .plain,
-                                                            target: self,
-                                                            action: #selector(openSettings))
         view.backgroundColor = Theme.background
         navigationItem.largeTitleDisplayMode = .never
 
@@ -34,12 +30,37 @@ final class HomeViewController: UIViewController {
         stack.alignment = .fill
         scrollView.addSubview(stack)
 
-        greetingLabel.text = greeting()
-        // Upstream opens Home with the greeting as the heading, not a page title
-        // above a second, smaller line.
-        greetingLabel.attributedText = Theme.attributed(greeting(), .headlineLarge, color: Theme.primaryText)
-        greetingLabel.numberOfLines = 2
-        stack.addArrangedSubview(greetingLabel)
+        // The real Home has no page title: the mark sits at the left of a bare
+        // top bar and the account avatar at its right.
+        let header = UIView()
+        header.translatesAutoresizingMaskIntoConstraints = false
+
+        let logo = UIImageView(image: Icons.image(.logo, size: 30))
+        logo.tintColor = Theme.primaryText
+        logo.translatesAutoresizingMaskIntoConstraints = false
+        header.addSubview(logo)
+
+        let avatar = UIButton(type: .system)
+        avatar.backgroundColor = Theme.surfaceVariant
+        avatar.layer.cornerRadius = 19
+        avatar.tintColor = Theme.secondaryText
+        avatar.setImage(Icons.image(.person, size: 20), for: .normal)
+        avatar.addTarget(self, action: #selector(openSettings), for: .touchUpInside)
+        avatar.translatesAutoresizingMaskIntoConstraints = false
+        header.addSubview(avatar)
+
+        NSLayoutConstraint.activate([
+            header.heightAnchor.constraint(equalToConstant: 44),
+            logo.leadingAnchor.constraint(equalTo: header.leadingAnchor, constant: Theme.gutter),
+            logo.centerYAnchor.constraint(equalTo: header.centerYAnchor),
+            logo.widthAnchor.constraint(equalToConstant: 34),
+            logo.heightAnchor.constraint(equalToConstant: 34),
+            avatar.trailingAnchor.constraint(equalTo: header.trailingAnchor, constant: -Theme.gutter),
+            avatar.centerYAnchor.constraint(equalTo: header.centerYAnchor),
+            avatar.widthAnchor.constraint(equalToConstant: 38),
+            avatar.heightAnchor.constraint(equalToConstant: 38)
+        ])
+        stack.addArrangedSubview(header)
 
         emptyLabel.text = "Play something and it will show up here."
         emptyLabel.textColor = Theme.secondaryText

@@ -18,6 +18,7 @@ final class SearchViewController: UIViewController {
     private let fieldIcon = UIImageView()
     private let field = UITextField()
     private let clearButton = UIButton(type: .system)
+    private let avatarButton = UIButton(type: .system)
     private let selector = PillSelectorView(titles: ["Songs", "Artists", "Albums"])
     private let tableView = UITableView(frame: .zero, style: .plain)
     private let emptyLabel = UILabel()
@@ -35,9 +36,9 @@ final class SearchViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = "Search"
+        title = ""
         view.backgroundColor = Theme.background
-        navigationItem.largeTitleDisplayMode = .always
+        navigationItem.largeTitleDisplayMode = .never
         buildField()
         buildSelector()
         buildList()
@@ -54,11 +55,11 @@ final class SearchViewController: UIViewController {
     private func buildField() {
         fieldContainer.translatesAutoresizingMaskIntoConstraints = false
         fieldContainer.backgroundColor = Theme.surfaceVariant
-        fieldContainer.layer.cornerRadius = 11
+        fieldContainer.layer.cornerRadius = 22
         view.addSubview(fieldContainer)
 
         fieldIcon.translatesAutoresizingMaskIntoConstraints = false
-        fieldIcon.image = Icons.image(.search, size: 17).withRenderingMode(.alwaysTemplate)
+        fieldIcon.image = Icons.image(.search, size: 18).withRenderingMode(.alwaysTemplate)
         fieldIcon.tintColor = Theme.secondaryText
         fieldIcon.contentMode = .scaleAspectFit
         fieldContainer.addSubview(fieldIcon)
@@ -87,16 +88,24 @@ final class SearchViewController: UIViewController {
         clearButton.isHidden = true
         fieldContainer.addSubview(clearButton)
 
+        // The real search bar pairs the field with a round account avatar.
+        avatarButton.translatesAutoresizingMaskIntoConstraints = false
+        avatarButton.backgroundColor = Theme.surfaceVariant
+        avatarButton.layer.cornerRadius = 22
+        avatarButton.tintColor = Theme.secondaryText
+        avatarButton.setImage(Icons.image(.person, size: 20), for: .normal)
+        view.addSubview(avatarButton)
+
         NSLayoutConstraint.activate([
             fieldContainer.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
             fieldContainer.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
-            fieldContainer.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
-            fieldContainer.heightAnchor.constraint(equalToConstant: 46),
+            fieldContainer.trailingAnchor.constraint(equalTo: avatarButton.leadingAnchor, constant: -10),
+            fieldContainer.heightAnchor.constraint(equalToConstant: 44),
 
             fieldIcon.leadingAnchor.constraint(equalTo: fieldContainer.leadingAnchor, constant: 11),
             fieldIcon.centerYAnchor.constraint(equalTo: fieldContainer.centerYAnchor),
-            fieldIcon.widthAnchor.constraint(equalToConstant: 17),
-            fieldIcon.heightAnchor.constraint(equalToConstant: 17),
+            fieldIcon.widthAnchor.constraint(equalToConstant: 18),
+            fieldIcon.heightAnchor.constraint(equalToConstant: 18),
 
             field.leadingAnchor.constraint(equalTo: fieldIcon.trailingAnchor, constant: 8),
             field.trailingAnchor.constraint(equalTo: clearButton.leadingAnchor, constant: -6),
@@ -106,7 +115,12 @@ final class SearchViewController: UIViewController {
             clearButton.trailingAnchor.constraint(equalTo: fieldContainer.trailingAnchor, constant: -10),
             clearButton.centerYAnchor.constraint(equalTo: fieldContainer.centerYAnchor),
             clearButton.widthAnchor.constraint(equalToConstant: 22),
-            clearButton.heightAnchor.constraint(equalToConstant: 22)
+            clearButton.heightAnchor.constraint(equalToConstant: 22),
+
+            avatarButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -Theme.gutter),
+            avatarButton.centerYAnchor.constraint(equalTo: fieldContainer.centerYAnchor),
+            avatarButton.widthAnchor.constraint(equalToConstant: 44),
+            avatarButton.heightAnchor.constraint(equalToConstant: 44)
         ])
     }
 

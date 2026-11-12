@@ -10,8 +10,10 @@ import UIKit
 final class PillSelectorView: UIView {
     var onSelect: ((Int) -> Void)?
 
-    private let trackFill = UIColor(red: 0x76 / 255, green: 0x76 / 255, blue: 0x80 / 255, alpha: 0.24)
-    private let pillFill = UIColor(red: 0x63 / 255, green: 0x63 / 255, blue: 0x66 / 255, alpha: 1)
+    // Sampled from the running app: a near-black track with a lifted grey pill,
+    // not Apple's translucent segmented fill.
+    private let trackFill = UIColor(red: 0x1C / 255, green: 0x1C / 255, blue: 0x1E / 255, alpha: 1)
+    private let pillFill = UIColor(red: 0x3A / 255, green: 0x3A / 255, blue: 0x3C / 255, alpha: 1)
     private let inset: CGFloat = 4
 
     private let pill = UIView()

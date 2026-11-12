@@ -12,8 +12,8 @@ final class CapsuleTabBar: UIView {
     private var labels: [UILabel] = []
     private let items: [(title: String, icon: Icons.Kind)] = [
         ("Home", .house),
-        ("Explore", .compass),
-        ("Library", .library),
+        ("Explore", .grid),
+        ("Library", .books),
         ("Search", .search)
     ]
 
@@ -61,11 +61,11 @@ final class CapsuleTabBar: UIView {
             cell.isUserInteractionEnabled = false
             cell.translatesAutoresizingMaskIntoConstraints = false
 
-            let icon = UIImageView(image: Icons.image(item.icon, size: 21))
+            let icon = UIImageView(image: Icons.image(item.icon, size: 23))
             icon.translatesAutoresizingMaskIntoConstraints = false
             NSLayoutConstraint.activate([
-                icon.widthAnchor.constraint(equalToConstant: 21),
-                icon.heightAnchor.constraint(equalToConstant: 21)
+                icon.widthAnchor.constraint(equalToConstant: 23),
+                icon.heightAnchor.constraint(equalToConstant: 23)
             ])
 
             let label = UILabel()

@@ -44,7 +44,7 @@ final class ShelfRowView: UIView {
         backgroundColor = .clear
 
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
-        titleLabel.font = Theme.font(.titleLarge)
+        titleLabel.font = Theme.font(22, weight: .bold)
         titleLabel.textColor = Theme.primaryText
         addSubview(titleLabel)
 
@@ -154,7 +154,7 @@ final class CardShelfView: UIView {
         backgroundColor = .clear
 
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
-        titleLabel.font = Theme.font(.titleLarge)
+        titleLabel.font = Theme.font(22, weight: .bold)
         titleLabel.textColor = Theme.primaryText
         addSubview(titleLabel)
 

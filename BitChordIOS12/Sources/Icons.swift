@@ -15,6 +15,7 @@ enum Icons {
         case search, close, plus
         case musicNote, headphones
         case house, compass, library, list, gear
+        case grid, books, person, logo
     }
 
     static func image(_ kind: Kind, size: CGFloat = 24) -> UIImage {
@@ -175,6 +176,49 @@ enum Icons {
             n.addLine(to: pt(0.45, 0.45))
             n.close()
             n.fill()
+        case .grid:
+            // The real Explore tab is four rounded tiles, not a compass.
+            let side = 0.30 * s
+            for (x, y) in [(0.19, 0.19), (0.51, 0.19), (0.19, 0.51), (0.51, 0.51)] {
+                let tile = UIBezierPath(roundedRect: CGRect(x: x * s, y: y * s, width: side, height: side),
+                                        cornerRadius: 0.10 * s)
+                tile.fill()
+            }
+        case .books:
+            // Standing books on a shelf, the shape the real Library tab draws.
+            let spine = UIBezierPath(roundedRect: CGRect(x: 0.20 * s, y: 0.24 * s, width: 0.13 * s, height: 0.48 * s),
+                                     cornerRadius: 0.04 * s)
+            spine.fill()
+            let wide = UIBezierPath(roundedRect: CGRect(x: 0.38 * s, y: 0.20 * s, width: 0.20 * s, height: 0.52 * s),
+                                    cornerRadius: 0.04 * s)
+            wide.fill()
+            let mid = UIBezierPath()
+            mid.move(to: pt(0.52, 0.32))
+            mid.addLine(to: pt(0.52, 0.60))
+            stroke(mid, width: 0.035 * s)
+            let lean = UIBezierPath()
+            lean.move(to: pt(0.66, 0.28))
+            lean.addLine(to: pt(0.74, 0.70))
+            lean.addLine(to: pt(0.84, 0.66))
+            lean.addLine(to: pt(0.78, 0.25))
+            lean.close()
+            lean.fill()
+        case .person:
+            UIBezierPath(ovalIn: CGRect(x: 0.36 * s, y: 0.20 * s, width: 0.28 * s, height: 0.28 * s)).fill()
+            let shoulders = UIBezierPath()
+            shoulders.move(to: pt(0.20, 0.80))
+            shoulders.addCurve(to: pt(0.80, 0.80), controlPoint1: pt(0.20, 0.48), controlPoint2: pt(0.80, 0.48))
+            shoulders.close()
+            shoulders.fill()
+        case .logo:
+            // The three stacked arcs the real app uses as its mark.
+            for (index, radius) in [0.20, 0.34, 0.48].enumerated() {
+                let arc = UIBezierPath(arcCenter: CGPoint(x: 0.5 * s, y: 0.86 * s),
+                                       radius: CGFloat(radius) * s,
+                                       startAngle: -.pi * 0.86, endAngle: -.pi * 0.14,
+                                       clockwise: true)
+                stroke(arc, width: 0.085 * s + CGFloat(2 - index) * 0.008 * s)
+            }
         case .library:
             for y: CGFloat in [0.34, 0.50, 0.66] {
                 UIBezierPath(ovalIn: CGRect(x: 0.195 * s, y: (y - 0.045) * s,

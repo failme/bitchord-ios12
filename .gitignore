@@ -31,3 +31,4 @@ _serve.log
 _upstream/
 _ci_tmp/
 shots/
+_android/
