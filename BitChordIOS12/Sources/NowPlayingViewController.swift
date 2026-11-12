@@ -644,9 +644,11 @@ extension NowPlayingViewController: UITableViewDataSource, UITableViewDelegate {
             lyricCell.configure(line: currentLyrics[row],
                                 font: NowPlayingViewController.lyricFont(active: row == lyricHighlight),
                                 position: cellPosition)
+            // The active line's unsung half is white at half strength; the lines
+            // around it are the panel's solid grey, not a dimmed white.
             lyricCell.dimmed = row == lyricHighlight
-                ? UIColor(white: 1, alpha: 0.5)
-                : UIColor(white: 1, alpha: 0.35)
+                ? UIColor(white: 1, alpha: 0.55)
+                : Theme.secondaryText
         }
         return cell
     }

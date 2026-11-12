@@ -35,8 +35,10 @@ final class KaraokeLineView: UIView {
     init(line: WordLyricLine, font: UIFont) {
         self.line = line
         self.font = font
+        // The real panel sets lyrics ragged-right against the left gutter, not
+        // centred, so both the measurement and the drawing use that alignment.
         let style = NSMutableParagraphStyle()
-        style.alignment = .center
+        style.alignment = .left
         style.lineBreakMode = .byWordWrapping
         self.paragraph = style
         super.init(frame: .zero)
@@ -51,7 +53,7 @@ final class KaraokeLineView: UIView {
 
     static func height(text: String, font: UIFont, width: CGFloat) -> CGFloat {
         let style = NSMutableParagraphStyle()
-        style.alignment = .center
+        style.alignment = .left
         style.lineBreakMode = .byWordWrapping
         let bounds = (text as NSString).boundingRect(
             with: CGSize(width: width, height: .greatestFiniteMagnitude),
@@ -193,8 +195,8 @@ final class KaraokeLyricCell: UITableViewCell {
         contentView.addSubview(view)
         NSLayoutConstraint.activate([
             view.topAnchor.constraint(equalTo: contentView.topAnchor),
-            view.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 24),
-            view.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -24),
+            view.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 32),
+            view.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -32),
             view.bottomAnchor.constraint(equalTo: contentView.bottomAnchor)
         ])
         lineView = view
