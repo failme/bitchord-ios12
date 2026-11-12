@@ -308,7 +308,7 @@ final class NowPlayingViewController: UIViewController {
         }
 
         configureTransportButton(shuffleButton, icon: .shuffle, size: 20, action: #selector(goShuffle))
-        configureTransportButton(previousButton, icon: .previous, size: 36, action: #selector(goPrevious))
+        configureTransportButton(previousButton, icon: .previous, size: 40, action: #selector(goPrevious))
         configureTransportButton(playButton, icon: .play, size: 26, action: #selector(togglePlay))
         playButton.backgroundColor = .white
         playButton.layer.cornerRadius = 32
@@ -317,7 +317,7 @@ final class NowPlayingViewController: UIViewController {
         playButton.layer.shadowOpacity = 0.35
         playButton.layer.shadowRadius = 12
         playButton.layer.shadowOffset = CGSize(width: 0, height: 6)
-        configureTransportButton(nextButton, icon: .next, size: 36, action: #selector(goNext))
+        configureTransportButton(nextButton, icon: .next, size: 40, action: #selector(goNext))
         configureTransportButton(repeatButton, icon: .repeatAll, size: 20, action: #selector(goRepeat))
 
         configureTransportButton(likeButton, icon: .heart, size: 20, action: #selector(toggleLike))
@@ -508,7 +508,7 @@ final class NowPlayingViewController: UIViewController {
         // no white disc behind the pause.
         playButton.backgroundColor = lyrics ? .clear : .white
         playButton.tintColor = lyrics ? .white : .black
-        playButton.setImage(Icons.image(PlayerService.shared.isPlaying ? .pause : .play, size: 44), for: .normal)
+        playButton.setImage(Icons.image(PlayerService.shared.isPlaying ? .pause : .play, size: 48), for: .normal)
         backdropView.alpha = lyrics ? 1 : 0.85
         handle.isHidden = !lyrics
         closeButton.isHidden = lyrics
