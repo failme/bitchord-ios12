@@ -765,25 +765,29 @@ enum ScreenshotHarness {
             radioFailureProbe(capture)
             return
         }
-        InnerTube.shared.radio(seedVideoID: seed.videoID) { tracks, error in
-            capture.report.append("radio.seed=\(RadioService.isYouTubeVideoID(seed.videoID) ? "youtube" : "catalogue-resolved")")
-            capture.report.append("radio.tracks=\(tracks?.count ?? 0)")
-            capture.report.append("radio.error=\(error ?? "")")
-            guard let tracks = tracks, !tracks.isEmpty else {
-                radioFailureProbe(capture)
-                return
-            }
-            capture.report.append("radio.first=\(tracks[0].title)")
-            PlayerService.shared.play(tracks: tracks, startingAt: 0)
-            after(1.5) {
-                capture.report.append("radio.playing=\(PlayerService.shared.currentTrack != nil)")
-                let queue = QueueViewController()
-                queue.modalPresentationStyle = .fullScreen
-                capture.root.present(queue, animated: false) {
+        // The menu's own path: resolve the seed on YouTube, ask for the mix,
+        // replace the queue and open Now Playing.
+        capture.report.append("radio.seed=\(RadioService.isYouTubeVideoID(seed.videoID) ? "youtube" : "catalogue-resolved")")
+        RadioService.start(from: seed, host: capture.root)
+        waitUntil({ PlayerService.shared.queue.count > 1 }, timeout: 45) { met in
+            let queue = PlayerService.shared.queue
+            capture.report.append("radio.tracks=\(met ? queue.count : 0)")
+            capture.report.append("radio.first=\(met ? (queue.first?.title ?? "") : "")")
+            capture.report.append("radio.playing=\(met && PlayerService.shared.currentTrack != nil)")
+            capture.checkpoint()
+            // RadioService leaves Now Playing up on success and an alert on
+            // failure; clear either before the next screen.
+            capture.root.dismiss(animated: false) {
+                guard met else {
+                    radioFailureProbe(capture)
+                    return
+                }
+                let sheet = QueueViewController()
+                sheet.modalPresentationStyle = .fullScreen
+                capture.root.present(sheet, animated: false) {
                     after(1.2) {
                         capture.shot("radio")
-                        capture.checkpoint()
-                        queue.dismiss(animated: false) { radioFailureProbe(capture) }
+                        sheet.dismiss(animated: false) { radioFailureProbe(capture) }
                     }
                 }
             }
