@@ -31,6 +31,8 @@ final class AddonService {
     static let urlKey = "BitChord.Sources.AddonURL"
 
     private var cached: (base: URL, manifest: AddonManifest)?
+    /// The last reason the addon gave for having nothing, for the capture run.
+    private(set) var lastError: String?
 
     var baseURL: URL? {
         let text = SettingsStore.shared.string(AddonService.urlKey, "")
@@ -77,15 +79,19 @@ final class AddonService {
             completion(nil)
             return
         }
-        let path = "stream/" + (track.videoID.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? track.videoID)
-        request(base.appendingPathComponent(path)) { json, _ in
+        // One component at a time: a combined "stream/<id>" would be escaped as
+        // a single component by some Foundation versions and 404 on the addon.
+        let url = base.appendingPathComponent("stream").appendingPathComponent(track.videoID)
+        request(url) { json, _ in
             guard let json = json,
                   let text = json["url"] as? String,
                   let url = URL(string: text, relativeTo: base)?.absoluteURL,
                   url.scheme != nil else {
+                self.lastError = "The addon returned no stream URL."
                 completion(nil)
                 return
             }
+            self.lastError = nil
             completion(AddonStream(url: url,
                                    quality: json["quality"] as? String ?? "Addon",
                                    kbps: json["kbps"] as? Int))
@@ -102,8 +108,10 @@ final class AddonService {
                   status == 200,
                   let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
                 let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-                completion(nil, status == 404 ? "No stream for this track." :
-                                    (error?.localizedDescription ?? "The addon did not answer."))
+                let message = status == 404 ? "No stream for this track." :
+                    (error?.localizedDescription ?? "The addon did not answer.")
+                DispatchQueue.main.async { self.lastError = "\(message) [\(status)]" }
+                completion(nil, message)
                 return
             }
             completion(json, nil)

@@ -307,6 +307,8 @@ jobs:
           REPORT=shots/download-report.txt
           echo "### Download report"
           cat "$REPORT" || { echo "::error ::no download report written"; exit 1; }
+          echo "### Addon server log"
+          tail -40 /tmp/addon-server.log 2>/dev/null || true
 
           # Relaunch, offline playback, deletion.
           grep -q "resume.saved=1" "$REPORT"

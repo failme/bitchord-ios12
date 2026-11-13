@@ -555,7 +555,10 @@ enum ScreenshotHarness {
             SettingsStore.shared.set(addonURL.absoluteString, for: AddonService.urlKey)
             SettingsStore.shared.set(DownloadQuality.lossless.rawValue, for: "BitChord.Download.Quality")
             // Tell the test server which id it should be able to serve.
-            var request = URLRequest(url: addonURL.appendingPathComponent("serve/\(losslessTrack.videoID)"))
+            AddonService.shared.manifest { manifest, error in
+                capture.report.append("addon.manifest=\(manifest?.name ?? "none") error=\(error ?? "")")
+            }
+            var request = URLRequest(url: addonURL.appendingPathComponent("serve").appendingPathComponent(losslessTrack.videoID))
             request.timeoutInterval = 5
             URLSession.shared.dataTask(with: request) { _, _, _ in
                 DispatchQueue.main.async {
@@ -575,6 +578,7 @@ enum ScreenshotHarness {
                             capture.report.append("addon.bytes=0")
                             capture.report.append("addon.failed=\(finished)")
                         }
+                        capture.report.append("addon.error=\(AddonService.shared.lastError ?? "")")
                         capture.checkpoint()
                         capture.store.download(fallbackTrack) { ok, message in
                             capture.report.append("addon.fallback.ok=\(ok)")

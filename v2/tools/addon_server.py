@@ -16,7 +16,7 @@ tone so the fetched bytes really are a different, higher-bitrate file.
 import argparse
 import json
 import os
-import threading
+import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 SERVE_ID = {"value": None}
@@ -64,8 +64,10 @@ class Handler(BaseHTTPRequestHandler):
 
         return self._json({"error": "not found"}, 404)
 
-    def log_message(self, *args):
-        pass
+    def log_message(self, fmt, *args):
+        # CI cats this log when the app's side of the addon fails.
+        sys.stderr.write("%s %s\n" % (self.command, self.path))
+        sys.stderr.flush()
 
 
 def main():
