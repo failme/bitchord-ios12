@@ -38,6 +38,9 @@ final class OnboardingViewController: UIViewController {
     private let secondary = UIButton(type: .system)
     private let back = UIButton(type: .system)
     private let close = UIButton(type: .system)
+    private var compact = false
+    private var logoWidth: NSLayoutConstraint?
+    private var logoHeight: NSLayoutConstraint?
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -91,9 +94,16 @@ final class OnboardingViewController: UIViewController {
         configure(primary, filled: true)
         configure(secondary, filled: false)
         configure(back, filled: false)
+        back.setTitle("Back", for: .normal)
+        back.setTitleColor(Theme.secondaryText, for: .normal)
         primary.addTarget(self, action: #selector(primaryTapped), for: .touchUpInside)
         secondary.addTarget(self, action: #selector(secondaryTapped), for: .touchUpInside)
         back.addTarget(self, action: #selector(backTapped), for: .touchUpInside)
+
+        let logoWidth = logo.widthAnchor.constraint(equalToConstant: 64)
+        let logoHeight = logo.heightAnchor.constraint(equalToConstant: 64)
+        self.logoWidth = logoWidth
+        self.logoHeight = logoHeight
 
         NSLayoutConstraint.activate([
             close.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 10),
@@ -114,13 +124,27 @@ final class OnboardingViewController: UIViewController {
             stack.bottomAnchor.constraint(equalTo: scroll.bottomAnchor, constant: -24),
             stack.widthAnchor.constraint(equalTo: scroll.widthAnchor, constant: -48),
 
-            logo.widthAnchor.constraint(equalToConstant: 64),
-            logo.heightAnchor.constraint(equalToConstant: 64),
+            logoWidth,
+            logoHeight,
             primary.heightAnchor.constraint(equalToConstant: 48),
             secondary.heightAnchor.constraint(equalToConstant: 44),
             back.heightAnchor.constraint(equalToConstant: 36)
         ])
 
+        render()
+    }
+
+    /// A 320x568 phone gets smaller type, a smaller mark and tighter spacing so
+    /// every step fits without hiding a row under the buttons.
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        let shouldCompact = view.bounds.height < 620
+        guard shouldCompact != compact else { return }
+        compact = shouldCompact
+        logoWidth?.constant = compact ? 46 : 64
+        logoHeight?.constant = compact ? 46 : 64
+        stack.spacing = compact ? 10 : 16
+        features.spacing = compact ? 8 : 12
         render()
     }
 
@@ -144,6 +168,9 @@ final class OnboardingViewController: UIViewController {
         back.isHidden = step == 0
         secondary.isHidden = true
         primary.setTitle("Continue", for: .normal)
+
+        titleLabel.font = Theme.font(compact ? 24 : 28, weight: .bold)
+        bodyLabel.font = Theme.font(compact ? 14 : 15)
 
         switch step {
         case 0:
@@ -191,7 +218,7 @@ final class OnboardingViewController: UIViewController {
         name.textColor = Theme.primaryText
         let text = UILabel()
         text.text = detail
-        text.font = Theme.font(13)
+        text.font = Theme.font(compact ? 12 : 13)
         text.textColor = Theme.secondaryText
         text.numberOfLines = 0
         row.addArrangedSubview(name)
