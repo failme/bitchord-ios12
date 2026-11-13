@@ -18,6 +18,10 @@ final class CollectionViewController: UIViewController {
 
     private var tracks: [Track] = []
 
+    /// How many songs the page has loaded; the capture harness waits on it
+    /// instead of guessing how long the catalogue takes.
+    var loadedTrackCount: Int { return tracks.count }
+
     init(title: String, subtitle: String, artwork: URL?) {
         self.heading = title
         self.detail = subtitle

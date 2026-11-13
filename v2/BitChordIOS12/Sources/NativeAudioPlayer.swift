@@ -65,10 +65,10 @@ final class NativeAudioPlayer: NSObject {
 
     /// Plays a file that is already on the device. No resolve, no network: the
     /// same AVPlayer, transport, clock and end-of-item handling as a stream.
-    func playLocal(url: URL, track: Track) {
+    func playLocal(url: URL, track: Track, source: String = "Downloaded") {
         currentVideoId = track.videoID
         currentTrack = track
-        sourceLabel = "Downloaded"
+        sourceLabel = source
         lastExplicit = track.isExplicit
         isPausedByUser = false
         isReady = false

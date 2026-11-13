@@ -13,6 +13,8 @@ enum SettingKind {
     case storage
     /// A row that prompts for the addon server that supplies lossless tiers.
     case addon
+    /// A row that clears one of the app's caches: "song" or "image".
+    case cache(String)
     /// Row is shown for parity but has no effect here; the reason is surfaced to the user.
     case unavailable(String)
 }
@@ -219,15 +221,20 @@ enum SettingsCatalog {
             SettingItem(key: "BitChord.Download.ExportCompatible", title: "Export compatible files",
                         kind: .unavailable("Download manager is not ported.")),
             SettingItem(key: "BitChord.LocalMusic.SelectedFolder", title: "Local music folder",
-                        kind: .unavailable("Local scanner is not ported.")),
-            SettingItem(key: "BitChord.LocalMusic.IncludeAppleMusic", title: "Include Apple Music",
-                        kind: .unavailable("Local scanner is not ported.")),
+                        detail: "Audio files in this app folder appear in Library \u{2192} Local Music",
+                        kind: .page("Put audio files in the app's LocalMusic folder, through the Files app or iTunes File Sharing. Library \u{2192} Local Music lists them by folder, with the title, artist and length read from each file.")),
             SettingItem(key: "BitChord.LocalMusic.FilterNonMusic", title: "Filter non-music",
-                        kind: .unavailable("Local scanner is not ported.")),
-            SettingItem(key: "BitChord.Storage.CacheLimitMB", title: "Cache limit",
-                        kind: .unavailable("No disk cache in this port.")),
-            SettingItem(key: "BitChord.Storage.ShowCachedFolder", title: "Show cached folder",
-                        kind: .unavailable("No disk cache in this port."))
+                        detail: "Hide clips shorter than 30 seconds",
+                        kind: .toggle(true)),
+            SettingItem(key: "BitChord.Storage.CacheLimitMB", title: "Song cache limit",
+                        detail: "Bound on the app's disk cache",
+                        kind: .choice(CacheStore.fallback, CacheStore.options)),
+            SettingItem(key: "BitChord.Storage.ClearSongCache", title: "Clear song cache",
+                        detail: "Frees space used by downloaded audio",
+                        kind: .cache("song")),
+            SettingItem(key: "BitChord.Storage.ClearImageCache", title: "Clear image cache",
+                        detail: "Frees space used by album artwork",
+                        kind: .cache("image"))
         ]),
 
         SettingSection(title: "Sources & addons", items: [

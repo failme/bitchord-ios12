@@ -328,7 +328,7 @@ final class LibraryViewController: UIViewController {
         if sender.tag == 0 {
             navigationController?.pushViewController(DownloadsViewController(), animated: true)
         } else {
-            push([], title: "Local Music", empty: "No local files found.")
+            navigationController?.pushViewController(LocalMusicViewController(), animated: true)
         }
     }
 

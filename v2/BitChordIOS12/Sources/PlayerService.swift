@@ -412,6 +412,7 @@ final class PlayerService: NSObject {
         postChange()
 
         LibraryStore.shared.recordPlayback(track)
+        PlaybackHistoryStore.shared.record(track)
         AudioEngine.shared.play(track: track)
         loadLyrics(for: track)
     }

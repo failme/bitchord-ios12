@@ -925,14 +925,19 @@ extension NowPlayingViewController: UITableViewDataSource, UITableViewDelegate {
     }
 }
 
-/// Upstream's queue sheet: now playing, then upcoming tracks, tap to jump.
+/// Upstream's queue sheet: the songs that already played (when the setting is
+/// on), then the upcoming queue, tap to jump.
 final class QueueViewController: UIViewController {
     private let tableView = UITableView(frame: .zero, style: .plain)
     private let headerLabel = UILabel()
+    private var showsHistory = false
+
+    private static let emptyIdentifier = "QueueHistoryEmpty"
 
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = Theme.background
+        showsHistory = PlaybackHistoryStore.shared.isEnabled
 
         headerLabel.text = "Queue"
         headerLabel.font = Theme.font(17, weight: .semibold)
@@ -947,7 +952,11 @@ final class QueueViewController: UIViewController {
         tableView.rowHeight = 56
         tableView.tableFooterView = UIView()
         tableView.register(TrackCell.self, forCellReuseIdentifier: TrackCell.reuseIdentifier)
+        tableView.register(UITableViewCell.self, forCellReuseIdentifier: QueueViewController.emptyIdentifier)
         view.addSubview(tableView)
+
+        NotificationCenter.default.addObserver(self, selector: #selector(reload),
+                                               name: .playbackHistoryDidChange, object: nil)
 
         NSLayoutConstraint.activate([
             headerLabel.topAnchor.constraint(equalTo: view.topAnchor, constant: 20),
@@ -959,14 +968,58 @@ final class QueueViewController: UIViewController {
             tableView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
     }
+
+    @objc private func reload() {
+        tableView.reloadData()
+    }
+
+    private var historySection: Int? {
+        return showsHistory ? 0 : nil
+    }
+
+    private var queueSection: Int {
+        return showsHistory ? 1 : 0
+    }
 }
 
 extension QueueViewController: UITableViewDataSource, UITableViewDelegate {
+    func numberOfSections(in tableView: UITableView) -> Int {
+        return showsHistory ? 2 : 1
+    }
+
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+        if showsHistory, section == 0 {
+            // The empty state is a row so the heading is never a bare label.
+            return max(1, PlaybackHistoryStore.shared.items.count)
+        }
         return PlayerService.shared.queue.count
     }
 
+    func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
+        guard showsHistory else { return nil }
+        return section == 0 ? "History" : "Queue"
+    }
+
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        if showsHistory, indexPath.section == 0 {
+            let history = PlaybackHistoryStore.shared.items
+            guard indexPath.row < history.count else {
+                let cell = tableView.dequeueReusableCell(withIdentifier: QueueViewController.emptyIdentifier,
+                                                         for: indexPath)
+                cell.backgroundColor = .clear
+                cell.textLabel?.text = "Nothing played yet"
+                cell.textLabel?.font = Theme.font(.bodyMedium)
+                cell.textLabel?.textColor = Theme.secondaryText
+                cell.selectionStyle = .none
+                return cell
+            }
+            let cell = tableView.dequeueReusableCell(withIdentifier: TrackCell.reuseIdentifier, for: indexPath)
+            if let trackCell = cell as? TrackCell {
+                trackCell.configure(with: history[indexPath.row])
+            }
+            return cell
+        }
+
         let cell = tableView.dequeueReusableCell(withIdentifier: TrackCell.reuseIdentifier, for: indexPath)
         let queue = PlayerService.shared.queue
         if let trackCell = cell as? TrackCell, indexPath.row < queue.count {
@@ -977,6 +1030,17 @@ extension QueueViewController: UITableViewDataSource, UITableViewDelegate {
 
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
+        if showsHistory, indexPath.section == 0 {
+            let history = PlaybackHistoryStore.shared.items
+            guard indexPath.row < history.count else { return }
+            // Playing from history puts that song first and keeps the queue
+            // behind it, which is what the real sheet does.
+            let track = history[indexPath.row]
+            let rest = PlayerService.shared.queue.filter { $0.videoID != track.videoID }
+            PlayerService.shared.play(tracks: [track] + rest, startingAt: 0)
+            dismiss(animated: true, completion: nil)
+            return
+        }
         PlayerService.shared.playTrack(at: indexPath.row)
         dismiss(animated: true, completion: nil)
     }

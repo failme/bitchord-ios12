@@ -137,11 +137,31 @@ final class SettingsViewController: UIViewController {
         present(alert, animated: true, completion: nil)
     }
 
+    /// Clears one of the two caches and says what it freed, in upstream's own
+    /// words ("Song cache cleared" / "Image cache cleared").
+    private func clearCache(_ which: String) {
+        let freed = which == "song"
+            ? CacheStore.shared.clearSongCache()
+            : CacheStore.shared.clearImageCache()
+        tableView.reloadData()
+        let size = ByteCountFormatter.string(fromByteCount: freed, countStyle: .file)
+        let alert = UIAlertController(title: which == "song" ? "Song cache cleared" : "Image cache cleared",
+                                      message: "Freed \(size).",
+                                      preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        present(alert, animated: true, completion: nil)
+    }
+
     private func choose(item: SettingItem, options: [String]) {
         let sheet = UIAlertController(title: item.title, message: nil, preferredStyle: .actionSheet)
         for option in options {
             sheet.addAction(UIAlertAction(title: option, style: .default) { _ in
                 SettingsStore.shared.set(option, for: item.key)
+                // The cache bound is applied the moment it changes, not at the
+                // next launch, so the size shown is the one just chosen.
+                if item.key == CacheStore.limitKey {
+                    CacheStore.shared.configure()
+                }
                 self.tableView.reloadData()
             })
         }
@@ -216,6 +236,9 @@ extension SettingsViewController: UITableViewDataSource, UITableViewDelegate {
         }
         if case .addon = item.kind {
             addonPrompt(item: item)
+        }
+        if case .cache(let which) = item.kind {
+            clearCache(which)
         }
         if case .page(let explanation) = item.kind {
             let alert = UIAlertController(title: item.title, message: explanation, preferredStyle: .alert)
@@ -404,6 +427,10 @@ final class SettingsCell: UITableViewCell {
             showsChevron = true
         case .addon:
             detailLabel.text = AddonService.shared.displayName ?? "Not configured"
+            showsChevron = true
+        case .cache:
+            let size = ByteCountFormatter.string(fromByteCount: CacheStore.shared.sizeBytes, countStyle: .file)
+            detailLabel.text = "\(size) cached"
             showsChevron = true
         case .unavailable:
             // The real app greys the row out; a subtitle, where it has one,

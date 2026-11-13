@@ -146,6 +146,10 @@ final class DownloadStore: NSObject {
     }
     private var paced: [Int: PacedTransfer] = [:]
 
+    /// Where the files and the index live; the cache screen needs it to find
+    /// partial downloads.
+    var directoryURL: URL { return directory }
+
     private let directory: URL
     private let indexURL: URL
     private let pendingURL: URL

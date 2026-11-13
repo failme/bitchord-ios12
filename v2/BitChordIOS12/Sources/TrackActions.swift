@@ -31,6 +31,13 @@ enum TrackActions {
                 }
             })
         }
+        // Upstream's menu starts a radio from any song; a local file has no
+        // catalogue id to seed one, so the row only appears for catalogue songs.
+        if !track.videoID.hasPrefix(LocalMusicStore.idPrefix) {
+            sheet.addAction(UIAlertAction(title: "Start radio", style: .default) { _ in
+                RadioService.start(from: track, host: topController())
+            })
+        }
         sheet.addAction(UIAlertAction(title: "Cancel", style: .cancel))
         if let pop = sheet.popoverPresentationController {
             pop.sourceView = sourceView ?? host.view

@@ -288,7 +288,7 @@ jobs:
           # download sequence (resume check, offline playback, delete, quality
           # probe, mid-transfer shot, menus, Wi-Fi hold). It writes done.txt
           # when finished, so wait for the work rather than guessing.
-          for i in $(seq 1 180); do
+          for i in $(seq 1 240); do
             [ -f "$CONTAINER/Documents/shots/done.txt" ] && break
             sleep 2
           done
@@ -389,10 +389,43 @@ jobs:
           test "$LOSS_RATE" -gt "$STD_RATE"
           test "$LOSS_SIZE" -gt 1000000
 
+          # Local music, queue history, radio, enhanced-LRC syllables, the
+          # artist page and a mood tile: each driven through its own screen.
+          grep -q "local.folders=1" "$REPORT"
+          grep -q "local.tracks=1" "$REPORT"
+          grep -q "local.playing=true" "$REPORT"
+          grep -q "local.engine=native: local file" "$REPORT"
+          grep -q "badge.downloaded=true" "$REPORT"
+          HISTORY=$(sed -n 's/^history.count=//p' "$REPORT" | head -1)
+          echo "history entries: $HISTORY"
+          test -n "$HISTORY"
+          test "$HISTORY" -ge 2
+          grep -q "history.enabled=true" "$REPORT"
+          RADIO=$(sed -n 's/^radio.tracks=//p' "$REPORT" | head -1)
+          echo "radio tracks: $RADIO"
+          test -n "$RADIO"
+          test "$RADIO" -ge 5
+          grep -q "radio.playing=true" "$REPORT"
+          grep -q "radio.failedShown=true" "$REPORT"
+          grep -q "lyrics.syllables=3" "$REPORT"
+          grep -q "lyrics.revealAdvance=true" "$REPORT"
+          grep -q "lyrics.text=Hello world" "$REPORT"
+          ARTIST=$(sed -n 's/^artist.tracks=//p' "$REPORT" | head -1)
+          echo "artist tracks: $ARTIST"
+          test -n "$ARTIST"
+          test "$ARTIST" -ge 5
+          MOODS=$(sed -n 's/^moods.tracks=//p' "$REPORT" | head -1)
+          echo "mood tracks: $MOODS"
+          test -n "$MOODS"
+          test "$MOODS" -ge 5
+          grep -q "cache.cleared=true" "$REPORT"
+          grep -q "cache.limit=" "$REPORT"
+
           for shot in downloads download-progress downloads-saver settings-downloads \
                       sheet-delete sheet-cancel sheet-download wifi-blocked offline downloads-empty \
                       storage-cap settings-storage library-synced playlist-synced sync-failed \
-                      downloads-addon; do
+                      downloads-addon local-music local-songs queue-history radio radio-failed \
+                      lyrics-karaoke artist moods settings-cache; do
             test -s "shots/$shot.png" || { echo "::error ::missing $shot.png"; exit 1; }
           done
 
@@ -455,6 +488,14 @@ jobs:
           grep -Eq "background.indexed=true|background.reported=true" shots/background-killed.txt
           grep -q "background.pendingAfter=0" shots/background-killed.txt
           grep -q "background.phantom=false" shots/background-killed.txt
+          # The locker and the queue history, read back by that fresh process.
+          grep -q "verify.localTracks=1" shots/background-killed.txt
+          VERIFY_HISTORY=$(sed -n 's/^verify.history=//p' shots/background-killed.txt | head -1)
+          echo "history read back: $VERIFY_HISTORY"
+          test -n "$VERIFY_HISTORY"
+          test "$VERIFY_HISTORY" -ge 2
+          test -n "$(sed -n 's/^verify.localTitle=//p' shots/background-killed.txt | head -1)"
+          test -n "$(sed -n 's/^verify.historyTop=//p' shots/background-killed.txt | head -1)"
 
           # The playlist is read back from disk in that relaunched process, and
           # has to match what the sync wrote in the process before it.

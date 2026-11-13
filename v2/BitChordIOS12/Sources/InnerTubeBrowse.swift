@@ -207,6 +207,91 @@ extension InnerTube {
         return found
     }
 
+    /// Upstream's radio: `next` with the seed's mix id returns a panel of songs
+    /// built around it, which is what the queue becomes.
+    func radio(seedVideoID: String, completion: @escaping ([Track]?, String?) -> Void) {
+        guard !seedVideoID.isEmpty, !seedVideoID.hasPrefix(LocalMusicStore.idPrefix) else {
+            completion(nil, "This song is on the device, so it has no radio.")
+            return
+        }
+        let body: [String: Any] = [
+            "context": [
+                "client": [
+                    "clientName": "WEB_REMIX",
+                    "clientVersion": "1.20241011.01.00",
+                    "hl": "en",
+                    "gl": "US"
+                ]
+            ],
+            "videoId": seedVideoID,
+            "playlistId": "RDAMVM\(seedVideoID)",
+            "isAudioOnly": true
+        ]
+        post(path: "next", body: body, userAgent: InnerTube.browserUserAgent) { json, error in
+            guard let json = json else {
+                completion(nil, error ?? "Could not reach the radio.")
+                return
+            }
+            let tracks = InnerTube.parseRadioTracks(json)
+            if tracks.isEmpty {
+                completion(nil, "This track has no radio.")
+            } else {
+                completion(tracks, nil)
+            }
+        }
+    }
+
+    /// Picks the songs out of a `next` response, in the panel's order.
+    static func parseRadioTracks(_ json: [String: Any]) -> [Track] {
+        var panels: [[String: Any]] = []
+        func walk(_ node: Any) {
+            if let dict = node as? [String: Any] {
+                if let panel = dict["playlistPanelVideoRenderer"] as? [String: Any] {
+                    panels.append(panel)
+                }
+                for (_, child) in dict { walk(child) }
+            } else if let array = node as? [Any] {
+                for child in array { walk(child) }
+            }
+        }
+        walk(json)
+
+        var tracks: [Track] = []
+        var seen = Set<String>()
+        for panel in panels {
+            guard let identifier = panel["videoId"] as? String, !identifier.isEmpty else { continue }
+            guard !seen.contains(identifier) else { continue }
+            guard let title = radioText(panel["title"]), !title.isEmpty else { continue }
+            seen.insert(identifier)
+            let artist = radioText(panel["longBylineText"]) ?? ""
+            let length = radioText(panel["lengthText"]) ?? ""
+            var artwork: String?
+            if let thumbnail = panel["thumbnail"] as? [String: Any],
+               let thumbs = thumbnail["thumbnails"] as? [[String: Any]] {
+                artwork = thumbs.last?["url"] as? String
+            }
+            tracks.append(Track(videoID: identifier,
+                                title: title,
+                                artist: artist,
+                                durationSeconds: RadioServiceSupport.seconds(length),
+                                source: .youtube,
+                                artwork: artwork))
+        }
+        return tracks
+    }
+
+    private static func radioText(_ node: Any?) -> String? {
+        guard let node = node else { return nil }
+        if let text = node as? String { return text }
+        guard let dict = node as? [String: Any] else { return nil }
+        if let simple = dict["simpleText"] as? String { return simple }
+        if let runs = dict["runs"] as? [[String: Any]] {
+            let joined = runs.compactMap { $0["text"] as? String }.joined()
+            return joined.isEmpty ? nil : joined
+        }
+        return nil
+    }
+
     private func thumbnailURL(in renderer: [String: Any]) -> URL? {
         var found: URL?
         func walk(_ node: Any) {

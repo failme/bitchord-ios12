@@ -10,6 +10,7 @@ final class TrackCell: UITableViewCell {
     private let titleLabel = UILabel()
     private let subtitleLabel = UILabel()
     private let durationLabel = UILabel()
+    private let downloadedBadge = UIImageView()
     private var artworkTask: URLSessionDataTask?
     private var currentVideoID: String?
     private var track: Track?
@@ -67,6 +68,15 @@ final class TrackCell: UITableViewCell {
         durationLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
         contentView.addSubview(durationLabel)
 
+        // Upstream marks a downloaded song on its row everywhere, not only on
+        // the Downloads screen.
+        downloadedBadge.translatesAutoresizingMaskIntoConstraints = false
+        downloadedBadge.image = Icons.image(.download, size: 13)
+        downloadedBadge.tintColor = Theme.secondaryText
+        downloadedBadge.contentMode = .scaleAspectFit
+        downloadedBadge.isHidden = true
+        contentView.addSubview(downloadedBadge)
+
         NSLayoutConstraint.activate([
             artworkView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor,
                                                  constant: Theme.gutter),
@@ -85,7 +95,12 @@ final class TrackCell: UITableViewCell {
 
             durationLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor,
                                                     constant: -Theme.gutter),
-            durationLabel.centerYAnchor.constraint(equalTo: contentView.centerYAnchor)
+            durationLabel.centerYAnchor.constraint(equalTo: contentView.centerYAnchor),
+
+            downloadedBadge.trailingAnchor.constraint(equalTo: durationLabel.leadingAnchor, constant: -6),
+            downloadedBadge.centerYAnchor.constraint(equalTo: contentView.centerYAnchor),
+            downloadedBadge.widthAnchor.constraint(equalToConstant: 13),
+            downloadedBadge.heightAnchor.constraint(equalToConstant: 13)
         ])
     }
 
@@ -95,6 +110,7 @@ final class TrackCell: UITableViewCell {
         titleLabel.attributedText = TrackCell.title(for: track)
         subtitleLabel.text = track.artist
         durationLabel.text = track.formattedDuration
+        downloadedBadge.isHidden = !DownloadStore.shared.isDownloaded(track.videoID)
 
         artworkTask?.cancel()
         let url = track.artworkURL
@@ -107,6 +123,12 @@ final class TrackCell: UITableViewCell {
             guard let self = self, self.currentVideoID == track.videoID else { return }
             self.artworkView.image = image
         }
+    }
+
+    /// Whether this row is showing the downloaded mark; the capture harness
+    /// asserts on it rather than on a re-drawn copy.
+    var showsDownloadedBadge: Bool {
+        return !downloadedBadge.isHidden
     }
 
     // MARK: - Track menu

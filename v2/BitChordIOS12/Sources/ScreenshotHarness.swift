@@ -603,7 +603,7 @@ enum ScreenshotHarness {
                                 capture.root.present(downloads, animated: false) {
                                     after(1.5) {
                                         capture.shot("downloads-addon")
-                                        capture.finish()
+                                        libraryExtrasProbe(capture, host: downloads)
                                     }
                                 }
                             }
@@ -645,6 +645,277 @@ enum ScreenshotHarness {
         return found.sorted {
             $0.convert($0.bounds, to: nil).minY < $1.convert($1.bounds, to: nil).minY
         }
+    }
+
+    // MARK: - Local music, queue history, radio, lyrics, artist, moods
+
+    /// Everything the audit still called unported, exercised through its own
+    /// screen or menu: the local locker, queue history, a radio, enhanced-LRC
+    /// syllables, an artist page and a mood tile.
+    private static func libraryExtrasProbe(_ capture: DownloadCapture, host: UIViewController) {
+        host.dismiss(animated: false) {
+            capture.root.showTab(2)
+            after(0.8) { localMusicProbe(capture) }
+        }
+    }
+
+    private static func localMusicProbe(_ capture: DownloadCapture) {
+        // Seed the locker with a real audio file: the download this run already
+        // has, copied into the folder the scanner reads.
+        let manager = FileManager.default
+        let folder = LocalMusicStore.shared.rootURL.appendingPathComponent("Test Album", isDirectory: true)
+        try? manager.createDirectory(at: folder, withIntermediateDirectories: true, attributes: nil)
+        if let saved = capture.store.saved.first,
+           let source = capture.store.localURL(for: saved.track.videoID) {
+            let destination = folder.appendingPathComponent("01 \(saved.track.title).m4a")
+            try? manager.removeItem(at: destination)
+            try? manager.copyItem(at: source, to: destination)
+        }
+        LocalMusicStore.shared.scan { songs in
+            capture.report.append("local.folders=\(LocalMusicStore.shared.folders.count)")
+            capture.report.append("local.tracks=\(songs.count)")
+            capture.report.append("local.title=\(songs.first?.track.title ?? "")")
+            capture.report.append("local.duration=\(Int(songs.first?.track.durationSeconds ?? 0))")
+            let library = LocalMusicViewController()
+            library.modalPresentationStyle = .fullScreen
+            capture.root.present(library, animated: false) {
+                after(1.2) {
+                    capture.shot("local-music")
+                    library.openFolderForCapture()
+                    after(1.2) {
+                        capture.shot("local-songs")
+                        let tracks = songs.map { $0.track }
+                        PlayerService.shared.play(tracks: tracks, startingAt: 0)
+                        after(1.5) {
+                            let current = PlayerService.shared.currentTrack
+                            capture.report.append("local.playing=\(current?.videoID.hasPrefix(LocalMusicStore.idPrefix) ?? false)")
+                            capture.report.append("local.engine=\(AudioEngine.shared.diagnosticsSummary)")
+                            capture.checkpoint()
+                            library.dismiss(animated: false) { badgeProbe(capture) }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private static func badgeProbe(_ capture: DownloadCapture) {
+        guard let saved = capture.store.saved.first else {
+            historyProbe(capture)
+            return
+        }
+        let list = TrackListViewController()
+        list.tracks = [saved.track]
+        list.title = "Downloaded"
+        list.modalPresentationStyle = .fullScreen
+        list.modalPresentationStyle = .fullScreen
+        capture.root.present(list, animated: false) {
+            after(1) {
+                let cell = trackCells(in: list.view).first
+                capture.report.append("badge.downloaded=\(cell?.showsDownloadedBadge ?? false)")
+                list.dismiss(animated: false) { historyProbe(capture) }
+            }
+        }
+    }
+
+    private static func historyProbe(_ capture: DownloadCapture) {
+        SettingsStore.shared.set(true, for: PlaybackHistoryStore.settingKey)
+        PlaybackHistoryStore.shared.clear()
+        let tracks = [capture.store.saved.first?.track, capture.extraTrack].compactMap { $0 }
+        if tracks.count >= 2 {
+            PlayerService.shared.play(tracks: tracks, startingAt: 0)
+            after(1.2) { PlayerService.shared.advance() }
+        }
+        after(2.6) {
+            let history = PlaybackHistoryStore.shared.items
+            capture.report.append("history.enabled=\(PlaybackHistoryStore.shared.isEnabled)")
+            capture.report.append("history.count=\(history.count)")
+            capture.report.append("history.top=\(history.first?.title ?? "")")
+            capture.report.append("history.limit=\(PlaybackHistoryStore.limit)")
+            let queue = QueueViewController()
+            queue.modalPresentationStyle = .fullScreen
+            capture.root.present(queue, animated: false) {
+                after(1.2) {
+                    capture.shot("queue-history")
+                    capture.checkpoint()
+                    queue.dismiss(animated: false) { radioProbe(capture) }
+                }
+            }
+        }
+    }
+
+    private static func radioProbe(_ capture: DownloadCapture) {
+        guard let seed = capture.seedTrack ?? capture.store.saved.first?.track else {
+            radioFailureProbe(capture)
+            return
+        }
+        InnerTube.shared.radio(seedVideoID: seed.videoID) { tracks, error in
+            capture.report.append("radio.tracks=\(tracks?.count ?? 0)")
+            capture.report.append("radio.error=\(error ?? "")")
+            guard let tracks = tracks, !tracks.isEmpty else {
+                radioFailureProbe(capture)
+                return
+            }
+            capture.report.append("radio.first=\(tracks[0].title)")
+            PlayerService.shared.play(tracks: tracks, startingAt: 0)
+            after(1.5) {
+                capture.report.append("radio.playing=\(PlayerService.shared.currentTrack != nil)")
+                let queue = QueueViewController()
+                queue.modalPresentationStyle = .fullScreen
+                capture.root.present(queue, animated: false) {
+                    after(1.2) {
+                        capture.shot("radio")
+                        capture.checkpoint()
+                        queue.dismiss(animated: false) { radioFailureProbe(capture) }
+                    }
+                }
+            }
+        }
+    }
+
+    /// The remote refusing: the same alert the menu shows, on screen.
+    private static func radioFailureProbe(_ capture: DownloadCapture) {
+        RadioService.presentFailure("This track has no radio.", on: capture.root)
+        after(0.9) {
+            capture.shot("radio-failed")
+            capture.report.append("radio.failedShown=true")
+            capture.root.dismiss(animated: false) { lyricsProbe(capture) }
+        }
+    }
+
+    private static func lyricsProbe(_ capture: DownloadCapture) {
+        // Enhanced LRC: words carry their own `<mm:ss.xx>` tags, which is the
+        // syllable timing karaoke draws from.
+        let sample = "[00:10.00]<00:10.00>Hel<00:10.40>lo <00:10.90>world"
+        let parsed = LyricsService.shared.parseLRC(sample)
+        let line = parsed.first
+        let syllableCount = line?.words.reduce(0) { $0 + $1.syllables.count } ?? 0
+        capture.report.append("lyrics.lines=\(parsed.count)")
+        capture.report.append("lyrics.words=\(line?.words.count ?? 0)")
+        capture.report.append("lyrics.syllables=\(syllableCount)")
+        capture.report.append("lyrics.text=\(line?.text ?? "")")
+        if let line = line {
+            let early = line.revealedChars(at: line.time + 0.2)
+            let late = line.revealedChars(at: line.time + 0.95)
+            capture.report.append("lyrics.revealAdvance=\(late > early)")
+        } else {
+            capture.report.append("lyrics.revealAdvance=false")
+        }
+        let live = PlayerService.shared.lyrics
+        capture.report.append("lyrics.liveLines=\(live.count)")
+        capture.report.append("lyrics.liveWordLines=\(live.filter { $0.isWordSynced }.count)")
+        capture.checkpoint()
+
+        let player = NowPlayingViewController()
+        player.modalPresentationStyle = .fullScreen
+        capture.root.present(player, animated: false) {
+            after(1.2) {
+                player.showLyricsForScreenshots()
+                after(1.2) {
+                    if let timed = live.first(where: { $0.isWordSynced }) ?? live.first {
+                        PlayerService.shared.seek(to: timed.time + 0.4)
+                        after(0.8) {
+                            capture.shot("lyrics-karaoke")
+                            player.dismiss(animated: false) { artistProbe(capture) }
+                        }
+                    } else {
+                        capture.shot("lyrics-karaoke")
+                        player.dismiss(animated: false) { artistProbe(capture) }
+                    }
+                }
+            }
+        }
+    }
+
+    private static func artistProbe(_ capture: DownloadCapture) {
+        CatalogueSearch.shared.artists("The Weeknd") { artists in
+            guard let artist = artists.first else {
+                capture.report.append("artist.tracks=0")
+                capture.checkpoint()
+                moodsProbe(capture)
+                return
+            }
+            capture.report.append("artist.name=\(artist.name)")
+            let page = CollectionViewController(title: artist.name,
+                                                subtitle: "Artist",
+                                                artwork: artist.artwork)
+            page.loader = { completion in
+                CatalogueSearch.shared.songs(byArtist: artist.id) { tracks in
+                    capture.report.append("artist.tracks=\(tracks.count)")
+                    completion(tracks)
+                }
+            }
+            page.modalPresentationStyle = .fullScreen
+            capture.root.present(page, animated: false) {
+                waitUntil({ page.loadedTrackCount > 0 }, timeout: 25) { _ in
+                    after(0.8) {
+                        capture.shot("artist")
+                        capture.report.append("artist.loaded=\(page.loadedTrackCount)")
+                        capture.checkpoint()
+                        page.dismiss(animated: false) { moodsProbe(capture) }
+                    }
+                }
+            }
+        }
+    }
+
+    private static func moodsProbe(_ capture: DownloadCapture) {
+        capture.root.showTab(1)
+        after(0.8) {
+            // Tabs are wrapped in navigation controllers, so reach the Explore
+            // screen through its navigation stack rather than by child index.
+            let explore = capture.root.children.compactMap { $0 as? UINavigationController }
+                .compactMap { $0.viewControllers.first as? ExploreViewController }
+                .first
+            guard let explore = explore, let tile = firstMoodTile(in: explore.view) else {
+                capture.report.append("moods.tracks=0")
+                capture.finish()
+                return
+            }
+            tile.sendActions(for: .touchUpInside)
+            let moodList: () -> TrackListViewController? = {
+                return explore.navigationController?.viewControllers.compactMap { $0 as? TrackListViewController }.last
+            }
+            waitUntil({ (moodList()?.tracks.count ?? 0) > 0 }, timeout: 25) { _ in
+                after(0.8) {
+                    capture.shot("moods")
+                    capture.report.append("moods.title=\(moodList()?.title ?? "")")
+                    capture.report.append("moods.tracks=\(moodList()?.tracks.count ?? 0)")
+                    capture.checkpoint()
+                    cacheProbe(capture)
+                }
+            }
+        }
+    }
+
+    private static func cacheProbe(_ capture: DownloadCapture) {
+        CacheStore.shared.configure()
+        capture.report.append("cache.limit=\(CacheStore.shared.limitText)")
+        let before = CacheStore.shared.sizeBytes
+        let freed = CacheStore.shared.clearImageCache()
+        capture.report.append("cache.size=\(before)")
+        capture.report.append("cache.freed=\(freed)")
+        capture.report.append("cache.cleared=\(freed >= 0)")
+        let settings = SettingsViewController()
+        settings.modalPresentationStyle = .fullScreen
+        capture.root.present(settings, animated: false) {
+            after(0.8) {
+                settings.scrollToDownloadSection()
+                after(0.8) {
+                    capture.shot("settings-cache")
+                    capture.checkpoint()
+                    capture.finish()
+                }
+            }
+        }
+    }
+
+    private static func firstMoodTile(in view: UIView) -> MoodTileView? {
+        if let tile = view as? MoodTileView { return tile }
+        for child in view.subviews {
+            if let found = firstMoodTile(in: child) { return found }
+        }
+        return nil
     }
 
     // MARK: - Background transfer launches
@@ -749,10 +1020,27 @@ enum ScreenshotHarness {
         waitUntil({ DownloadStore.shared.pendingCount == 0 }, timeout: 150) { _ in
             report.append("background.settled=true")
             report.append(contentsOf: settleLines(videoID: id, directory: directory))
-            writeText(report.joined(separator: "\n"), name: "background-\(label).txt", directory: directory)
-            try? "done".write(to: directory.appendingPathComponent("background-\(label)-done.txt"),
-                              atomically: true, encoding: .utf8)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { exit(0) }
+            // A fresh process reading the locker and the queue history back off
+            // disk is the relaunch proof for both.
+            extrasReadBack { extra in
+                report.append(contentsOf: extra)
+                writeText(report.joined(separator: "\n"), name: "background-\(label).txt", directory: directory)
+                try? "done".write(to: directory.appendingPathComponent("background-\(label)-done.txt"),
+                                  atomically: true, encoding: .utf8)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { exit(0) }
+            }
+        }
+    }
+
+    private static func extrasReadBack(_ completion: @escaping ([String]) -> Void) {
+        LocalMusicStore.shared.scan { songs in
+            var lines: [String] = []
+            lines.append("verify.localTracks=\(songs.count)")
+            lines.append("verify.localTitle=\(songs.first?.track.title ?? "")")
+            let history = PlaybackHistoryStore.shared.items
+            lines.append("verify.history=\(history.count)")
+            lines.append("verify.historyTop=\(history.first?.title ?? "")")
+            completion(lines)
         }
     }
 

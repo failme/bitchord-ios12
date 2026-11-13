@@ -446,13 +446,10 @@ final class LyricsService {
                                         range: NSRange(location: 0, length: nsLine.length))
             guard !matches.isEmpty else { continue }
 
-            var body = regex.stringByReplacingMatches(in: line, options: [],
+            let body = regex.stringByReplacingMatches(in: line, options: [],
                                                       range: NSRange(location: 0, length: nsLine.length),
                                                       withTemplate: "")
-            // Enhanced LRC word tags are stripped: this path is line-synced only.
-            body = body.replacingOccurrences(of: "<\\d{1,3}:\\d{2}(?:[.:]\\d{1,3})?>",
-                                             with: "", options: .regularExpression)
-            body = body.trimmingCharacters(in: .whitespaces)
+                .trimmingCharacters(in: .whitespaces)
             if body.isEmpty { continue }
 
             for match in matches {
@@ -463,11 +460,64 @@ final class LyricsService {
                    let value = Double(nsLine.substring(with: match.range(at: 3))) {
                     fraction = value / pow(10.0, Double(nsLine.substring(with: match.range(at: 3)).count))
                 }
-                lines.append(WordLyricLine(time: minutes * 60 + seconds + fraction,
-                                           text: body, words: [], end: nil))
+                let start = minutes * 60 + seconds + fraction
+                // Enhanced LRC carries `<mm:ss.xx>` before each word, which is
+                // the syllable timing karaoke needs; plain LRC has none.
+                lines.append(LyricsService.taggedLine(body, at: start))
             }
         }
         return lines.sorted { $0.time < $1.time }
+    }
+
+    /// One LRC line, with its inline `<mm:ss.xx>` word tags turned into timed
+    /// words and syllables. A line without tags stays whole-line synced, which
+    /// is what plain LRC can honestly support.
+    static func taggedLine(_ body: String, at start: TimeInterval) -> WordLyricLine {
+        let pattern = "<(\\d{1,3}):(\\d{2})(?:[.:](\\d{1,3}))?>"
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: []),
+              regex.firstMatch(in: body, options: [], range: NSRange(location: 0, length: (body as NSString).length)) != nil else {
+            return WordLyricLine(time: start, text: body, words: [], end: nil)
+        }
+
+        let nsBody = body as NSString
+        let matches = regex.matches(in: body, options: [], range: NSRange(location: 0, length: nsBody.length))
+        var pieces: [(text: String, time: TimeInterval)] = []
+        let lead = nsBody.substring(to: matches[0].range.location)
+        if !lead.isEmpty {
+            pieces.append((lead, start))
+        }
+        for (index, match) in matches.enumerated() {
+            let tagStart = match.range.location + match.range.length
+            let tagEnd = index + 1 < matches.count ? matches[index + 1].range.location : nsBody.length
+            guard tagEnd >= tagStart else { continue }
+            let text = nsBody.substring(with: NSRange(location: tagStart, length: tagEnd - tagStart))
+            guard !text.isEmpty else { continue }
+            let minutes = Double(nsBody.substring(with: match.range(at: 1))) ?? 0
+            let seconds = Double(nsBody.substring(with: match.range(at: 2))) ?? 0
+            var fraction = 0.0
+            if match.range(at: 3).location != NSNotFound,
+               let value = Double(nsBody.substring(with: match.range(at: 3))) {
+                fraction = value / pow(10.0, Double(nsBody.substring(with: match.range(at: 3)).count))
+            }
+            pieces.append((text, minutes * 60 + seconds + fraction))
+        }
+        guard !pieces.isEmpty else {
+            return WordLyricLine(time: start, text: body, words: [], end: nil)
+        }
+
+        var plain = ""
+        var words: [LyricWord] = []
+        for (index, piece) in pieces.enumerated() {
+            let begin = plain.count
+            plain += piece.text
+            let finish = plain.count
+            let nextStart = index + 1 < pieces.count ? pieces[index + 1].time : piece.time + 0.6
+            let end = max(piece.time + 0.05, nextStart)
+            let syllable = LyricSyllable(start: piece.time, end: end, startChar: begin, endChar: finish)
+            words.append(LyricWord(start: piece.time, end: end, text: piece.text,
+                                   startChar: begin, endChar: finish, syllables: [syllable]))
+        }
+        return WordLyricLine(time: start, text: plain, words: words, end: nil)
     }
 
     // MARK: - Text helpers

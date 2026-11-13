@@ -137,6 +137,11 @@ final class AudioEngine {
             native.playLocal(url: local, track: track)
             return
         }
+        // A song the local scan found is already a file: same engine, no resolve.
+        if let local = LocalMusicStore.shared.localURL(for: track.videoID) {
+            native.playLocal(url: local, track: track, source: "Local Music")
+            return
+        }
         native.play(track: track) { [weak self] resolved in
             guard let self = self else { return }
             guard !resolved else { return }
