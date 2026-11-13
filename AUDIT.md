@@ -12,10 +12,12 @@ screenshot), **Ported** (implemented and reachable, exercised indirectly by the
 flows CI asserts), **iOS 12 block**, **Account/credential** (needs an account or
 third-party keys this build cannot ship), **Android-only**.
 
-Latest full run: commit `5b7e2f5`, all three jobs green (`43378307644`). Both
-root IPAs are that build: `MinimumOSVersion 12.0`, `UIDeviceFamily [1,2]`, thin
-`arm64`, bundle `com.bitchord.ios12v2` - verified inside CI by unzipping the
-packaged IPA and again on the committed file.
+Latest full run: commit `2b7fd9e`, all three jobs green (`43380104251`). Both
+root IPAs are that build: 16,947,648 bytes, sha256 `e6493578...`, bundle
+`com.bitchord.ios12v2` 2.0.0, `MinimumOSVersion 12.0`, `UIDeviceFamily [1,2]`,
+and a thin `arm64` executable (`cputype 0x100000c`) - verified inside CI by
+unzipping the packaged IPA and again on the committed file, with both copies
+byte-identical.
 
 ## Shell and navigation
 
@@ -116,7 +118,21 @@ Named rather than hidden:
 ## What CI measured, and what it did not
 
 Measured in the simulator (`shots-v2/download-report.txt` and the background
-reports): relaunch, offline playback, deletion, two quality renditions measured
+reports), with the run above:
+
+- Song menu: `menu.items=Play next|Add to queue|Add to playlist|Like|Go to
+  artist|Delete download|Start radio|Share|Song info`, every row asserted;
+  `menu.playlistGrew=true` after adding into a new playlist.
+- Queue: `queue.before=2`, `afterAdd=3`, `afterRemove=2`, `playNext=true`,
+  `afterMove=3`, `moved=true`.
+- History screen: `historyPage.rows=4`, `afterClear=0`, `restored=1`; Replay:
+  `replay.entries=6`, `replay.plays=6`.
+- Song info: `info.rows=7`, `info.title=Blinding Lights`, `info.source=Downloaded`.
+- Autoplay: `autoplay.started=true`, `autoplay.tracks=51` from a one-song queue.
+- A force-quit relaunch reads back `verify.localTracks=1` and
+  `verify.history=2` with `verify.historyTop=Blinding Lights`.
+
+Also measured in the same run: relaunch, offline playback, deletion, two quality renditions measured
 with `afinfo`, Wi-Fi HELD, storage cap, background resumed and force-quit, addon
 versus standard, 100-song playlist sync read back by a fresh process, local
 locker, queue history, History screen, Replay, song menu and add-to-playlist,
