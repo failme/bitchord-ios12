@@ -1,10 +1,13 @@
-import Foundation
+import UIKit
 
 /// How a settings row behaves and whether this port can honour it.
 enum SettingKind {
     case toggle(Bool)
     case stepper(Double, Double, Double, Double, String)
     case choice(String, [String])
+    /// Row opens something that is not in this build; the text says what it
+    /// would need, and tapping explains rather than pretending to navigate.
+    case page(String)
     /// Row is shown for parity but has no effect here; the reason is surfaced to the user.
     case unavailable(String)
 }
@@ -13,6 +16,10 @@ struct SettingItem {
     let key: String
     let title: String
     var detail: String? = nil
+    /// Leading glyph, for the rows the real app draws with an icon.
+    var icon: Icons.Kind? = nil
+    /// A capsule after the title, as in the real "IN USE" marker.
+    var badge: String? = nil
     let kind: SettingKind
 }
 
@@ -98,6 +105,38 @@ final class SettingsStore {
 /// Spotify, Discord, accounts) are present but disabled with the reason, instead of pretending.
 enum SettingsCatalog {
     static let sections: [SettingSection] = [
+        // The real page opens with these two, above any section label: the
+        // account state and the party invitation.
+        SettingSection(title: "", items: [
+            SettingItem(key: "BitChord.Account.Integrations", title: "Account & integrations",
+                        detail: "Not signed in",
+                        icon: .person,
+                        kind: .page("Google, Spotify and Discord accounts are not wired into this build.")),
+            SettingItem(key: "BitChord.Misc.ListenTogether", title: "Listen together",
+                        detail: "Share a code and play the same music, in time",
+                        icon: .bubble,
+                        kind: .page("Listening together needs a signed-in account on every device, so the party can tell who is in it."))
+        ]),
+
+        // AUDIO QUALITY sits above Playback on the real screen, with the
+        // active Wi-Fi ceiling marked IN USE.
+        SettingSection(title: "Audio quality", items: [
+            SettingItem(key: "BitChord.Audio.Sources", title: "Sources",
+                        detail: "Where audio comes from and the order used",
+                        icon: .speaker,
+                        kind: .page("Addon sources are not ported; streams come from YouTube Music directly.")),
+            SettingItem(key: "BitChord.Audio.DirectSourceStream", title: "Direct Source Stream",
+                        kind: .toggle(false)),
+            SettingItem(key: "BitChord.Audio.WifiQuality", title: "On Wi-Fi",
+                        badge: "IN USE",
+                        kind: .choice("Lossless", ["Lossless", "High", "Normal", "Data saver"])),
+            SettingItem(key: "BitChord.Audio.CellularQuality", title: "On mobile data",
+                        kind: .choice("Lossless", ["Lossless", "High", "Normal", "Data saver"])),
+            SettingItem(key: "BitChord.Audio.DolbyAtmos", title: "Dolby Atmos",
+                        detail: "This device can't play Atmos, so these songs play in their usual version",
+                        kind: .unavailable(""))
+        ]),
+
         SettingSection(title: "Playback", items: [
             SettingItem(key: "BitChord.Audio.PlaybackRate", title: "Playback speed",
                         detail: "0.5\u{00D7} to 2.0\u{00D7}",
@@ -123,27 +162,16 @@ enum SettingsCatalog {
                         kind: .unavailable("No sample-level access.")),
             SettingItem(key: "BitChord.Audio.LoudnessNormalization", title: "Loudness normalisation",
                         kind: .unavailable("No sample-level access.")),
-            SettingItem(key: "BitChord.Audio.Quality", title: "Streaming quality",
-                        detail: "Lossless / high / normal",
-                        kind: .choice("High", ["Lossless", "High", "Normal", "Data saver"])),
-            SettingItem(key: "BitChord.Audio.WifiQuality", title: "Quality on Wi-Fi",
-                        kind: .choice("Lossless", ["Lossless", "High", "Normal"])),
-            SettingItem(key: "BitChord.Audio.CellularQuality", title: "Quality on cellular",
-                        kind: .choice("High", ["High", "Normal", "Data saver"])),
             SettingItem(key: "BitChord.Audio.Automix", title: "Automix",
                         kind: .unavailable("Upstream beta; needs the DSP pipeline.")),
-            SettingItem(key: "BitChord.Audio.DirectSourceStream", title: "Direct source stream",
-                        kind: .unavailable("Addon sources are not ported.")),
-            SettingItem(key: "BitChord.Audio.DisableOnPhoneSpeaker", title: "Disable on phone speaker",
-                        kind: .unavailable("Route control needs the AVPlayer pipeline.")),
-            SettingItem(key: "BitChord.Audio.DolbyAtmos", title: "Dolby Atmos",
-                        kind: .unavailable("Not available for this stream.")),
+            SettingItem(key: "BitChord.Audio.AutomixPerf", title: "Automix performance mode",
+                        kind: .unavailable("Depends on Automix.")),
             SettingItem(key: "BitChord.Audio.SpatialAudio", title: "Spatial audio",
                         kind: .unavailable("Not available for this stream.")),
             SettingItem(key: "BitChord.Audio.OutputPrecision", title: "Output precision",
                         kind: .unavailable("WebKit picks the output format.")),
-            SettingItem(key: "BitChord.Audio.AutomixPerf", title: "Automix performance mode",
-                        kind: .unavailable("Depends on Automix."))
+            SettingItem(key: "BitChord.Audio.DisableOnPhoneSpeaker", title: "Disable on phone speaker",
+                        kind: .unavailable("Route control needs the AVPlayer pipeline."))
         ]),
 
         SettingSection(title: "Lyrics", items: [

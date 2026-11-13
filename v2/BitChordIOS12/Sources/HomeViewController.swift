@@ -68,6 +68,22 @@ final class HomeViewController: UIViewController {
         ])
         stack.addArrangedSubview(header)
 
+        // The real feed's first card is the signed-out prompt. There is no
+        // Google OAuth client in this build, so the pill explains that instead
+        // of opening a flow that cannot finish.
+        let banner = SignInBannerView()
+        banner.translatesAutoresizingMaskIntoConstraints = false
+        banner.heightAnchor.constraint(equalToConstant: 138).isActive = true
+        banner.onSignIn = { [weak self] in
+            let alert = UIAlertController(
+                title: "Sign in to YouTube Music",
+                message: "This build plays without an account. Google sign-in needs an OAuth client and an iOS 12-compatible account SDK, neither of which is part of this port.",
+                preferredStyle: .alert)
+            alert.addAction(UIAlertAction(title: "OK", style: .default, handler: nil))
+            self?.present(alert, animated: true, completion: nil)
+        }
+        stack.addArrangedSubview(banner)
+
         // The real feed opens with the large Top Picks cards, not a small shelf.
         topPicks.translatesAutoresizingMaskIntoConstraints = false
         topPicks.heightAnchor.constraint(equalToConstant: TopPicksShelfView.rowHeight).isActive = true
@@ -249,5 +265,75 @@ final class HomeViewController: UIViewController {
         }
 
         scrollView.isHidden = shelves.isEmpty && topPicks.isHidden
+    }
+}
+
+/// The signed-out card the real Home opens with: a blue gradient, the prompt
+/// and Google's white pill, at the same proportions as the Android screen.
+final class SignInBannerView: UIView {
+    var onSignIn: (() -> Void)?
+
+    private let gradient = CAGradientLayer()
+    private let titleLabel = UILabel()
+    private let button = UIButton(type: .system)
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        layer.cornerRadius = 22
+        layer.masksToBounds = true
+
+        gradient.colors = [
+            UIColor(red: 0.16, green: 0.40, blue: 0.87, alpha: 1).cgColor,
+            UIColor(red: 0.04, green: 0.14, blue: 0.43, alpha: 1).cgColor
+        ]
+        gradient.startPoint = CGPoint(x: 0, y: 0)
+        gradient.endPoint = CGPoint(x: 1, y: 1)
+        layer.insertSublayer(gradient, at: 0)
+
+        titleLabel.translatesAutoresizingMaskIntoConstraints = false
+        titleLabel.text = "Sign in to YouTube Music"
+        titleLabel.font = Theme.font(20, weight: .semibold)
+        titleLabel.textColor = .white
+        titleLabel.numberOfLines = 2
+        addSubview(titleLabel)
+
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.backgroundColor = .white
+        button.layer.cornerRadius = 20
+        button.contentEdgeInsets = UIEdgeInsets(top: 0, left: 18, bottom: 0, right: 20)
+        button.addTarget(self, action: #selector(tapped), for: .touchUpInside)
+        let mark = NSMutableAttributedString(
+            string: "G",
+            attributes: [.font: UIFont.systemFont(ofSize: 16, weight: .bold),
+                         .foregroundColor: UIColor(red: 0.26, green: 0.52, blue: 0.96, alpha: 1)])
+        mark.append(NSAttributedString(
+            string: "   Sign in with Google",
+            attributes: [.font: UIFont.systemFont(ofSize: 15, weight: .semibold),
+                         .foregroundColor: UIColor(red: 0.10, green: 0.10, blue: 0.12, alpha: 1)]))
+        button.setAttributedTitle(mark, for: .normal)
+        addSubview(button)
+
+        NSLayoutConstraint.activate([
+            titleLabel.topAnchor.constraint(equalTo: topAnchor, constant: 26),
+            titleLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+            titleLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+
+            button.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+            button.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 16),
+            button.heightAnchor.constraint(equalToConstant: 40)
+        ])
+    }
+
+    required init?(coder: NSCoder) {
+        return nil
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        gradient.frame = bounds
+    }
+
+    @objc private func tapped() {
+        onSignIn?()
     }
 }

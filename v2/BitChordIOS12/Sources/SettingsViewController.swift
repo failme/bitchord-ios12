@@ -120,13 +120,22 @@ extension SettingsViewController: UITableViewDataSource, UITableViewDelegate {
         return sections[section].items.count
     }
 
+    func tableView(_ tableView: UITableView, heightForHeaderInSection section: Int) -> CGFloat {
+        // A nil header still reserves sectionHeaderHeight, so the unlabelled
+        // opening card would float below a 34pt gap without this.
+        return sections[section].title.isEmpty ? 0.5 : 34
+    }
+
     func tableView(_ tableView: UITableView, viewForHeaderInSection section: Int) -> UIView? {
+        // The opening card has no label; the real page starts straight at it.
+        let title = sections[section].title
+        guard !title.isEmpty else { return nil }
         let holder = UIView()
         holder.backgroundColor = Theme.background
         let label = UILabel()
         label.translatesAutoresizingMaskIntoConstraints = false
         label.attributedText = NSAttributedString(
-            string: sections[section].title.uppercased(),
+            string: title.uppercased(),
             attributes: [.font: Theme.font(12, weight: .medium),
                          .foregroundColor: Theme.secondaryText,
                          .kern: 0.6])
@@ -161,6 +170,11 @@ extension SettingsViewController: UITableViewDataSource, UITableViewDelegate {
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
         let item = sections[indexPath.section].items[indexPath.row]
+        if case .page(let explanation) = item.kind {
+            let alert = UIAlertController(title: item.title, message: explanation, preferredStyle: .alert)
+            alert.addAction(UIAlertAction(title: "OK", style: .default, handler: nil))
+            present(alert, animated: true, completion: nil)
+        }
         if case .choice(let fallback, let options) = item.kind {
             choose(item: item, options: options)
             _ = SettingsStore.shared.string(item.key, fallback)
@@ -180,6 +194,10 @@ final class SettingsCell: UITableViewCell {
     private var titleCentered: NSLayoutConstraint!
     private let chevron = UIImageView(image: Icons.image(.chevronRight, size: 15))
     private let cardView = UIView()
+    private let iconView = UIImageView()
+    private let badgeLabel = SettingsBadgeLabel()
+    private var titleLeadingPlain: NSLayoutConstraint!
+    private var titleLeadingIcon: NSLayoutConstraint!
 
     override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
         super.init(style: style, reuseIdentifier: reuseIdentifier)
@@ -203,6 +221,21 @@ final class SettingsCell: UITableViewCell {
         detailLabel.numberOfLines = 1
         cardView.addSubview(detailLabel)
 
+        iconView.translatesAutoresizingMaskIntoConstraints = false
+        iconView.contentMode = .scaleAspectFit
+        iconView.tintColor = Theme.primaryText
+        iconView.isHidden = true
+        cardView.addSubview(iconView)
+
+        badgeLabel.translatesAutoresizingMaskIntoConstraints = false
+        badgeLabel.font = Theme.font(10, weight: .semibold)
+        badgeLabel.textColor = Theme.primaryText
+        badgeLabel.backgroundColor = UIColor(white: 1, alpha: 0.16)
+        badgeLabel.layer.cornerRadius = 4
+        badgeLabel.layer.masksToBounds = true
+        badgeLabel.isHidden = true
+        cardView.addSubview(badgeLabel)
+
         valueLabel.translatesAutoresizingMaskIntoConstraints = false
         valueLabel.font = Theme.font(14)
         valueLabel.textColor = Theme.secondaryText
@@ -217,15 +250,26 @@ final class SettingsCell: UITableViewCell {
 
         titleTop = titleLabel.topAnchor.constraint(equalTo: cardView.topAnchor, constant: 14)
         titleCentered = titleLabel.centerYAnchor.constraint(equalTo: cardView.centerYAnchor)
+        titleLeadingPlain = titleLabel.leadingAnchor.constraint(equalTo: cardView.leadingAnchor, constant: 20)
+        titleLeadingIcon = titleLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 12)
         titleTop.isActive = true
+        titleLeadingPlain.isActive = true
         NSLayoutConstraint.activate([
             cardView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
             cardView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
             cardView.topAnchor.constraint(equalTo: contentView.topAnchor),
             cardView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
 
-            titleLabel.leadingAnchor.constraint(equalTo: cardView.leadingAnchor, constant: 20),
             titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: chevron.leadingAnchor, constant: -8),
+
+            iconView.leadingAnchor.constraint(equalTo: cardView.leadingAnchor, constant: 20),
+            iconView.centerYAnchor.constraint(equalTo: cardView.centerYAnchor),
+            iconView.widthAnchor.constraint(equalToConstant: 22),
+            iconView.heightAnchor.constraint(equalToConstant: 22),
+
+            badgeLabel.leadingAnchor.constraint(equalTo: titleLabel.trailingAnchor, constant: 8),
+            badgeLabel.centerYAnchor.constraint(equalTo: cardView.centerYAnchor),
+            badgeLabel.trailingAnchor.constraint(lessThanOrEqualTo: chevron.leadingAnchor, constant: -8),
 
             detailLabel.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
             detailLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 2),
@@ -273,6 +317,22 @@ final class SettingsCell: UITableViewCell {
         separator.isHidden = last
         titleLabel.text = item.title
         detailLabel.text = item.detail
+        if let icon = item.icon {
+            iconView.image = Icons.image(icon, size: 22)
+            iconView.isHidden = false
+            titleLeadingPlain.isActive = false
+            titleLeadingIcon.isActive = true
+        } else {
+            iconView.isHidden = true
+            titleLeadingIcon.isActive = false
+            titleLeadingPlain.isActive = true
+        }
+        if let badge = item.badge {
+            badgeLabel.text = "  \(badge)  "
+            badgeLabel.isHidden = false
+        } else {
+            badgeLabel.isHidden = true
+        }
         var showsChevron = false
         var trailingValue = false
         var available = true
@@ -289,9 +349,11 @@ final class SettingsCell: UITableViewCell {
             showsChevron = true
             trailingValue = true
         case .unavailable:
-            // The real app greys the row out; it does not explain the port.
-            detailLabel.text = nil
+            // The real app greys the row out; a subtitle, where it has one,
+            // explains why the row is inert rather than hiding the reason.
             available = false
+        case .page:
+            showsChevron = true
         case .toggle:
             showsChevron = false
         }
@@ -312,5 +374,20 @@ final class SettingsCell: UITableViewCell {
         let shape = CAShapeLayer()
         shape.path = mask.cgPath
         cardView.layer.mask = (first || last) ? shape : nil
+    }
+}
+
+/// A capsule label with padding, for the real "IN USE" marker.
+final class SettingsBadgeLabel: UILabel {
+    private let insets = UIEdgeInsets(top: 2, left: 2, bottom: 2, right: 2)
+
+    override func drawText(in rect: CGRect) {
+        super.drawText(in: rect.inset(by: insets))
+    }
+
+    override var intrinsicContentSize: CGSize {
+        let size = super.intrinsicContentSize
+        return CGSize(width: size.width + insets.left + insets.right,
+                      height: size.height + insets.top + insets.bottom)
     }
 }
