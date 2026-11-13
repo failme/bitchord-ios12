@@ -230,6 +230,14 @@ jobs:
           # The harness walks the tabs, then plays a track and opens the
           # lyrics panel, which needs its provider call to land first.
           sleep 45
+          if ! xcrun simctl spawn "$UDID" launchctl list 2>/dev/null | grep -q "$BUNDLE"; then
+            echo "app is not running; collecting why"
+          fi
+          xcrun simctl spawn "$UDID" log show --last 2m --style compact \
+            --predicate 'processImagePath CONTAINS "BitChordIOS12V2"' 2>/dev/null \
+            | grep -aiE "fatal|exception|assert|crash|error" | tail -30 || true
+          find ~/Library/Logs/DiagnosticReports -name '*BitChord*' -mmin -10 \
+            -exec sh -c 'echo "== $1"; head -60 "$1"' _ {} \; 2>/dev/null || true
           rm -rf shots && mkdir -p shots
           cp -R "$CONTAINER/Documents/shots/." shots/ || true
           ls -l shots
