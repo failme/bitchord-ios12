@@ -26,6 +26,7 @@ enum TrackActions {
         if !track.videoID.hasPrefix(LocalMusicStore.idPrefix) {
             titles.append("Start radio")
         }
+        titles.append("Share")
         titles.append("Song info")
         return titles
     }
@@ -80,6 +81,9 @@ enum TrackActions {
                 RadioService.start(from: track, host: topController())
             })
         }
+        sheet.addAction(UIAlertAction(title: "Share", style: .default) { _ in
+            share(track, from: host)
+        })
         sheet.addAction(UIAlertAction(title: "Song info", style: .default) { _ in
             let info = SongInfoViewController(track: track)
             info.modalPresentationStyle = .pageSheet
@@ -91,6 +95,29 @@ enum TrackActions {
             pop.sourceRect = sourceView?.bounds ?? host.view.bounds
         }
         host.present(sheet, animated: true)
+    }
+
+    /// Upstream shares a lyrics card; iOS shares through the system sheet,
+    /// which is the share surface iOS 12 gives an app.
+    static func share(_ track: Track, from host: UIViewController) {
+        var items: [Any] = ["\(track.title) — \(track.artist)"]
+        let link: String?
+        if track.videoID.hasPrefix("saavn:") {
+            link = "https://www.jiosaavn.com/song/\(track.videoID.replacingOccurrences(of: "saavn:", with: ""))"
+        } else if !track.videoID.hasPrefix(LocalMusicStore.idPrefix) {
+            link = "https://music.youtube.com/watch?v=\(track.videoID)"
+        } else {
+            link = nil
+        }
+        if let link = link, let url = URL(string: link) {
+            items.append(url)
+        }
+        let sheet = UIActivityViewController(activityItems: items, applicationActivities: nil)
+        if let pop = sheet.popoverPresentationController {
+            pop.sourceView = host.view
+            pop.sourceRect = host.view.bounds
+        }
+        host.present(sheet, animated: true, completion: nil)
     }
 
     // MARK: - Go to artist
