@@ -163,7 +163,6 @@ final class DownloadStore: NSObject {
         failedTracks.removeValue(forKey: track.videoID)
         failedOrder.removeAll(where: { $0 == track.videoID })
         cancelledByUser.remove(track.videoID)
-        pacedDeciles.removeAll()
         active[track.videoID] = 0
         lastReported[track.videoID] = 0
         postChange()
@@ -185,15 +184,36 @@ final class DownloadStore: NSObject {
             DispatchQueue.main.async {
                 // Cancelled while the resolve was in flight.
                 guard self.active[track.videoID] != nil else { return }
-                let task = self.session.downloadTask(with: url)
-                self.tasks[task.taskIdentifier] = track.videoID
                 self.completions[track.videoID] = completion
                 self.pendingTracks[track.videoID] = track
                 if !self.activeOrder.contains(track.videoID) { self.activeOrder.append(track.videoID) }
                 self.pendingQuality[track.videoID] = JioSaavnService.shared.lastQualityLabel
-                task.resume()
+                if self.progressPace > 0 {
+                    self.startPacedTransfer(track: track, url: url)
+                } else {
+                    let task = self.session.downloadTask(with: url)
+                    self.tasks[task.taskIdentifier] = track.videoID
+                    task.resume()
+                }
             }
         }
+    }
+
+    /// Data-task transport used only when the capture harness asks for a paced
+    /// transfer: same resolve, same file, same index entry, consumed by hand.
+    private func startPacedTransfer(track: Track, url: URL) {
+        let partURL = directory.appendingPathComponent(".part-\(track.videoID)")
+        try? FileManager.default.removeItem(at: partURL)
+        FileManager.default.createFile(atPath: partURL.path, contents: nil, attributes: nil)
+        guard let handle = try? FileHandle(forWritingTo: partURL) else {
+            finish(track: track, error: "Could not open a file for the download.")
+            return
+        }
+        let task = session.dataTask(with: url)
+        paced[task.taskIdentifier] = PacedTransfer(videoID: track.videoID, track: track,
+                                                  handle: handle, partURL: partURL, received: 0)
+        tasks[task.taskIdentifier] = track.videoID
+        task.resume()
     }
 
     func cancel(_ videoID: String) {
@@ -204,8 +224,11 @@ final class DownloadStore: NSObject {
             postChange()
             return
         }
-        session.getTasksWithCompletionHandler { [weak self] _, _, downloadTasks in
-            for task in downloadTasks where task.taskIdentifier == pair.key {
+        session.getTasksWithCompletionHandler { [weak self] dataTasks, _, downloadTasks in
+            // Paced transfers are data tasks; ordinary downloads are download
+            // tasks, so both lists have to be searched.
+            let all: [URLSessionTask] = dataTasks.map { $0 } + downloadTasks.map { $0 }
+            for task in all where task.taskIdentifier == pair.key {
                 task.cancel()
             }
             DispatchQueue.main.async {
@@ -247,11 +270,19 @@ final class DownloadStore: NSObject {
     /// is the same `isOnWiFi()` branch the app runs on a phone.
     var connectivityOverride: (() -> Bool)?
 
-    /// Seconds to pause the delegate queue after each new tenth of progress.
-    /// Only the capture harness sets it, so a mid-transfer frame exists to
-    /// photograph; the bytes, callbacks and percentages are the real ones.
+    /// Seconds to pause per 32 KB chunk. Only the capture harness sets it: the
+    /// transfer then runs through a data task that consumes the body at human
+    /// speed, so a genuine mid-transfer frame exists to photograph. The resolve,
+    /// destination, index entry and progress are the same code either way.
     var progressPace: TimeInterval = 0
-    private var pacedDeciles: Set<Int> = []
+    private struct PacedTransfer {
+        let videoID: String
+        let track: Track
+        let handle: FileHandle
+        let partURL: URL
+        var received: Int64
+    }
+    private var paced: [Int: PacedTransfer] = [:]
 
     private var pendingTracks: [String: Track] = [:]
     private var pendingQuality: [String: String] = [:]
@@ -360,14 +391,6 @@ extension DownloadStore: URLSessionDownloadDelegate {
         // Report in whole percent: the UI only ever prints an integer, and this
         // keeps the notification stream from waking every row on each packet.
         let rounded = (fraction * 100).rounded() / 100
-        // Paced only when the harness asks: the download keeps running, the
-        // delegate queue is held back so the UI can be photographed mid-flight.
-        if progressPace > 0 {
-            let decile = Int(rounded * 10)
-            if pacedDeciles.insert(decile).inserted {
-                Thread.sleep(forTimeInterval: progressPace)
-            }
-        }
         DispatchQueue.main.async {
             guard self.active[videoID] != nil, rounded != self.lastReported[videoID] else { return }
             self.lastReported[videoID] = rounded
@@ -381,7 +404,14 @@ extension DownloadStore: URLSessionDownloadDelegate {
                     didFinishDownloadingTo location: URL) {
         guard let videoID = tasks[downloadTask.taskIdentifier],
               let track = pendingTracks[videoID] else { return }
+        storeCompletedFile(videoID: videoID, track: track, from: location,
+                           clearing: downloadTask.taskIdentifier)
+    }
 
+    /// Moves a finished download into place and records it. Shared by the normal
+    /// download task and the paced data task the capture harness uses.
+    private func storeCompletedFile(videoID: String, track: Track, from location: URL,
+                                    clearing identifier: Int?) {
         let fileName = videoID.replacingOccurrences(of: "/", with: "_") + ".m4a"
         let destination = directory.appendingPathComponent(fileName)
         try? FileManager.default.removeItem(at: destination)
@@ -414,7 +444,7 @@ extension DownloadStore: URLSessionDownloadDelegate {
             self.activeOrder.removeAll(where: { $0 == videoID })
             self.pendingTracks.removeValue(forKey: videoID)
             self.pendingQuality.removeValue(forKey: videoID)
-            self.tasks.removeValue(forKey: downloadTask.taskIdentifier)
+            if let identifier = identifier { self.tasks.removeValue(forKey: identifier) }
             let completion = self.completions.removeValue(forKey: videoID)
             self.postChange()
             completion?(true, "Downloaded")
@@ -424,6 +454,28 @@ extension DownloadStore: URLSessionDownloadDelegate {
     func urlSession(_ session: URLSession,
                     task: URLSessionTask,
                     didCompleteWithError error: Error?) {
+        // A paced transfer writes its own file, so it is finished here rather
+        // than in the download-task callback.
+        if let transfer = paced.removeValue(forKey: task.taskIdentifier) {
+            try? transfer.handle.close()
+            if error == nil {
+                storeCompletedFile(videoID: transfer.videoID, track: transfer.track,
+                                   from: transfer.partURL, clearing: task.taskIdentifier)
+            } else {
+                try? FileManager.default.removeItem(at: transfer.partURL)
+                var cancelled = false
+                if let error = error {
+                    cancelled = (error as NSError).code == NSURLErrorCancelled
+                }
+                let message = cancelled ? "Download cancelled."
+                                        : (error?.localizedDescription ?? "Download failed.")
+                DispatchQueue.main.async {
+                    self.tasks.removeValue(forKey: task.taskIdentifier)
+                    self.finish(track: transfer.track, error: message)
+                }
+            }
+            return
+        }
         guard let error = error,
               let videoID = tasks[task.taskIdentifier],
               let track = pendingTracks[videoID] else { return }
@@ -433,6 +485,33 @@ extension DownloadStore: URLSessionDownloadDelegate {
         DispatchQueue.main.async {
             self.tasks.removeValue(forKey: task.taskIdentifier)
             self.finish(track: track, error: message)
+        }
+    }
+}
+
+extension DownloadStore: URLSessionDataDelegate {
+    /// Consumes a paced download by hand, 32 KB at a time, so the transfer can
+    /// be watched and photographed. It is the harness's transport only.
+    func urlSession(_ session: URLSession,
+                    dataTask: URLSessionDataTask,
+                    didReceive data: Data) {
+        guard var transfer = paced[dataTask.taskIdentifier] else { return }
+        let chunkSize = 32 * 1024
+        let expected = dataTask.countOfBytesExpectedToReceive
+        var offset = 0
+        while offset < data.count {
+            let end = min(offset + chunkSize, data.count)
+            if progressPace > 0 { Thread.sleep(forTimeInterval: progressPace) }
+            transfer.handle.write(data.subdata(in: offset..<end))
+            transfer.received += Int64(end - offset)
+            offset = end
+            paced[dataTask.taskIdentifier] = transfer
+            let fraction = expected > 0 ? min(0.99, Double(transfer.received) / Double(expected)) : 0
+            DispatchQueue.main.async {
+                guard self.active[transfer.videoID] != nil else { return }
+                self.active[transfer.videoID] = fraction
+                self.postChange()
+            }
         }
     }
 }

@@ -15,7 +15,9 @@ enum TrackActions {
                 store.remove(track.videoID)
             })
         } else if store.isDownloading(track.videoID) {
-            sheet.addAction(UIAlertAction(title: "Cancel download", style: .cancel) { _ in
+            // Cannot be `.cancel` style: the sheet already ends with a Cancel
+            // action, and UIKit asserts when two share that style.
+            sheet.addAction(UIAlertAction(title: "Cancel download", style: .default) { _ in
                 store.cancel(track.videoID)
             })
         } else {

@@ -206,7 +206,9 @@ enum ScreenshotHarness {
         SettingsStore.shared.set(DownloadQuality.dataSaver.rawValue,
                                  for: "BitChord.Download.Quality")
         capture.report.append("quality.setting=\(SettingsStore.shared.string("BitChord.Download.Quality", ""))")
-        capture.store.progressPace = 0.7
+        // ~75 chunks for a 2.4 MB file at 96 kbps, so the transfer lasts long
+        // enough to photograph at a real percentage.
+        capture.store.progressPace = 0.08
         capture.store.download(track) { ok, message in
             capture.report.append("quality.saver.ok=\(ok)")
             if !ok { capture.report.append("quality.saver.message=\(message)") }
@@ -281,7 +283,9 @@ enum ScreenshotHarness {
                 return
             }
             capture.extraTrack = untouched
-            capture.store.progressPace = 1.5
+            // Slow enough that the menu can be photographed while the row still
+            // says it is downloading, then cancelled from that same menu.
+            capture.store.progressPace = 0.1
             capture.store.download(downloading) { _, _ in }
             after(0.8) {
                 host.dismiss(animated: false) {
