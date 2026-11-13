@@ -219,7 +219,8 @@ final class DownloadStore: NSObject {
     /// for the cap, where exactness does not matter and waiting for the file
     /// would defeat the point of refusing early.
     func estimatedBytes(for track: Track, quality: DownloadQuality) -> Int64 {
-        let seconds = track.durationSeconds > 0 ? track.durationSeconds : 210
+        let duration = track.durationSeconds ?? 0
+        let seconds = duration > 0 ? duration : 210
         let kbps = Double(quality.kbps ?? 320)
         return Int64((kbps * 1000 / 8) * seconds) + 96 * 1024
     }
@@ -407,8 +408,8 @@ final class DownloadStore: NSObject {
             postChange()
             return
         }
-        let session = self.session
-        let pacedSession = self.pacedSession
+        let session: URLSession = self.session
+        let pacedSession: URLSession = self.pacedSession
         let find: (URLSession) -> Void = { target in
             target.getTasksWithCompletionHandler { dataTasks, _, downloadTasks in
                 // Paced transfers are data tasks; ordinary downloads are download
