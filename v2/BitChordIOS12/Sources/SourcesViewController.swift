@@ -9,6 +9,7 @@ final class SourcesViewController: UIViewController, UITableViewDataSource, UITa
     private var entries: [WebDAVEntry] = []
 
     private let titleField = UILabel()
+    private let jellyfinButton = UIButton(type: .system)
     private let urlField = UITextField()
     private let userField = UITextField()
     private let passField = UITextField()
@@ -61,7 +62,13 @@ final class SourcesViewController: UIViewController, UITableViewDataSource, UITa
         statusLabel.textColor = Theme.secondaryText
         statusLabel.numberOfLines = 0
 
-        let form = UIStackView(arrangedSubviews: [titleField, urlField, userField, passField, connect, errorLabel, statusLabel])
+        jellyfinButton.setTitle("Jellyfin…", for: .normal)
+        jellyfinButton.titleLabel?.font = Theme.font(15, weight: .semibold)
+        jellyfinButton.setTitleColor(Theme.accent, for: .normal)
+        jellyfinButton.contentHorizontalAlignment = .left
+        jellyfinButton.addTarget(self, action: #selector(jellyfinTapped), for: .touchUpInside)
+
+        let form = UIStackView(arrangedSubviews: [titleField, jellyfinButton, urlField, userField, passField, connect, errorLabel, statusLabel])
         form.axis = .vertical
         form.spacing = 8
         form.translatesAutoresizingMaskIntoConstraints = false
@@ -126,6 +133,10 @@ final class SourcesViewController: UIViewController, UITableViewDataSource, UITa
     }
 
     // MARK: - Loading
+
+    @objc private func jellyfinTapped() {
+        navigationController?.pushViewController(JellyfinViewController(), animated: true)
+    }
 
     @objc private func connectTapped() {
         view.endEditing(true)

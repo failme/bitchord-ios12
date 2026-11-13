@@ -34,6 +34,17 @@ enum ScreenshotHarness {
                              label: label)
             return
         }
+        // A separate 320x568 launch for the Jellyfin browser.
+        if let flag = arguments.firstIndex(of: "-BCJellyfinOnly"), flag + 1 < arguments.count {
+            let directory = URL(fileURLWithPath: arguments[flag + 1], isDirectory: true)
+            try? FileManager.default.createDirectory(at: directory,
+                                                     withIntermediateDirectories: true,
+                                                     attributes: nil)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+                captureJellyfinOnly(directory: directory)
+            }
+            return
+        }
         // A separate 320x568 launch just for the first-run flow.
         if let flag = arguments.firstIndex(of: "-BCOnboardingOnly"), flag + 1 < arguments.count {
             let directory = URL(fileURLWithPath: arguments[flag + 1], isDirectory: true)
@@ -152,6 +163,41 @@ enum ScreenshotHarness {
                         writeText(report.joined(separator: "\n"), name: "onboarding-small-report.txt", directory: directory)
                         exit(0)
                     }
+                }
+            }
+        }
+    }
+
+    /// The Jellyfin browser at 320x568: sign in, list the library, photograph it.
+    private static func captureJellyfinOnly(directory: URL) {
+        guard let window = UIApplication.shared.keyWindow,
+              let root = window.rootViewController as? RootViewController else {
+            writeText("jellyfin.absent=true", name: "jellyfin-small-report.txt", directory: directory)
+            exit(0)
+            return
+        }
+        let environment = ProcessInfo.processInfo.environment
+        guard let base = environment["BC_JELLYFIN_URL"], !base.isEmpty else {
+            writeText("jellyfin.env=false", name: "jellyfin-small-report.txt", directory: directory)
+            exit(0)
+            return
+        }
+        let controller = JellyfinViewController()
+        controller.modalPresentationStyle = .fullScreen
+        root.present(controller, animated: false) {
+            after(0.5) {
+                controller.signInForCapture(url: base,
+                                            username: environment["BC_JELLYFIN_USER"] ?? "",
+                                            password: environment["BC_JELLYFIN_PASS"] ?? "")
+                waitUntil({ !controller.isBusy && !controller.entryNames.isEmpty }, timeout: 25) { listed in
+                    var report: [String] = []
+                    report.append("jellyfin.window=\(Int(window.bounds.width))x\(Int(window.bounds.height))")
+                    report.append("jellyfin.listed=\(listed)")
+                    report.append("jellyfin.items=\(controller.entryNames.joined(separator: "|"))")
+                    report.append("jellyfin.tableVisible=\(controller.view.bounds.height > 300)")
+                    writeText(report.joined(separator: "\n"), name: "jellyfin-small-report.txt", directory: directory)
+                    write(window: window, name: "jellyfin-small", directory: directory)
+                    exit(0)
                 }
             }
         }
@@ -1265,13 +1311,125 @@ enum ScreenshotHarness {
                                             capture.report.append("webdav.authError=\(bad.errorText)")
                                             capture.shot("webdav-error")
                                             capture.checkpoint()
-                                            bad.dismiss(animated: false) { cacheProbe(capture) }
+                                            bad.dismiss(animated: false) { jellyfinProbe(capture) }
                                         }
                                     }
                                 }
                             }
                         }
                     }
+                }
+            }
+        }
+    }
+
+    /// A real Jellyfin server on the runner: sign in, libraries, folder, album,
+    /// a streamed track, then expired, wrong-password and unreachable paths.
+    private static func jellyfinProbe(_ capture: DownloadCapture) {
+        let environment = ProcessInfo.processInfo.environment
+        guard let base = environment["BC_JELLYFIN_URL"], !base.isEmpty else {
+            capture.report.append("jellyfin.env=false")
+            cacheProbe(capture)
+            return
+        }
+        let username = environment["BC_JELLYFIN_USER"] ?? ""
+        let password = environment["BC_JELLYFIN_PASS"] ?? ""
+        let controller = JellyfinViewController()
+        capture.root.present(chrome(controller), animated: false) {
+            after(0.5) {
+                controller.signInForCapture(url: base, username: username, password: password)
+                waitUntil({ !controller.isBusy && controller.entryNames.contains("Music") }, timeout: 25) { listed in
+                    capture.report.append("jellyfin.listed=\(listed)")
+                    capture.report.append("jellyfin.libraries=\(controller.entryNames.joined(separator: "|"))")
+                    capture.shot("jellyfin-tree")
+                    guard let library = controller.browseForCapture(named: "Music") else {
+                        capture.report.append("jellyfin.folder=false")
+                        capture.checkpoint()
+                        capture.root.dismiss(animated: false) { cacheProbe(capture) }
+                        return
+                    }
+                    waitUntil({ !library.isBusy && library.entryNames.contains("Album One") }, timeout: 20) { libraryLoaded in
+                        capture.report.append("jellyfin.folder=\(libraryLoaded) \(library.entryNames.joined(separator: "|"))")
+                        guard let album = library.browseForCapture(named: "Album One") else {
+                            capture.report.append("jellyfin.album=false")
+                            capture.checkpoint()
+                            capture.root.dismiss(animated: false) { cacheProbe(capture) }
+                            return
+                        }
+                        waitUntil({ !album.isBusy && album.entryNames.contains("track.m4a") }, timeout: 20) { albumLoaded in
+                            capture.report.append("jellyfin.album=\(albumLoaded) \(album.entryNames.joined(separator: "|"))")
+                            album.playForCapture(named: "track.m4a")
+                            waitUntil({ PlayerService.shared.currentTrack?.videoID.hasPrefix("jellyfin:") == true }, timeout: 20) { started in
+                                capture.report.append("jellyfin.playing=\(started)")
+                                capture.report.append("jellyfin.title=\(PlayerService.shared.currentTrack?.title ?? "")")
+                                waitUntil({ PlayerService.shared.isPlaying }, timeout: 20) { audible in
+                                    capture.report.append("jellyfin.isPlaying=\(audible)")
+                                    capture.shot("jellyfin-playing")
+                                    capture.checkpoint()
+                                    capture.root.dismiss(animated: false) {
+                                        checkJellyfinErrors(capture, base: base, username: username, password: password)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private static func checkJellyfinErrors(_ capture: DownloadCapture,
+                                            base: String,
+                                            username: String,
+                                            password: String) {
+        // Expired token: a signed-in browser whose stored token is no longer valid.
+        let expired = JellyfinViewController()
+        capture.root.present(chrome(expired), animated: false) {
+            after(0.4) {
+                expired.signInForCapture(url: base, username: username, password: password)
+                waitUntil({ !expired.isBusy && expired.entryNames.contains("Music") }, timeout: 20) { _ in
+                    expired.expireForCapture()
+                    waitUntil({ !expired.isBusy && expired.errorText.contains("expired") }, timeout: 15) { shown in
+                        capture.report.append("jellyfin.expiredShown=\(shown)")
+                        capture.report.append("jellyfin.expiredError=\(expired.errorText)")
+                        capture.checkpoint()
+                        capture.root.dismiss(animated: false) {
+                            jellyfinAuthError(capture, base: base, username: username)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private static func jellyfinAuthError(_ capture: DownloadCapture, base: String, username: String) {
+        let wrong = JellyfinViewController()
+        capture.root.present(chrome(wrong), animated: false) {
+            after(0.4) {
+                wrong.signInForCapture(url: base, username: username, password: "wrong-password")
+                waitUntil({ !wrong.isBusy && !wrong.errorText.isEmpty }, timeout: 15) { shown in
+                    capture.report.append("jellyfin.authErrorShown=\(shown)")
+                    capture.report.append("jellyfin.authError=\(wrong.errorText)")
+                    capture.shot("jellyfin-error")
+                    capture.checkpoint()
+                    capture.root.dismiss(animated: false) {
+                        jellyfinUnreachable(capture)
+                    }
+                }
+            }
+        }
+    }
+
+    private static func jellyfinUnreachable(_ capture: DownloadCapture) {
+        let unreachable = JellyfinViewController()
+        capture.root.present(chrome(unreachable), animated: false) {
+            after(0.4) {
+                unreachable.signInForCapture(url: "http://127.0.0.1:8793/", username: "demo", password: "secret")
+                waitUntil({ !unreachable.isBusy && unreachable.errorText.contains("reach") }, timeout: 20) { shown in
+                    capture.report.append("jellyfin.unreachableShown=\(shown)")
+                    capture.report.append("jellyfin.unreachable=\(unreachable.errorText)")
+                    capture.checkpoint()
+                    capture.root.dismiss(animated: false) { cacheProbe(capture) }
                 }
             }
         }

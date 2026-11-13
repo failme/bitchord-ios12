@@ -131,6 +131,13 @@ final class AudioEngine {
         web.stop()
         mode = .native
         nativeFailure = ""
+        // A Jellyfin stream carries its token in the URL, so no extra headers
+        // are needed; it still goes through the same player and end handling.
+        if track.videoID.hasPrefix("jellyfin:"),
+           let url = URL(string: String(track.videoID.dropFirst("jellyfin:".count))) {
+            native.playRemote(url: url, headers: [:], track: track, source: "Jellyfin")
+            return
+        }
         // A WebDAV file streams from its own URL with the stored credentials,
         // through the same player and end-of-item handling as a local file.
         if track.videoID.hasPrefix("webdav:"),
