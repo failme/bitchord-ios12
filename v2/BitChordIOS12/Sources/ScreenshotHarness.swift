@@ -1378,6 +1378,11 @@ enum ScreenshotHarness {
                     report.append("background.transport=\(DownloadStore.shared.transport[track.videoID] ?? "") (start)")
                     report.append("background.pending=\(DownloadStore.shared.pendingCount)")
                     report.append("background.progress=\(DownloadStore.shared.progress(for: track.videoID) ?? 0)")
+                    report.append("background.failure=\(DownloadStore.shared.failure(for: track.videoID) ?? "")")
+                    report.append("background.saved=\(DownloadStore.shared.saved.count)")
+                    report.append("background.limit=\(DownloadStore.shared.storageLimitBytes)")
+                    report.append("background.wifiOnly=\(SettingsStore.shared.bool("BitChord.Download.WifiOnly", true))")
+                    report.append("background.playing=\(PlayerService.shared.isPlaying)")
                     writeText(report.joined(separator: "\n"), name: "background-report.txt", directory: directory)
                     if keep {
                         waitForReturn(directory: directory, videoID: track.videoID)

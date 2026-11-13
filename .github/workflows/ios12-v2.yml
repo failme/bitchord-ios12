@@ -326,67 +326,6 @@ jobs:
           ls -l shots
           ls shots/*.png > /dev/null
 
-          # Deep links: track, album, artist, playlist, radio, home, then a
-          # cold launch from a link. Each handler records the route it resolved
-          # and the screen it put on top, so the report is readable outside.
-          IDS="$CONTAINER/Documents/shots/deeplink-ids.txt"
-          echo "### Deep link ids"
-          cat "$IDS" 2>/dev/null || true
-          id_of() { sed -n "s/^$1=//p" "$IDS" 2>/dev/null | head -1; }
-          TRACK_ID=$(id_of track); ALBUM_ID=$(id_of album)
-          ARTIST_ID=$(id_of artist); PLAYLIST_ID=$(id_of playlist)
-          test -n "$TRACK_ID" || TRACK_ID="4NRXx6U8ABQ"
-          test -n "$ALBUM_ID" || ALBUM_ID="MPREb_4pL8Y0A0Gm0"
-          test -n "$ARTIST_ID" || ARTIST_ID="UCvVp1_4kM3Q0a4V4m0P0u2g"
-          test -n "$PLAYLIST_ID" || PLAYLIST_ID="PLBCfixture"
-          echo "deep links: track=$TRACK_ID album=$ALBUM_ID artist=$ARTIST_ID playlist=$PLAYLIST_ID"
-          # Registration: SpringBoard offers to open BitChord for the scheme.
-          xcrun simctl terminate "$UDID" "$BUNDLE" || true
-          sleep 1
-          xcrun simctl openurl "$UDID" "bitchord://track/$TRACK_ID" || true
-          sleep 3
-          xcrun simctl io "$UDID" screenshot shots/deeplink-prompt.png > /dev/null 2>&1 || true
-          # The confirmation cannot be tapped headlessly, so each destination is
-          # proven by launching the app cold with the same URL, through the same
-          # router (the launch-options path).
-          launch_link() {
-            xcrun simctl terminate "$UDID" "$BUNDLE" > /dev/null 2>&1 || true
-            sleep 1
-            xcrun simctl launch "$UDID" "$BUNDLE" -BCDeepLink "$1" > /dev/null 2>&1 || true
-            sleep 5
-          }
-          launch_link "bitchord://track/$TRACK_ID"
-          xcrun simctl io "$UDID" screenshot shots/deeplink-track.png > /dev/null 2>&1 || true
-          launch_link "bitchord://album/$ALBUM_ID"
-          xcrun simctl io "$UDID" screenshot shots/deeplink-cold.png > /dev/null 2>&1 || true
-          launch_link "bitchord://artist/$ARTIST_ID"
-          launch_link "bitchord://playlist/$PLAYLIST_ID"
-          launch_link "bitchord://radio/$TRACK_ID"
-          launch_link "bitchord://home"
-          cp "$CONTAINER/Documents/shots/deeplinks.txt" shots/deeplinks.txt 2>/dev/null || true
-          echo "### Deep link report"
-          cat shots/deeplinks.txt 2>/dev/null || echo "(no deep link report)"
-
-          # The first-run flow on a 320x568 window: every step photographed and
-          # every primary action checked to land on the small screen.
-          xcrun simctl terminate "$UDID" "$BUNDLE" || true
-          sleep 1
-          xcrun simctl launch "$UDID" "$BUNDLE" -BCOnboardingOnly "$CONTAINER/Documents/shots" -BCSmallScreen
-          for i in $(seq 1 30); do
-            [ -f "$CONTAINER/Documents/shots/onboarding-small-report.txt" ] && break
-            sleep 2
-          done
-          cp -R "$CONTAINER/Documents/shots/." shots/ || true
-          echo "### Onboarding 320x568 report"
-          cat shots/onboarding-small-report.txt 2>/dev/null || echo "(no small-screen report)"
-          grep -q "onboarding.window=320x568" shots/onboarding-small-report.txt
-          grep -q "onboarding.primaryVisible=true" shots/onboarding-small-report.txt
-          grep -q "onboarding.primaryVisible2=true" shots/onboarding-small-report.txt
-          grep -q "onboarding.primaryVisible3=true" shots/onboarding-small-report.txt
-          grep -q "onboarding.primaryVisible4=true" shots/onboarding-small-report.txt
-          grep -q "onboarding.completed=true" shots/onboarding-small-report.txt
-          grep -q "onboarding.dismissed=true" shots/onboarding-small-report.txt
-
           REPORT=shots/download-report.txt
           echo "### Download report"
           cat "$REPORT" || { echo "::error ::no download report written"; exit 1; }
@@ -558,18 +497,6 @@ jobs:
           grep -q "onboarding.dismissed=true" shots/onboarding-report.txt
           grep -q "onboarding.rerun=true" "$REPORT"
 
-          # Deep links resolved to distinct screens.
-          grep -q "route=track id=$TRACK_ID screen=NowPlaying" shots/deeplinks.txt
-          grep -q "route=album id=$ALBUM_ID screen=Album" shots/deeplinks.txt
-          grep -q "route=artist id=$ARTIST_ID screen=Artist" shots/deeplinks.txt
-          grep -q "route=playlist id=$PLAYLIST_ID screen=Playlist" shots/deeplinks.txt
-          grep -q "route=radio id=$TRACK_ID screen=Radio" shots/deeplinks.txt
-          grep -q "route=home screen=Home" shots/deeplinks.txt
-          grep -q "cold=1" shots/deeplinks.txt
-          test -s shots/deeplink-prompt.png
-          test -s shots/deeplink-track.png
-          test -s shots/deeplink-cold.png
-
           # WebDAV: the CI-hosted tree, a streamed file, and a visible auth error.
           grep -q "webdav.listed=true" "$REPORT"
           grep -q "webdav.hasMusic=true" "$REPORT"
@@ -673,6 +600,79 @@ jobs:
           echo "playlist first: synced [$SYNC_FIRST] read-back [$VERIFY_FIRST]"
           test -n "$SYNC_FIRST"
           test "$SYNC_FIRST" = "$VERIFY_FIRST"
+          # Deep links: track, album, artist, playlist, radio, home, then a
+          # cold launch from a link. Each handler records the route it resolved
+          # and the screen it put on top, so the report is readable outside.
+          IDS="$CONTAINER/Documents/shots/deeplink-ids.txt"
+          echo "### Deep link ids"
+          cat "$IDS" 2>/dev/null || true
+          id_of() { sed -n "s/^$1=//p" "$IDS" 2>/dev/null | head -1; }
+          TRACK_ID=$(id_of track); ALBUM_ID=$(id_of album)
+          ARTIST_ID=$(id_of artist); PLAYLIST_ID=$(id_of playlist)
+          test -n "$TRACK_ID" || TRACK_ID="4NRXx6U8ABQ"
+          test -n "$ALBUM_ID" || ALBUM_ID="MPREb_4pL8Y0A0Gm0"
+          test -n "$ARTIST_ID" || ARTIST_ID="UCvVp1_4kM3Q0a4V4m0P0u2g"
+          test -n "$PLAYLIST_ID" || PLAYLIST_ID="PLBCfixture"
+          echo "deep links: track=$TRACK_ID album=$ALBUM_ID artist=$ARTIST_ID playlist=$PLAYLIST_ID"
+          # Registration: SpringBoard offers to open BitChord for the scheme.
+          xcrun simctl terminate "$UDID" "$BUNDLE" || true
+          sleep 1
+          xcrun simctl openurl "$UDID" "bitchord://track/$TRACK_ID" || true
+          sleep 3
+          xcrun simctl io "$UDID" screenshot shots/deeplink-prompt.png > /dev/null 2>&1 || true
+          # The confirmation cannot be tapped headlessly, so each destination is
+          # proven by launching the app cold with the same URL, through the same
+          # router (the launch-options path).
+          launch_link() {
+            xcrun simctl terminate "$UDID" "$BUNDLE" > /dev/null 2>&1 || true
+            sleep 1
+            xcrun simctl launch "$UDID" "$BUNDLE" -BCDeepLink "$1" > /dev/null 2>&1 || true
+            sleep 5
+          }
+          launch_link "bitchord://track/$TRACK_ID"
+          xcrun simctl io "$UDID" screenshot shots/deeplink-track.png > /dev/null 2>&1 || true
+          launch_link "bitchord://album/$ALBUM_ID"
+          xcrun simctl io "$UDID" screenshot shots/deeplink-cold.png > /dev/null 2>&1 || true
+          launch_link "bitchord://artist/$ARTIST_ID"
+          launch_link "bitchord://playlist/$PLAYLIST_ID"
+          launch_link "bitchord://radio/$TRACK_ID"
+          launch_link "bitchord://home"
+          cp "$CONTAINER/Documents/shots/deeplinks.txt" shots/deeplinks.txt 2>/dev/null || true
+          echo "### Deep link report"
+          cat shots/deeplinks.txt 2>/dev/null || echo "(no deep link report)"
+
+          # Deep links resolved to distinct screens.
+          grep -q "route=track id=$TRACK_ID screen=NowPlaying" shots/deeplinks.txt
+          grep -q "route=album id=$ALBUM_ID screen=Album" shots/deeplinks.txt
+          grep -q "route=artist id=$ARTIST_ID screen=Artist" shots/deeplinks.txt
+          grep -q "route=playlist id=$PLAYLIST_ID screen=Playlist" shots/deeplinks.txt
+          grep -q "route=radio id=$TRACK_ID screen=Radio" shots/deeplinks.txt
+          grep -q "route=home screen=Home" shots/deeplinks.txt
+          grep -q "cold=1" shots/deeplinks.txt
+          test -s shots/deeplink-prompt.png
+          test -s shots/deeplink-track.png
+          test -s shots/deeplink-cold.png
+
+          # The first-run flow on a 320x568 window: every step photographed and
+          # every primary action checked to land on the small screen.
+          xcrun simctl terminate "$UDID" "$BUNDLE" || true
+          sleep 1
+          xcrun simctl launch "$UDID" "$BUNDLE" -BCOnboardingOnly "$CONTAINER/Documents/shots" -BCSmallScreen
+          for i in $(seq 1 30); do
+            [ -f "$CONTAINER/Documents/shots/onboarding-small-report.txt" ] && break
+            sleep 2
+          done
+          cp -R "$CONTAINER/Documents/shots/." shots/ || true
+          echo "### Onboarding 320x568 report"
+          cat shots/onboarding-small-report.txt 2>/dev/null || echo "(no small-screen report)"
+          grep -q "onboarding.window=320x568" shots/onboarding-small-report.txt
+          grep -q "onboarding.primaryVisible=true" shots/onboarding-small-report.txt
+          grep -q "onboarding.primaryVisible2=true" shots/onboarding-small-report.txt
+          grep -q "onboarding.primaryVisible3=true" shots/onboarding-small-report.txt
+          grep -q "onboarding.primaryVisible4=true" shots/onboarding-small-report.txt
+          grep -q "onboarding.completed=true" shots/onboarding-small-report.txt
+          grep -q "onboarding.dismissed=true" shots/onboarding-small-report.txt
+
           kill "$ADDON_PID" 2>/dev/null || true
           kill "$WEBDAV_PID" 2>/dev/null || true
 
