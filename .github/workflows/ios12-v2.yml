@@ -446,7 +446,9 @@ jobs:
           grep -q "historyPage.afterClear=0" "$REPORT"
           HISTORY_RESTORED=$(sed -n 's/^historyPage.restored=//p' "$REPORT" | head -1)
           test -n "$HISTORY_RESTORED"
-          test "$HISTORY_RESTORED" -ge 2
+          # Clearing then playing one song repopulates it; the relaunch proof
+          # separately requires two entries.
+          test "$HISTORY_RESTORED" -ge 1
           REPLAY=$(sed -n 's/^replay.entries=//p' "$REPORT" | head -1)
           test -n "$REPLAY"
           test "$REPLAY" -ge 1
