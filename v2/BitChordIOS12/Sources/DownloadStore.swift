@@ -148,13 +148,22 @@ final class DownloadStore: NSObject {
             return
         }
         if SettingsStore.shared.bool("BitChord.Download.WifiOnly", true), !isOnWiFi() {
+            // Held rather than silently skipped: the row stays on the screen
+            // with the reason (the fuller instruction goes to the alert), which
+            // is the only way the user learns why nothing downloaded.
             failed[track.videoID] = "Downloads are limited to Wi-Fi."
+            failedTracks[track.videoID] = track
+            if !failedOrder.contains(track.videoID) { failedOrder.append(track.videoID) }
             postChange()
             completion?(false, "Downloads are limited to Wi-Fi. Turn that off in Settings to use mobile data.")
             return
         }
 
         failed.removeValue(forKey: track.videoID)
+        failedTracks.removeValue(forKey: track.videoID)
+        failedOrder.removeAll(where: { $0 == track.videoID })
+        cancelledByUser.remove(track.videoID)
+        pacedDeciles.removeAll()
         active[track.videoID] = 0
         lastReported[track.videoID] = 0
         postChange()
@@ -188,8 +197,10 @@ final class DownloadStore: NSObject {
     }
 
     func cancel(_ videoID: String) {
+        cancelledByUser.insert(videoID)
         guard let pair = tasks.first(where: { $0.value == videoID }) else {
             active.removeValue(forKey: videoID)
+            cancelledByUser.remove(videoID)
             postChange()
             return
         }
@@ -231,8 +242,34 @@ final class DownloadStore: NSObject {
         postChange()
     }
 
+    /// Replaces the system reachability check. Only the capture harness sets it,
+    /// to stand on a metered connection a CI mac never has; the decision it feeds
+    /// is the same `isOnWiFi()` branch the app runs on a phone.
+    var connectivityOverride: (() -> Bool)?
+
+    /// Seconds to pause the delegate queue after each new tenth of progress.
+    /// Only the capture harness sets it, so a mid-transfer frame exists to
+    /// photograph; the bytes, callbacks and percentages are the real ones.
+    var progressPace: TimeInterval = 0
+    private var pacedDeciles: Set<Int> = []
+
     private var pendingTracks: [String: Track] = [:]
     private var pendingQuality: [String: String] = [:]
+    private var failedTracks: [String: Track] = [:]
+    private var failedOrder: [String] = []
+    /// Tracks the user stopped on purpose. A cancel is not a failure, so it
+    /// leaves no row behind; only an actual download error does.
+    private var cancelledByUser: Set<String> = []
+
+    /// Downloads that were refused or stopped, with the reason to show on screen.
+    var failedItems: [(track: Track, reason: String)] {
+        var items: [(track: Track, reason: String)] = []
+        for id in failedOrder {
+            guard let track = failedTracks[id] else { continue }
+            items.append((track, failed[id] ?? "Download failed."))
+        }
+        return items
+    }
     /// Insertion order for the in-flight downloads, so the screen lists them the
     /// way they were started rather than in dictionary order.
     private var activeOrder: [String] = []
@@ -243,8 +280,13 @@ final class DownloadStore: NSObject {
     }
 
     private func finish(track: Track, error: String) {
+        let userStopped = cancelledByUser.remove(track.videoID) != nil
         active.removeValue(forKey: track.videoID)
-        failed[track.videoID] = error
+        if !userStopped {
+            failed[track.videoID] = error
+            failedTracks[track.videoID] = track
+            if !failedOrder.contains(track.videoID) { failedOrder.append(track.videoID) }
+        }
         activeOrder.removeAll(where: { $0 == track.videoID })
         pendingTracks.removeValue(forKey: track.videoID)
         pendingQuality.removeValue(forKey: track.videoID)
@@ -291,6 +333,7 @@ final class DownloadStore: NSObject {
     /// cannot be read, because refusing a download on a broken probe is worse
     /// than allowing one.
     private func isOnWiFi() -> Bool {
+        if let override = connectivityOverride { return override() }
         var address = sockaddr_in()
         address.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
         address.sin_family = sa_family_t(AF_INET)
@@ -317,6 +360,14 @@ extension DownloadStore: URLSessionDownloadDelegate {
         // Report in whole percent: the UI only ever prints an integer, and this
         // keeps the notification stream from waking every row on each packet.
         let rounded = (fraction * 100).rounded() / 100
+        // Paced only when the harness asks: the download keeps running, the
+        // delegate queue is held back so the UI can be photographed mid-flight.
+        if progressPace > 0 {
+            let decile = Int(rounded * 10)
+            if pacedDeciles.insert(decile).inserted {
+                Thread.sleep(forTimeInterval: progressPace)
+            }
+        }
         DispatchQueue.main.async {
             guard self.active[videoID] != nil, rounded != self.lastReported[videoID] else { return }
             self.lastReported[videoID] = rounded
@@ -357,6 +408,9 @@ extension DownloadStore: URLSessionDownloadDelegate {
             self.save()
             self.active.removeValue(forKey: videoID)
             self.failed.removeValue(forKey: videoID)
+            self.failedTracks.removeValue(forKey: videoID)
+            self.failedOrder.removeAll(where: { $0 == videoID })
+            self.cancelledByUser.remove(videoID)
             self.activeOrder.removeAll(where: { $0 == videoID })
             self.pendingTracks.removeValue(forKey: videoID)
             self.pendingQuality.removeValue(forKey: videoID)

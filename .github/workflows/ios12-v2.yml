@@ -105,6 +105,24 @@ jobs:
           /usr/bin/zip -qry BitChordIOS12V2-unsigned.ipa Payload
           ls -lh BitChordIOS12V2-unsigned.ipa
 
+      - name: Verify the IPA itself
+        if: success()
+        run: |
+          set -o pipefail
+          rm -rf /tmp/ipacheck && mkdir -p /tmp/ipacheck
+          unzip -q BitChordIOS12V2-unsigned.ipa -d /tmp/ipacheck
+          APP=$(find /tmp/ipacheck/Payload -maxdepth 1 -name "*.app" | head -1)
+          test -n "$APP"
+          MIN=$(/usr/libexec/PlistBuddy -c 'Print :MinimumOSVersion' "$APP/Info.plist")
+          echo "ipa MinimumOSVersion=$MIN"
+          echo "::notice ::IPA MinimumOSVersion = $MIN"
+          test "$MIN" = "12.0"
+          BIN="$APP/$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$APP/Info.plist")"
+          ARCHS=$(lipo -archs "$BIN")
+          echo "ipa architectures=$ARCHS"
+          echo "::notice ::IPA architectures = $ARCHS"
+          echo "$ARCHS" | grep -q "arm64"
+
       - name: Upload IPA
         if: success()
         uses: actions/upload-artifact@v4
@@ -230,14 +248,23 @@ jobs:
           # reads that index back off disk, so the capture proves persistence
           # across a relaunch rather than same-process memory.
           xcrun simctl launch "$UDID" "$BUNDLE" -BCSeedDownload "$CONTAINER/Documents/shots"
-          sleep 60
+          for i in $(seq 1 60); do
+            [ -f "$CONTAINER/Documents/shots/download-report.txt" ] && break
+            sleep 2
+          done
+          echo "### Seed report"
+          cat "$CONTAINER/Documents/shots/download-report.txt" 2>/dev/null || echo "(seed wrote nothing)"
           xcrun simctl terminate "$UDID" "$BUNDLE" || true
           sleep 2
           xcrun simctl launch "$UDID" "$BUNDLE" -BCScreenshots "$CONTAINER/Documents/shots"
-          # The harness walks the tabs, then plays a track and opens the
-          # lyrics panel, which needs its provider call to land first, then
-          # photographs Downloads and offline playback.
-          sleep 60
+          # The harness walks the tabs, plays a track, then runs the whole
+          # download sequence (resume check, offline playback, delete, quality
+          # probe, mid-transfer shot, menus, Wi-Fi hold). It writes done.txt
+          # when finished, so wait for the work rather than guessing.
+          for i in $(seq 1 120); do
+            [ -f "$CONTAINER/Documents/shots/done.txt" ] && break
+            sleep 2
+          done
           if ! xcrun simctl spawn "$UDID" launchctl list 2>/dev/null | grep -q "$BUNDLE"; then
             echo "app is not running; collecting why"
           fi
@@ -250,14 +277,52 @@ jobs:
           cp -R "$CONTAINER/Documents/shots/." shots/ || true
           ls -l shots
           ls shots/*.png > /dev/null
+          REPORT=shots/download-report.txt
           echo "### Download report"
-          cat shots/download-report.txt 2>/dev/null || echo "(no report written)"
-          # The feature is only proven if the seed left a file and the second
-          # launch played it from disk.
-          grep -q "fileExists=true" shots/download-report.txt
-          grep -q "localPlayback=true" shots/download-report.txt
-          grep -q "fileRemoved=true" shots/download-report.txt
-          grep -q "deletedRows=0" shots/download-report.txt
+          cat "$REPORT" || { echo "::error ::no download report written"; exit 1; }
+
+          # Relaunch, offline playback, deletion.
+          grep -q "resume.saved=1" "$REPORT"
+          grep -q "localPlayback=true" "$REPORT"
+          grep -q "fileRemoved=true" "$REPORT"
+          grep -q "deletedRows=0" "$REPORT"
+
+          # Two settings, two renditions: the labels are the app's, the bitrates
+          # are measured by afinfo from the files the app stored.
+          grep -q "quality.high.label=JioSaavn 320kbps" "$REPORT"
+          grep -q "quality.saver.label=JioSaavn 96kbps" "$REPORT"
+          grep -q "quality.saverSmaller=true" "$REPORT"
+          rate() {
+            afinfo "$1" 2>/dev/null | awk '/bit rate/ {for (i = 1; i <= NF; i++) if ($i ~ /^[0-9]+$/) {print $i; exit}}'
+          }
+          test -s shots/quality-high.m4a
+          test -s shots/quality-saver.m4a
+          HIGH_RATE=$(rate shots/quality-high.m4a)
+          SAVER_RATE=$(rate shots/quality-saver.m4a)
+          HIGH_SIZE=$(stat -f%z shots/quality-high.m4a)
+          SAVER_SIZE=$(stat -f%z shots/quality-saver.m4a)
+          echo "high: ${HIGH_RATE}bps ${HIGH_SIZE}B | saver: ${SAVER_RATE}bps ${SAVER_SIZE}B"
+          test -n "$HIGH_RATE"
+          test -n "$SAVER_RATE"
+          test "$HIGH_RATE" -ge 280000
+          test "$SAVER_RATE" -le 128000
+          test "$SAVER_SIZE" -lt "$HIGH_SIZE"
+
+          # A real mid-transfer frame, the Wi-Fi hold, and all three menus.
+          PROGRESS=$(sed -n 's/^progress.captured=//p' "$REPORT" | head -1)
+          echo "progress captured at ${PROGRESS}%"
+          test -n "$PROGRESS"
+          test "$PROGRESS" -gt 0
+          test "$PROGRESS" -lt 100
+          grep -q "wifi.blocked=true" "$REPORT"
+          grep -q "wifi.failedRows=1" "$REPORT"
+          grep -q "sheet.delete.downloaded=true" "$REPORT"
+          grep -q "sheet.cancel.downloading=true" "$REPORT"
+          grep -q "sheet.download.idle=true" "$REPORT"
+          for shot in downloads download-progress downloads-saver settings-downloads \
+                      sheet-delete sheet-cancel sheet-download wifi-blocked offline downloads-empty; do
+            test -s "shots/$shot.png" || { echo "::error ::missing $shot.png"; exit 1; }
+          done
 
       - name: Upload screens
         if: always()

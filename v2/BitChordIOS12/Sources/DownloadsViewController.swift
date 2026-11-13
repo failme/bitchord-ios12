@@ -16,6 +16,7 @@ final class DownloadsViewController: UIViewController {
 
     private enum Row {
         case active(Track, Double)
+        case failed(Track, String)
         case saved(DownloadedTrack)
     }
 
@@ -23,8 +24,14 @@ final class DownloadsViewController: UIViewController {
         var items: [Row] = DownloadStore.shared.activeItems.map { track in
             .active(track, DownloadStore.shared.progress(for: track.videoID) ?? 0)
         }
+        items.append(contentsOf: DownloadStore.shared.failedItems.map { Row.failed($0.track, $0.reason) })
         items.append(contentsOf: DownloadStore.shared.saved.map { Row.saved($0) })
         return items
+    }
+
+    /// Saved rows start after the in-flight and held ones.
+    private var savedOffset: Int {
+        return DownloadStore.shared.activeItems.count + DownloadStore.shared.failedItems.count
     }
 
     override func viewDidLoad() {
@@ -197,8 +204,12 @@ extension DownloadsViewController: UITableViewDataSource, UITableViewDelegate {
                                                  for: indexPath) as! DownloadCell
         switch rows[indexPath.row] {
         case .active(let track, let fraction):
-            cell.configure(track: track, detail: "Downloading\u{2026} \(Int((fraction * 100).rounded()))%",
-                           trailing: nil, progress: fraction)
+            let percent = Int((fraction * 100).rounded())
+            cell.configure(track: track, detail: "Downloading\u{2026}",
+                           trailing: "\(percent)%", progress: fraction)
+        case .failed(let track, let reason):
+            cell.configure(track: track, detail: reason, trailing: "HELD",
+                           progress: nil, warning: true)
         case .saved(let item):
             let formatter = ByteCountFormatter()
             formatter.countStyle = .file
@@ -207,16 +218,22 @@ extension DownloadsViewController: UITableViewDataSource, UITableViewDelegate {
             cell.configure(track: item.track,
                            detail: "\(quality) \u{00B7} \(size)",
                            trailing: nil, progress: nil)
+            cell.accessoryType = .none
         }
         return cell
     }
 
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
-        guard case .saved = rows[indexPath.row] else { return }
-        // Saved rows start after any in-flight ones.
-        let savedIndex = indexPath.row - DownloadStore.shared.activeItems.count
-        play(at: max(0, savedIndex))
+        switch rows[indexPath.row] {
+        case .saved:
+            play(at: max(0, indexPath.row - savedOffset))
+        case .failed(let track, _):
+            // Tapping a held row tries again with the current settings.
+            DownloadStore.shared.download(track)
+        case .active:
+            break
+        }
     }
 
     func tableView(_ tableView: UITableView,
@@ -233,6 +250,12 @@ extension DownloadsViewController: UITableViewDataSource, UITableViewDelegate {
         case .active(let track, _):
             action = UIContextualAction(style: .normal, title: "Cancel") { _, _, done in
                 DownloadStore.shared.cancel(track.videoID)
+                done(true)
+            }
+            action.backgroundColor = Theme.surfaceVariant
+        case .failed(let track, _):
+            action = UIContextualAction(style: .normal, title: "Retry") { _, _, done in
+                DownloadStore.shared.download(track)
                 done(true)
             }
             action.backgroundColor = Theme.surfaceVariant
@@ -326,10 +349,15 @@ final class DownloadCell: UITableViewCell {
         return nil
     }
 
-    func configure(track: Track, detail: String, trailing: String?, progress: Double?) {
+    func configure(track: Track, detail: String, trailing: String?, progress: Double?,
+                   warning: Bool = false) {
         titleLabel.text = track.title
         detailLabel.text = detail
         trailingLabel.text = trailing
+        let warningColor = UIColor(red: 1, green: 0.62, blue: 0.04, alpha: 1)
+        detailLabel.textColor = warning ? warningColor : Theme.secondaryText
+        trailingLabel.textColor = warning ? warningColor : Theme.secondaryText
+        detailLabel.numberOfLines = warning ? 2 : 1
         if let progress = progress {
             bar.isHidden = false
             fraction = max(0, min(1, progress))
