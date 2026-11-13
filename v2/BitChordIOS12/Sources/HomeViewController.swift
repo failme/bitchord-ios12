@@ -68,6 +68,31 @@ final class HomeViewController: UIViewController {
         ])
         stack.addArrangedSubview(header)
 
+        // Signed-out Home opens with the blue sign-in card, 119pt tall and
+        // inset 16pt, which is what sets the rhythm of the whole feed.
+        let bannerHolder = UIView()
+        bannerHolder.translatesAutoresizingMaskIntoConstraints = false
+        bannerHolder.heightAnchor.constraint(
+            equalToConstant: SignInBannerView.bannerHeight).isActive = true
+        let banner = SignInBannerView()
+        bannerHolder.addSubview(banner)
+        NSLayoutConstraint.activate([
+            banner.leadingAnchor.constraint(equalTo: bannerHolder.leadingAnchor, constant: 16),
+            banner.trailingAnchor.constraint(equalTo: bannerHolder.trailingAnchor, constant: -16),
+            banner.topAnchor.constraint(equalTo: bannerHolder.topAnchor),
+            banner.bottomAnchor.constraint(equalTo: bannerHolder.bottomAnchor)
+        ])
+        banner.onSignIn = { [weak self] in
+            let alert = UIAlertController(title: "Sign in to YouTube Music",
+                                          message: "Google sign-in is not available in this build.",
+                                          preferredStyle: .alert)
+            alert.addAction(UIAlertAction(title: "OK", style: .default))
+            self?.present(alert, animated: true)
+        }
+        stack.setCustomSpacing(8, after: header)
+        stack.setCustomSpacing(24, after: bannerHolder)
+        stack.addArrangedSubview(bannerHolder)
+
         // The real feed's first card is the signed-out prompt. There is no
         // Google OAuth client in this build, so the pill explains that instead
         // of opening a flow that cannot finish.

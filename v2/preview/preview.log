@@ -22,3 +22,25 @@
 127.0.0.1 - - [12/Nov/2026 13:21:39] "GET /shots/settings.png HTTP/1.1" 200 -
 127.0.0.1 - - [12/Nov/2026 13:42:50] "GET / HTTP/1.1" 304 -
 127.0.0.1 - - [12/Nov/2026 13:42:50] "GET /shots/home.png HTTP/1.1" 200 -
+127.0.0.1 - - [12/Nov/2026 16:39:27] "GET / HTTP/1.1" 304 -
+127.0.0.1 - - [12/Nov/2026 16:39:27] "GET /shots/home.png HTTP/1.1" 200 -
+127.0.0.1 - - [12/Nov/2026 16:39:29] "GET /shots/explore.png HTTP/1.1" 200 -
+127.0.0.1 - - [12/Nov/2026 16:39:31] "GET /shots/library.png HTTP/1.1" 200 -
+127.0.0.1 - - [12/Nov/2026 16:39:32] "GET /shots/search.png HTTP/1.1" 200 -
+127.0.0.1 - - [12/Nov/2026 16:39:33] "GET /shots/lyrics.png HTTP/1.1" 200 -
+127.0.0.1 - - [12/Nov/2026 16:39:36] "GET /shots/settings.png HTTP/1.1" 200 -
+127.0.0.1 - - [12/Nov/2026 16:39:51] "GET / HTTP/1.1" 304 -
+127.0.0.1 - - [12/Nov/2026 16:39:51] "GET /shots/home.png HTTP/1.1" 304 -
+127.0.0.1 - - [12/Nov/2026 16:39:53] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [12/Nov/2026 16:39:53] "GET /shots/home.png HTTP/1.1" 200 -
+127.0.0.1 - - [12/Nov/2026 16:39:53] code 404, message File not found
+127.0.0.1 - - [12/Nov/2026 16:39:53] "GET /favicon.ico HTTP/1.1" 404 -
+127.0.0.1 - - [12/Nov/2026 16:39:57] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [12/Nov/2026 16:39:57] "GET /shots/home.png HTTP/1.1" 200 -
+127.0.0.1 - - [12/Nov/2026 16:39:57] code 404, message File not found
+127.0.0.1 - - [12/Nov/2026 16:39:57] "GET /favicon.ico HTTP/1.1" 404 -
+127.0.0.1 - - [12/Nov/2026 16:39:59] "GET /shots/explore.png HTTP/1.1" 200 -
+127.0.0.1 - - [12/Nov/2026 16:40:01] "GET /shots/library.png HTTP/1.1" 200 -
+127.0.0.1 - - [12/Nov/2026 16:40:05] "GET /shots/search.png HTTP/1.1" 200 -
+127.0.0.1 - - [12/Nov/2026 16:40:07] "GET /shots/lyrics.png HTTP/1.1" 200 -
+127.0.0.1 - - [12/Nov/2026 16:40:52] "GET / HTTP/1.1" 200 -

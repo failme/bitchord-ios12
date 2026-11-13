@@ -21,7 +21,7 @@
   .note { color:#8e8e93; font-size:12px; max-width:390px; text-align:center; line-height:1.5; }
 </style>
 <h1>BitChord for iOS 12 · v2 — latest simulator captures</h1>
-<div class="phone"><img id="shot" src="shots/home.png" alt=""><div class="island"></div></div>
+<div class="phone"><img id="shot" src="shots/home.png?v=1" alt=""><div class="island"></div></div>
 <div class="tabs" id="tabs"></div>
 <p class="note">Static captures from the CI simulator (real UIKit build, live catalogue and lyrics).
 Playback and drag gestures need a device — these are pictures, not a running app.</p>
@@ -32,7 +32,7 @@ Playback and drag gestures need a device — these are pictures, not a running a
   shots.forEach(([label,name], i) => {
     const b = document.createElement('button');
     b.textContent = label; if (i === 0) b.className = 'on';
-    b.onclick = () => { img.src = 'shots/' + name + '.png';
+    b.onclick = () => { img.src = 'shots/' + name + '.png?v=' + Date.now();
       [...tabs.children].forEach(c => c.className = ''); b.className = 'on'; };
     tabs.appendChild(b);
   });

@@ -92,7 +92,7 @@ final class TopPickCell: UICollectionViewCell {
         super.init(frame: frame)
         artwork.contentMode = .scaleAspectFill
         artwork.clipsToBounds = true
-        artwork.layer.cornerRadius = 4
+        artwork.layer.cornerRadius = 8
         artwork.backgroundColor = Theme.surfaceVariant
         artwork.translatesAutoresizingMaskIntoConstraints = false
         contentView.addSubview(artwork)
