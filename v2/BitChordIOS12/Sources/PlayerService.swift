@@ -343,7 +343,7 @@ final class PlayerService: NSObject {
             self.autoplayInFlight = false
             self.statusText = ""
             let known = Set(self.queue.map { $0.videoID })
-            let fresh = mix.filter { !known.contains($0.videoID) }
+            let fresh = (mix ?? []).filter { !known.contains($0.videoID) }
             guard !fresh.isEmpty else {
                 self.isPlaying = false
                 self.postChange()

@@ -1049,7 +1049,7 @@ enum ScreenshotHarness {
     }
 
     private static func autoplayProbe(_ capture: DownloadCapture) {
-        SettingsStore.shared.set(true, "BitChord.Audio.AutoPlay")
+        SettingsStore.shared.set(true, for: "BitChord.Audio.AutoPlay")
         capture.report.append("autoplay.setting=\(PlayerService.shared.autoplayEnabled)")
         guard let seed = capture.seedTrack else {
             cacheProbe(capture)
