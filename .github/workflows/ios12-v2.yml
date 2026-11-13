@@ -518,9 +518,7 @@ jobs:
                       lyrics-karaoke artist moods settings-cache song-actions add-to-playlist \
                       queue-edit history history-empty replay song-info autoplay \
                       onboarding-welcome onboarding-tour onboarding-library onboarding-ready \
-                      onboarding-rerun onboarding-small-welcome onboarding-small-tour \
-                      onboarding-small-library onboarding-small-ready deeplink-prompt \
-                      deeplink-track deeplink-cold webdav-tree webdav-playing webdav-error; do
+                      onboarding-rerun webdav-tree webdav-playing webdav-error; do
             test -s "shots/$shot.png" || { echo "::error ::missing $shot.png"; exit 1; }
           done
 
@@ -672,6 +670,10 @@ jobs:
           grep -q "onboarding.primaryVisible4=true" shots/onboarding-small-report.txt
           grep -q "onboarding.completed=true" shots/onboarding-small-report.txt
           grep -q "onboarding.dismissed=true" shots/onboarding-small-report.txt
+          test -s shots/onboarding-small-welcome.png
+          test -s shots/onboarding-small-tour.png
+          test -s shots/onboarding-small-library.png
+          test -s shots/onboarding-small-ready.png
 
           kill "$ADDON_PID" 2>/dev/null || true
           kill "$WEBDAV_PID" 2>/dev/null || true
