@@ -693,8 +693,7 @@ enum ScreenshotHarness {
             capture.report.append("local.title=\(songs.first?.track.title ?? "")")
             capture.report.append("local.duration=\(Int(songs.first?.track.durationSeconds ?? 0))")
             let library = LocalMusicViewController()
-            library.modalPresentationStyle = .fullScreen
-            capture.root.present(library, animated: false) {
+            capture.root.present(chrome(library), animated: false) {
                 after(1.2) {
                     capture.shot("local-music")
                     library.openFolderForCapture()
@@ -723,9 +722,7 @@ enum ScreenshotHarness {
         let list = TrackListViewController()
         list.tracks = [saved.track]
         list.title = "Downloaded"
-        list.modalPresentationStyle = .fullScreen
-        list.modalPresentationStyle = .fullScreen
-        capture.root.present(list, animated: false) {
+        capture.root.present(chrome(list), animated: false) {
             after(1) {
                 let cell = trackCells(in: list.view).first
                 capture.report.append("badge.downloaded=\(cell?.showsDownloadedBadge ?? false)")
@@ -861,8 +858,7 @@ enum ScreenshotHarness {
             let page = ArtistPage.make(artist: CatalogueArtist(id: item.browseID,
                                                               name: item.title,
                                                               artwork: item.artworkURL))
-            page.modalPresentationStyle = .fullScreen
-            capture.root.present(page, animated: false) {
+            capture.root.present(chrome(page), animated: false) {
                 waitUntil({ page.loadedTrackCount > 0 }, timeout: 25) { _ in
                     after(0.8) {
                         capture.shot("artist")
@@ -919,8 +915,7 @@ enum ScreenshotHarness {
         capture.report.append("cache.freed=\(freed)")
         capture.report.append("cache.cleared=\(freed >= 1024 * 1024)")
         let settings = SettingsViewController()
-        settings.modalPresentationStyle = .fullScreen
-        capture.root.present(settings, animated: false) {
+        capture.root.present(chrome(settings), animated: false) {
             after(0.8) {
                 settings.scrollToDownloadSection()
                 after(0.8) {
@@ -930,6 +925,19 @@ enum ScreenshotHarness {
                 }
             }
         }
+    }
+
+    /// Presents a screen the way the app reaches it: inside a navigation bar.
+    private static func chrome(_ controller: UIViewController) -> UIViewController {
+        let navigation = UINavigationController(rootViewController: controller)
+        navigation.modalPresentationStyle = .fullScreen
+        navigation.navigationBar.barTintColor = Theme.background
+        navigation.navigationBar.tintColor = Theme.accent
+        navigation.navigationBar.isTranslucent = false
+        navigation.navigationBar.titleTextAttributes = [.foregroundColor: UIColor.white]
+        navigation.navigationBar.largeTitleTextAttributes = [.foregroundColor: UIColor.white]
+        navigation.navigationBar.prefersLargeTitles = true
+        return navigation
     }
 
     private static func firstMoodTile(in view: UIView) -> MoodTileView? {

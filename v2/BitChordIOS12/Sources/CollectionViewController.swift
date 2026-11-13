@@ -171,9 +171,11 @@ final class CollectionHeaderView: UIView {
         playButton.translatesAutoresizingMaskIntoConstraints = false
         playButton.backgroundColor = Theme.accent
         playButton.layer.cornerRadius = 18
-        playButton.tintColor = .white
+        // The accent is white, so the glyph and label have to be dark or the
+        // pill reads as a blank white capsule.
+        playButton.tintColor = Theme.background
         playButton.setTitle("  Play  ", for: .normal)
-        playButton.setTitleColor(.white, for: .normal)
+        playButton.setTitleColor(Theme.background, for: .normal)
         playButton.titleLabel?.font = Theme.font(14, weight: .semibold)
         playButton.setImage(Icons.image(.play, size: 15), for: .normal)
         playButton.addTarget(self, action: #selector(playTapped), for: .touchUpInside)
