@@ -12,6 +12,16 @@ final class SettingsViewController: UIViewController {
 
     private let card = UIColor(red: 0x1C / 255.0, green: 0x1C / 255.0, blue: 0x1E / 255.0, alpha: 1)
 
+    /// Brings the download rows into view so the capture can show that they
+    /// carry live state (storage used) rather than placeholder copy.
+    func scrollToDownloadSection() {
+        guard let section = sections.firstIndex(where: { section in
+            section.items.contains(where: { $0.key == "BitChord.Download.Storage" })
+        }) else { return }
+        view.layoutIfNeeded()
+        tableView.scrollToRow(at: IndexPath(row: 0, section: section), at: .top, animated: false)
+    }
+
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         // Storage used is live state: it changes as downloads come and go.

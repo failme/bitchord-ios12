@@ -256,6 +256,8 @@ jobs:
           # launch played it from disk.
           grep -q "fileExists=true" shots/download-report.txt
           grep -q "localPlayback=true" shots/download-report.txt
+          grep -q "fileRemoved=true" shots/download-report.txt
+          grep -q "deletedRows=0" shots/download-report.txt
 
       - name: Upload screens
         if: always()

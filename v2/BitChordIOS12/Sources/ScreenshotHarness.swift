@@ -79,7 +79,11 @@ enum ScreenshotHarness {
                     player.present(settings, animated: false) {
                         DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
                             write(window: window, name: "settings", directory: directory)
-                            captureDownloads(window: window, root: root, directory: directory)
+                            settings.scrollToDownloadSection()
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                                write(window: window, name: "settings-downloads", directory: directory)
+                                captureDownloads(window: window, root: root, directory: directory)
+                            }
                         }
                     }
                 }
@@ -148,7 +152,11 @@ enum ScreenshotHarness {
             let downloads = DownloadsViewController()
             downloads.modalPresentationStyle = .fullScreen
             root.present(downloads, animated: false) {
-                write(window: window, name: "downloads", directory: directory)
+                // The row's cover is fetched asynchronously; give it a beat so the
+                // shot shows the finished row rather than a placeholder tile.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                    write(window: window, name: "downloads", directory: directory)
+                }
                 guard let item = store.saved.first else {
                     writeReport(report.joined(separator: "\n"), directory: directory)
                     exit(0)
@@ -163,7 +171,24 @@ enum ScreenshotHarness {
                     downloads.dismiss(animated: false) { root.presentNowPlaying() }
                     DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
                         write(window: window, name: "offline", directory: directory)
-                        exit(0)
+                        // Delete the download and check the row and the bytes
+                        // both go, then photograph the empty destination.
+                        let fileURL = store.localURL(for: item.track.videoID)
+                        store.remove(item.track.videoID)
+                        let gone = fileURL.map { !FileManager.default.fileExists(atPath: $0.path) } ?? false
+                        report.append("deletedRows=\(store.saved.count)")
+                        report.append("fileRemoved=\(gone)")
+                        root.dismiss(animated: false) {
+                            let after = DownloadsViewController()
+                            after.modalPresentationStyle = .fullScreen
+                            root.present(after, animated: false) {
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                                    write(window: window, name: "downloads-empty", directory: directory)
+                                    writeReport(report.joined(separator: "\n"), directory: directory)
+                                    exit(0)
+                                }
+                            }
+                        }
                     }
                 }
             }
