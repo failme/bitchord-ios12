@@ -394,12 +394,15 @@ jobs:
             test -s "shots/$shot.png" || { echo "::error ::missing $shot.png"; exit 1; }
           done
 
-          # Background transfer: start one, kill the process while it is still
-          # running, then relaunch and inspect the index in a fresh process.
+          # Background A: a download is started, the app is sent away, and comes
+          # back. The track has to be in the library afterwards with nothing
+          # pending and no index entry without a file behind it.
           rm -f "$CONTAINER/Documents/shots/background-report.txt" \
-                "$CONTAINER/Documents/shots/background-verify.txt" \
-                "$CONTAINER/Documents/shots/background-done.txt"
-          xcrun simctl launch "$UDID" "$BUNDLE" -BCBackgroundStart "$CONTAINER/Documents/shots"
+                "$CONTAINER/Documents/shots/background-resumed.txt" \
+                "$CONTAINER/Documents/shots/background-resumed-done.txt" \
+                "$CONTAINER/Documents/shots/background-killed.txt" \
+                "$CONTAINER/Documents/shots/background-killed-done.txt"
+          xcrun simctl launch "$UDID" "$BUNDLE" -BCBackgroundStart "$CONTAINER/Documents/shots" keep
           for i in $(seq 1 45); do
             [ -f "$CONTAINER/Documents/shots/background-report.txt" ] && break
             sleep 1
@@ -407,24 +410,53 @@ jobs:
           echo "### Background start"
           cat "$CONTAINER/Documents/shots/background-report.txt" 2>/dev/null || true
           grep -q "background.live=true" "$CONTAINER/Documents/shots/background-report.txt"
+          # Launching another app is how the harness sends ours to the background.
+          xcrun simctl launch "$UDID" com.apple.Preferences > /dev/null 2>&1 \
+            || xcrun simctl launch "$UDID" com.apple.mobilesafari > /dev/null 2>&1 || true
+          sleep 8
+          xcrun simctl launch "$UDID" "$BUNDLE" > /dev/null 2>&1 || true
+          for i in $(seq 1 60); do
+            [ -f "$CONTAINER/Documents/shots/background-resumed-done.txt" ] && break
+            sleep 2
+          done
+          echo "### Background resumed"
+          cat "$CONTAINER/Documents/shots/background-resumed.txt" 2>/dev/null || true
+          cp -R "$CONTAINER/Documents/shots/." shots/ || true
+          [ -f shots/background-resumed.txt ] || { echo "::error ::no background resumed report"; exit 1; }
+          grep -q "background.indexed=true" shots/background-resumed.txt
+          grep -q "background.pendingAfter=0" shots/background-resumed.txt
+          grep -q "background.phantom=false" shots/background-resumed.txt
+
+          # Background B: the same download force-quit mid-transfer. The next
+          # launch must adopt it or say it was interrupted, with the index left
+          # consistent either way.
+          xcrun simctl terminate "$UDID" "$BUNDLE" || true
+          sleep 1
+          xcrun simctl launch "$UDID" "$BUNDLE" -BCBackgroundStart "$CONTAINER/Documents/shots"
+          for i in $(seq 1 45); do
+            [ -f "$CONTAINER/Documents/shots/background-report.txt" ] && break
+            sleep 1
+          done
           sleep 1
           xcrun simctl terminate "$UDID" "$BUNDLE" || true
           sleep 2
-          xcrun simctl launch "$UDID" "$BUNDLE" -BCBackgroundVerify "$CONTAINER/Documents/shots"
+          xcrun simctl launch "$UDID" "$BUNDLE" -BCBackgroundVerify "$CONTAINER/Documents/shots" killed
           for i in $(seq 1 120); do
-            [ -f "$CONTAINER/Documents/shots/background-done.txt" ] && break
+            [ -f "$CONTAINER/Documents/shots/background-killed-done.txt" ] && break
             sleep 2
           done
-          echo "### Background verify"
-          cat "$CONTAINER/Documents/shots/background-verify.txt" 2>/dev/null || true
+          echo "### Background killed"
+          cat "$CONTAINER/Documents/shots/background-killed.txt" 2>/dev/null || true
           cp -R "$CONTAINER/Documents/shots/." shots/ || true
-          [ -f shots/background-verify.txt ] || { echo "::error ::no background verify report"; exit 1; }
-          grep -q "background.indexed=true" shots/background-verify.txt
-          grep -q "background.pendingAfter=0" shots/background-verify.txt
+          [ -f shots/background-killed.txt ] || { echo "::error ::no background killed report"; exit 1; }
+          grep -q "background.settled=true" shots/background-killed.txt
+          grep -Eq "background.indexed=true|background.reported=true" shots/background-killed.txt
+          grep -q "background.pendingAfter=0" shots/background-killed.txt
+          grep -q "background.phantom=false" shots/background-killed.txt
 
           # The playlist is read back from disk in that relaunched process, and
           # has to match what the sync wrote in the process before it.
-          VERIFY_FIRST=$(sed -n 's/^verify.playlistFirst=//p' shots/background-verify.txt | head -1)
+          VERIFY_FIRST=$(sed -n 's/^verify.playlistFirst=//p' shots/background-killed.txt | head -1)
           SYNC_FIRST=$(sed -n 's/^sync.first=//p' "$REPORT" | head -1)
           echo "playlist first: synced [$SYNC_FIRST] read-back [$VERIFY_FIRST]"
           test -n "$SYNC_FIRST"

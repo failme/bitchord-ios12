@@ -19,11 +19,19 @@ enum ScreenshotHarness {
         // Background transfers get their own launch pair: start one and quit,
         // then launch again and see what the system delivered.
         if let start = arguments.firstIndex(of: "-BCBackgroundStart"), start + 1 < arguments.count {
-            backgroundStart(directory: URL(fileURLWithPath: arguments[start + 1], isDirectory: true))
+            // `keep` leaves the process alive so CI can background it and bring
+            // it back; without it the run exits while the transfer is live.
+            let keep = arguments.count > start + 2 && arguments[start + 2] == "keep"
+            backgroundStart(directory: URL(fileURLWithPath: arguments[start + 1], isDirectory: true),
+                            keep: keep)
             return
         }
         if let verify = arguments.firstIndex(of: "-BCBackgroundVerify"), verify + 1 < arguments.count {
-            backgroundVerify(directory: URL(fileURLWithPath: arguments[verify + 1], isDirectory: true))
+            // An optional label keeps the two scenarios' reports apart: one where
+            // the app is only backgrounded, one where it is killed outright.
+            let label = arguments.count > verify + 2 ? arguments[verify + 2] : "verify"
+            backgroundVerify(directory: URL(fileURLWithPath: arguments[verify + 1], isDirectory: true),
+                             label: label)
             return
         }
         guard let flag = arguments.firstIndex(of: "-BCScreenshots"),
@@ -396,6 +404,9 @@ enum ScreenshotHarness {
         }
         let beforeCount = capture.store.saved.count
         let beforeBytes = capture.store.totalBytes
+        // The quality probe left this on Data saver; the cap has to be tested
+        // against the rendition the user would actually get.
+        SettingsStore.shared.set(DownloadQuality.high.rawValue, for: "BitChord.Download.Quality")
         SettingsStore.shared.set("10 MB", for: DownloadStore.storageLimitKey)
         capture.report.append("cap.setting=\(SettingsStore.shared.string(DownloadStore.storageLimitKey, ""))")
         capture.report.append("cap.usage=\(capture.store.storageText())")
@@ -544,7 +555,7 @@ enum ScreenshotHarness {
             SettingsStore.shared.set(addonURL.absoluteString, for: AddonService.urlKey)
             SettingsStore.shared.set(DownloadQuality.lossless.rawValue, for: "BitChord.Download.Quality")
             // Tell the test server which id it should be able to serve.
-            var request = URLRequest(url: addonURL.appendingPathComponent("__serve/\(losslessTrack.videoID)"))
+            var request = URLRequest(url: addonURL.appendingPathComponent("serve/\(losslessTrack.videoID)"))
             request.timeoutInterval = 5
             URLSession.shared.dataTask(with: request) { _, _, _ in
                 DispatchQueue.main.async {
@@ -634,10 +645,17 @@ enum ScreenshotHarness {
 
     // MARK: - Background transfer launches
 
-    /// Starts a real background download and leaves the process while it is
-    /// still transferring: the next launch has to adopt it.
-    private static func backgroundStart(directory: URL) {
-        var report = ["background.started=true"]
+    /// Starts a download and hands the app back to CI while it is still running.
+    ///
+    /// In `keep` mode the process stays alive: the app is then sent to the
+    /// background by CI and brought back, and the harness reports what happened
+    /// while it was not frontmost. Without it the process exits at once, so CI
+    /// can force-quit it mid-transfer and test the recovery path instead.
+    private static func backgroundStart(directory: URL, keep: Bool) {
+        var report = ["background.started=true", "background.mode=\(keep ? "keep" : "quit")"]
+        SettingsStore.shared.set(DownloadQuality.high.rawValue, for: "BitChord.Download.Quality")
+        SettingsStore.shared.set("Unlimited", for: DownloadStore.storageLimitKey)
+        SettingsStore.shared.set(false, for: "BitChord.Download.WifiOnly")
         CatalogueSearch.shared.songs("Save Your Tears The Weeknd") { tracks in
             // Anything already on disk would short-circuit, so take a fresh one.
             guard let track = tracks.first(where: { !DownloadStore.shared.isDownloaded($0.videoID) }) else {
@@ -653,23 +671,53 @@ enum ScreenshotHarness {
             waitUntil({ DownloadStore.shared.isDownloading(track.videoID) }, timeout: 25) { started in
                 after(0.8) {
                     report.append("background.live=\(started)")
+                    report.append("background.transport=\(DownloadStore.shared.transport[track.videoID] ?? "") (start)")
                     report.append("background.pending=\(DownloadStore.shared.pendingCount)")
                     report.append("background.progress=\(DownloadStore.shared.progress(for: track.videoID) ?? 0)")
                     writeText(report.joined(separator: "\n"), name: "background-report.txt", directory: directory)
-                    // Leave without finishing: the transfer belongs to the system now.
-                    exit(0)
+                    if keep {
+                        waitForReturn(directory: directory, videoID: track.videoID)
+                    } else {
+                        // Leave without finishing: the transfer belongs to the system now.
+                        exit(0)
+                    }
                 }
             }
         }
     }
 
-    /// Relaunched after the process died: adopt whatever the system delivered
-    /// and say plainly whether the track ended up in the library.
-    private static func backgroundVerify(directory: URL) {
-        var report: [String] = []
+    /// Reports once the app has been away and is frontmost again, so the file
+    /// on disk and the index are read after the interruption, not before it.
+    private static func waitForReturn(directory: URL, videoID: String) {
+        var leftForeground = false
+        NotificationCenter.default.addObserver(forName: UIApplication.willResignActiveNotification,
+                                               object: nil, queue: .main) { _ in
+            leftForeground = true
+        }
+        NotificationCenter.default.addObserver(forName: UIApplication.didBecomeActiveNotification,
+                                               object: nil, queue: .main) { _ in
+            guard leftForeground else { return }
+            var report = readBackgroundReport(directory: directory)
+            report.append("background.resumedAfterLeave=true")
+            waitUntil({ DownloadStore.shared.pendingCount == 0 }, timeout: 90) { _ in
+                report.append(contentsOf: settleLines(videoID: videoID, directory: directory))
+                writeText(report.joined(separator: "\n"),
+                          name: "background-resumed.txt", directory: directory)
+                try? "done".write(to: directory.appendingPathComponent("background-resumed-done.txt"),
+                                  atomically: true, encoding: .utf8)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { exit(0) }
+            }
+        }
+    }
+
+    /// Relaunched after the process was force-quit: adopt whatever the system
+    /// delivered, or report the interruption, and never leave a phantom entry.
+    private static func backgroundVerify(directory: URL, label: String) {
+        var report: [String] = ["background.label=\(label)"]
         let started = readBackgroundReport(directory: directory)
         let videoID = started.first(where: { $0.hasPrefix("background.track=") })?
             .replacingOccurrences(of: "background.track=", with: "")
+        report.append(contentsOf: started.filter { $0.hasPrefix("background.transport=") })
         report.append("verify.pendingAtLaunch=\(DownloadStore.shared.pendingCount)")
         report.append("verify.savedAtLaunch=\(DownloadStore.shared.saved.count)")
         // Read-back of the playlist the previous process synced: a fresh launch
@@ -682,10 +730,11 @@ enum ScreenshotHarness {
             report.append("verify.playlistLast=\(playlist.tracks.last?.title ?? "")")
         }
         guard let id = videoID, !id.isEmpty else {
-            report.append("background.ok=false")
+            report.append("background.settled=true")
             report.append("background.reason=no-track-in-start-report")
-            writeText(report.joined(separator: "\n"), name: "background-verify.txt", directory: directory)
-            try? "done".write(to: directory.appendingPathComponent("background-done.txt"),
+            report.append("background.phantom=false")
+            writeText(report.joined(separator: "\n"), name: "background-\(label).txt", directory: directory)
+            try? "done".write(to: directory.appendingPathComponent("background-\(label)-done.txt"),
                               atomically: true, encoding: .utf8)
             exit(0)
         }
@@ -694,17 +743,33 @@ enum ScreenshotHarness {
             report.append("background.deliveredBeforeCheck=true")
         }
         waitUntil({ DownloadStore.shared.pendingCount == 0 }, timeout: 150) { _ in
-            report.append("background.indexed=\(DownloadStore.shared.isDownloaded(id))")
-            report.append("background.pendingAfter=\(DownloadStore.shared.pendingCount)")
-            report.append("background.saved=\(DownloadStore.shared.saved.count)")
-            report.append("background.bytes=\(DownloadStore.shared.totalBytes)")
-            report.append("background.failed=\(DownloadStore.shared.failedItems.count)")
-            report.append("background.ok=\(DownloadStore.shared.isDownloaded(id))")
-            writeText(report.joined(separator: "\n"), name: "background-verify.txt", directory: directory)
-            try? "done".write(to: directory.appendingPathComponent("background-done.txt"),
+            report.append("background.settled=true")
+            report.append(contentsOf: settleLines(videoID: id, directory: directory))
+            writeText(report.joined(separator: "\n"), name: "background-\(label).txt", directory: directory)
+            try? "done".write(to: directory.appendingPathComponent("background-\(label)-done.txt"),
                               atomically: true, encoding: .utf8)
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { exit(0) }
         }
+    }
+
+    /// The shared tail of both background reports: did the track land, was the
+    /// interruption reported instead, and is every index entry backed by a file.
+    private static func settleLines(videoID: String, directory: URL) -> [String] {
+        let store = DownloadStore.shared
+        let indexed = store.isDownloaded(videoID)
+        let reason = store.failure(for: videoID) ?? ""
+        let phantom = store.saved.contains { store.localURL(for: $0.track.videoID) == nil }
+        return [
+            "background.indexed=\(indexed)",
+            "background.reported=\(!reason.isEmpty)",
+            "background.reason=\(reason)",
+            "background.pendingAfter=\(store.pendingCount)",
+            "background.saved=\(store.saved.count)",
+            "background.bytes=\(store.totalBytes)",
+            "background.failed=\(store.failedItems.count)",
+            "background.phantom=\(phantom)",
+            "background.ok=\(indexed || !reason.isEmpty)"
+        ]
     }
 
     private static func readBackgroundReport(directory: URL) -> [String] {

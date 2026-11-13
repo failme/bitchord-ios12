@@ -130,13 +130,27 @@ extension InnerTube {
         }
     }
 
+    /// The playlist's own name, wherever this response puts it: the plain
+    /// metadata renderer on older responses, the header renderers on newer ones.
     private func playlistTitle(in json: [String: Any]) -> String? {
-        func find(_ node: Any, depth: Int) -> [String: Any]? {
-            guard depth < 8 else { return nil }
+        let keys = ["playlistMetadataRenderer", "musicDetailHeaderRenderer",
+                    "musicEditablePlaylistDetailHeaderRenderer", "musicResponsiveHeaderRenderer"]
+        func text(in meta: [String: Any]) -> String? {
+            if let title = meta["title"] as? String, !title.isEmpty { return title }
+            if let title = meta["title"] as? [String: Any] {
+                if let text = title["text"] as? String, !text.isEmpty { return text }
+                if let runs = title["runs"] as? [[String: Any]],
+                   let text = runs.first?["text"] as? String, !text.isEmpty { return text }
+            }
+            return nil
+        }
+        func find(_ node: Any, depth: Int) -> String? {
+            guard depth < 9 else { return nil }
             if let dict = node as? [String: Any] {
-                if let meta = dict["playlistMetadataRenderer"] as? [String: Any],
-                   let title = meta["title"] as? String, !title.isEmpty {
-                    return meta
+                for key in keys {
+                    if let meta = dict[key] as? [String: Any], let title = text(in: meta) {
+                        return title
+                    }
                 }
                 for value in dict.values {
                     if let found = find(value, depth: depth + 1) { return found }
@@ -148,10 +162,7 @@ extension InnerTube {
             }
             return nil
         }
-        if let meta = find(json, depth: 0), let title = meta["title"] as? String {
-            return title
-        }
-        return nil
+        return find(json, depth: 0)
     }
 
     func parseCollections(_ json: [String: Any]) -> [CollectionItem] {
