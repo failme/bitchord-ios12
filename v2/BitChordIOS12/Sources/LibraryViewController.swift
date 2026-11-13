@@ -187,10 +187,28 @@ final class LibraryViewController: UIViewController {
         let holder = UIView()
         holder.addSubview(heading)
         heading.translatesAutoresizingMaskIntoConstraints = false
+
+        // Upstream's playlists come from the account; this port syncs a public
+        // YouTube Music playlist by link instead, from the same heading.
+        let sync = UIButton(type: .system)
+        sync.translatesAutoresizingMaskIntoConstraints = false
+        sync.setTitle("Sync", for: .normal)
+        sync.setTitleColor(Theme.primaryText, for: .normal)
+        sync.titleLabel?.font = Theme.font(13, weight: .semibold)
+        sync.backgroundColor = Theme.surfaceVariant
+        sync.layer.cornerRadius = 13
+        sync.contentEdgeInsets = UIEdgeInsets(top: 5, left: 14, bottom: 5, right: 14)
+        sync.addTarget(self, action: #selector(syncPlaylistPrompt), for: .touchUpInside)
+        holder.addSubview(sync)
+
         NSLayoutConstraint.activate([
             holder.heightAnchor.constraint(equalToConstant: 52),
             heading.leadingAnchor.constraint(equalTo: holder.leadingAnchor, constant: 16),
-            heading.bottomAnchor.constraint(equalTo: holder.bottomAnchor, constant: -8)
+            heading.bottomAnchor.constraint(equalTo: holder.bottomAnchor, constant: -8),
+
+            sync.trailingAnchor.constraint(equalTo: holder.trailingAnchor, constant: -16),
+            sync.centerYAnchor.constraint(equalTo: heading.centerYAnchor),
+            sync.heightAnchor.constraint(equalToConstant: 26)
         ])
         stack.addArrangedSubview(holder)
 
@@ -272,6 +290,26 @@ final class LibraryViewController: UIViewController {
             let filler = UIView()
             row?.addArrangedSubview(filler)
         }
+    }
+
+    @objc private func syncPlaylistPrompt() {
+        let alert = UIAlertController(title: "Sync playlist",
+                                      message: "Paste a YouTube Music playlist link or id. It is saved here with its songs in order.",
+                                      preferredStyle: .alert)
+        alert.addTextField { field in
+            field.placeholder = "https://music.youtube.com/playlist?list=…"
+            field.autocapitalizationType = .none
+            field.autocorrectionType = .no
+        }
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel, handler: nil))
+        alert.addAction(UIAlertAction(title: "Sync", style: .default) { [weak self] _ in
+            let text = alert.textFields?.first?.text ?? ""
+            LibraryStore.shared.syncPlaylist(remoteID: text) { ok, message in
+                guard let self = self, !ok else { return }
+                PlaylistSync.presentFailure(on: self, message: message)
+            }
+        })
+        present(alert, animated: true, completion: nil)
     }
 
     private func createPlaylistPrompt() {

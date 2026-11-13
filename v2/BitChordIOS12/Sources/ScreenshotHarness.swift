@@ -16,6 +16,16 @@ enum ScreenshotHarness {
             seedDownload(directory: URL(fileURLWithPath: arguments[seed + 1], isDirectory: true))
             return
         }
+        // Background transfers get their own launch pair: start one and quit,
+        // then launch again and see what the system delivered.
+        if let start = arguments.firstIndex(of: "-BCBackgroundStart"), start + 1 < arguments.count {
+            backgroundStart(directory: URL(fileURLWithPath: arguments[start + 1], isDirectory: true))
+            return
+        }
+        if let verify = arguments.firstIndex(of: "-BCBackgroundVerify"), verify + 1 < arguments.count {
+            backgroundVerify(directory: URL(fileURLWithPath: arguments[verify + 1], isDirectory: true))
+            return
+        }
         guard let flag = arguments.firstIndex(of: "-BCScreenshots"),
               flag + 1 < arguments.count else { return }
         let directory = URL(fileURLWithPath: arguments[flag + 1], isDirectory: true)
@@ -290,6 +300,7 @@ enum ScreenshotHarness {
                 return
             }
             capture.extraTrack = untouched
+            capture.spareTrack = others.dropFirst(2).first
             // Slow enough that the menu can be photographed while the row still
             // says it is downloading, then cancelled from that same menu.
             capture.store.progressPace = 0.1
@@ -364,10 +375,226 @@ enum ScreenshotHarness {
                         capture.shot("wifi-blocked")
                         capture.report.append("wifi.failedRows=\(capture.store.failedItems.count)")
                         capture.store.connectivityOverride = nil
-                        capture.finish()
+                        storageCapProbe(capture, host: downloads)
                     }
                 }
             }
+        }
+    }
+
+    // MARK: - Storage cap
+
+    /// With a 10 MB limit and 2.5 MB already saved, a ~8 MB track must be held
+    /// with a reason, and the existing file must be untouched; then the limit is
+    /// dropped below the usage to prove nothing is deleted behind the user's back.
+    private static func storageCapProbe(_ capture: DownloadCapture, host: UIViewController) {
+        guard let track = capture.spareTrack else {
+            capture.report.append("cap.missing=true")
+            playlistSyncProbe(capture, host: host)
+            return
+        }
+        let beforeCount = capture.store.saved.count
+        let beforeBytes = capture.store.totalBytes
+        SettingsStore.shared.set("10 MB", for: DownloadStore.storageLimitKey)
+        capture.report.append("cap.setting=\(SettingsStore.shared.string(DownloadStore.storageLimitKey, ""))")
+        capture.report.append("cap.usage=\(capture.store.storageText())")
+        capture.report.append("cap.estimate=\(capture.store.estimatedBytes(for: track, quality: .high))")
+        capture.store.download(track) { ok, message in
+            capture.report.append("cap.blocked=\(!ok)")
+            capture.report.append("cap.reason=\(capture.store.failure(for: track.videoID) ?? "")")
+            capture.report.append("cap.message=\(message)")
+        }
+        after(1) {
+            capture.report.append("cap.savedUnchanged=\(capture.store.saved.count == beforeCount && capture.store.totalBytes == beforeBytes)")
+            capture.checkpoint()
+            host.dismiss(animated: false) {
+                let downloads = DownloadsViewController()
+                downloads.modalPresentationStyle = .fullScreen
+                capture.root.present(downloads, animated: false) {
+                    after(1) {
+                        capture.shot("storage-cap")
+                        // Lowering the limit under the current usage keeps every file.
+                        SettingsStore.shared.set("1 MB", for: DownloadStore.storageLimitKey)
+                        let filesKept = capture.store.saved.allSatisfy {
+                            capture.store.localURL(for: $0.track.videoID) != nil
+                        }
+                        capture.report.append("cap.lowLimitFiles=\(filesKept)")
+                        capture.report.append("cap.lowLimitCount=\(capture.store.saved.count)")
+                        capture.checkpoint()
+                        let settings = SettingsViewController()
+                        settings.modalPresentationStyle = .fullScreen
+                        downloads.present(settings, animated: false) {
+                            after(0.8) {
+                                settings.scrollToDownloadSection()
+                                after(0.8) {
+                                    capture.shot("settings-storage")
+                                    capture.report.append("settings.cap=\(SettingsStore.shared.string(DownloadStore.storageLimitKey, ""))")
+                                    capture.report.append("settings.usage=\(capture.store.storageText())")
+                                    settings.dismiss(animated: false) {
+                                        // Back to a workable limit for the addon run.
+                                        SettingsStore.shared.set("Unlimited", for: DownloadStore.storageLimitKey)
+                                        playlistSyncProbe(capture, host: downloads)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - Playlist sync
+
+    private static func playlistSyncProbe(_ capture: DownloadCapture, host: UIViewController) {
+        InnerTube.shared.searchCollections("Top songs", filter: .playlists) { items in
+            guard let item = items.first else {
+                capture.report.append("sync.target=false")
+                capture.finish()
+                return
+            }
+            capture.report.append("sync.target=\(item.browseID)")
+            LibraryStore.shared.syncPlaylist(remoteID: item.browseID) { ok, message in
+                capture.report.append("sync.ok=\(ok)")
+                capture.report.append("sync.message=\(message)")
+                capture.report.append("sync.playlists=\(LibraryStore.shared.playlists.count)")
+                if let playlist = LibraryStore.shared.playlists.first(where: { $0.id.hasPrefix("remote:") }) {
+                    capture.report.append("sync.title=\(playlist.title)")
+                    capture.report.append("sync.tracks=\(playlist.tracks.count)")
+                    capture.report.append("sync.first=\(playlist.tracks.first?.title ?? "")")
+                    capture.report.append("sync.last=\(playlist.tracks.last?.title ?? "")")
+                    capture.syncedTitle = playlist.title
+                    capture.syncedTracks = playlist.tracks
+                }
+                capture.checkpoint()
+                host.dismiss(animated: false) {
+                    capture.root.showTab(2)
+                    after(1.5) {
+                        capture.shot("library-synced")
+                        let list = TrackListViewController()
+                        list.tracks = capture.syncedTracks
+                        list.title = capture.syncedTitle
+                        list.emptyText = "This playlist is empty."
+                        list.modalPresentationStyle = .fullScreen
+                        capture.root.present(list, animated: false) {
+                            after(1) {
+                                capture.shot("playlist-synced")
+                                list.dismiss(animated: false) {
+                                    playlistFailureProbe(capture, host: capture.root)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// The remote side refusing: the UI shows the failure instead of pretending
+    /// the playlist synced, and the saved set stays as it was.
+    private static func playlistFailureProbe(_ capture: DownloadCapture, host: UIViewController) {
+        let before = LibraryStore.shared.playlists.count
+        LibraryStore.shared.syncPlaylist(remoteID: "this-is-not-a-playlist") { ok, message in
+            capture.report.append("sync.failure.ok=\(!ok)")
+            capture.report.append("sync.failure.message=\(message)")
+            capture.report.append("sync.failure.unchanged=\(LibraryStore.shared.playlists.count == before)")
+            guard !ok else {
+                capture.finish()
+                return
+            }
+            PlaylistSync.presentFailure(on: host, message: message)
+            after(0.8) {
+                capture.shot("sync-failed")
+                PlaylistSync.dismissFailure(on: host)
+                after(0.5) { addonProbe(capture, host: host) }
+            }
+        }
+    }
+
+    // MARK: - Lossless addon
+
+    /// The addon serves one track and answers 404 for the other, so the same
+    /// quality setting has to take the addon when it has something and the
+    /// standard catalogue when it does not.
+    private static func addonProbe(_ capture: DownloadCapture, host: UIViewController) {
+        guard let addonURL = URL(string: ProcessInfo.processInfo.environment["BC_ADDON_URL"] ?? "http://127.0.0.1:8765") else {
+            capture.report.append("addon.missing=true")
+            capture.finish()
+            return
+        }
+        CatalogueSearch.shared.songs("Levitating Dua Lipa") { tracks in
+            guard tracks.count >= 2 else {
+                capture.report.append("addon.tracks=false")
+                capture.finish()
+                return
+            }
+            capture.checkpoint()
+            let fresh = tracks.filter { !DownloadStore.shared.isDownloaded($0.videoID) }
+            guard fresh.count >= 2 else {
+                capture.report.append("addon.tracks=false")
+                capture.checkpoint()
+                capture.finish()
+                return
+            }
+            let losslessTrack = fresh[0]
+            let fallbackTrack = fresh[1]
+            capture.report.append("addon.track=\(losslessTrack.videoID)")
+            capture.report.append("addon.fallbackTrack=\(fallbackTrack.videoID)")
+            SettingsStore.shared.set(addonURL.absoluteString, for: AddonService.urlKey)
+            SettingsStore.shared.set(DownloadQuality.lossless.rawValue, for: "BitChord.Download.Quality")
+            // Tell the test server which id it should be able to serve.
+            var request = URLRequest(url: addonURL.appendingPathComponent("__serve/\(losslessTrack.videoID)"))
+            request.timeoutInterval = 5
+            URLSession.shared.dataTask(with: request) { _, _, _ in
+                DispatchQueue.main.async {
+                    capture.store.download(losslessTrack) { ok, message in
+                        capture.report.append("addon.ok=\(ok)")
+                        if !ok { capture.report.append("addon.message=\(message)") }
+                    }
+                    waitUntil({ capture.store.isDownloaded(losslessTrack.videoID)
+                                || capture.store.failure(for: losslessTrack.videoID) != nil },
+                              timeout: 120) { finished in
+                        if let item = capture.store.savedItem(for: losslessTrack.videoID),
+                           let url = capture.store.localURL(for: losslessTrack.videoID) {
+                            capture.report.append("addon.bytes=\(item.byteSize)")
+                            capture.report.append("addon.label=\(item.qualityLabel)")
+                            copy(url, to: capture.directory.appendingPathComponent("quality-lossless.m4a"))
+                        } else {
+                            capture.report.append("addon.bytes=0")
+                            capture.report.append("addon.failed=\(finished)")
+                        }
+                        capture.checkpoint()
+                        capture.store.download(fallbackTrack) { ok, message in
+                            capture.report.append("addon.fallback.ok=\(ok)")
+                            if !ok { capture.report.append("addon.fallback.message=\(message)") }
+                        }
+                        waitUntil({ capture.store.isDownloaded(fallbackTrack.videoID)
+                                    || capture.store.failure(for: fallbackTrack.videoID) != nil },
+                                  timeout: 120) { _ in
+                            if let item = capture.store.savedItem(for: fallbackTrack.videoID),
+                               let url = capture.store.localURL(for: fallbackTrack.videoID) {
+                                capture.report.append("addon.fallback.bytes=\(item.byteSize)")
+                                capture.report.append("addon.fallback.label=\(item.qualityLabel)")
+                                copy(url, to: capture.directory.appendingPathComponent("quality-fallback.m4a"))
+                            } else {
+                                capture.report.append("addon.fallback.bytes=0")
+                            }
+                            capture.checkpoint()
+                            SettingsStore.shared.set(DownloadQuality.high.rawValue, for: "BitChord.Download.Quality")
+                            host.dismiss(animated: false) {
+                                let downloads = DownloadsViewController()
+                                downloads.modalPresentationStyle = .fullScreen
+                                capture.root.present(downloads, animated: false) {
+                                    after(1.5) {
+                                        capture.shot("downloads-addon")
+                                        capture.finish()
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }.resume()
         }
     }
 
@@ -404,8 +631,96 @@ enum ScreenshotHarness {
         }
     }
 
+    // MARK: - Background transfer launches
+
+    /// Starts a real background download and leaves the process while it is
+    /// still transferring: the next launch has to adopt it.
+    private static func backgroundStart(directory: URL) {
+        var report = ["background.started=true"]
+        CatalogueSearch.shared.songs("Save Your Tears The Weeknd") { tracks in
+            // Anything already on disk would short-circuit, so take a fresh one.
+            guard let track = tracks.first(where: { !DownloadStore.shared.isDownloaded($0.videoID) }) else {
+                report.append("background.track=false")
+                writeText(report.joined(separator: "\n"), name: "background-report.txt", directory: directory)
+                exit(0)
+            }
+            report.append("background.track=\(track.videoID)")
+            report.append("background.title=\(track.title)")
+            DownloadStore.shared.download(track) { ok, message in
+                report.append("background.download=\(ok) \(message)")
+            }
+            waitUntil({ DownloadStore.shared.isDownloading(track.videoID) }, timeout: 25) { started in
+                after(0.8) {
+                    report.append("background.live=\(started)")
+                    report.append("background.pending=\(DownloadStore.shared.pendingCount)")
+                    report.append("background.progress=\(DownloadStore.shared.progress(for: track.videoID) ?? 0)")
+                    writeText(report.joined(separator: "\n"), name: "background-report.txt", directory: directory)
+                    // Leave without finishing: the transfer belongs to the system now.
+                    exit(0)
+                }
+            }
+        }
+    }
+
+    /// Relaunched after the process died: adopt whatever the system delivered
+    /// and say plainly whether the track ended up in the library.
+    private static func backgroundVerify(directory: URL) {
+        var report: [String] = []
+        let started = readBackgroundReport(directory: directory)
+        let videoID = started.first(where: { $0.hasPrefix("background.track=") })?
+            .replacingOccurrences(of: "background.track=", with: "")
+        report.append("verify.pendingAtLaunch=\(DownloadStore.shared.pendingCount)")
+        report.append("verify.savedAtLaunch=\(DownloadStore.shared.saved.count)")
+        // Read-back of the playlist the previous process synced: a fresh launch
+        // reads it off disk, so this is the relaunch proof, not memory.
+        report.append("verify.playlists=\(LibraryStore.shared.playlists.count)")
+        if let playlist = LibraryStore.shared.playlists.first(where: { $0.id.hasPrefix("remote:") }) {
+            report.append("verify.playlistTitle=\(playlist.title)")
+            report.append("verify.playlistTracks=\(playlist.tracks.count)")
+            report.append("verify.playlistFirst=\(playlist.tracks.first?.title ?? "")")
+            report.append("verify.playlistLast=\(playlist.tracks.last?.title ?? "")")
+        }
+        guard let id = videoID, !id.isEmpty else {
+            report.append("background.ok=false")
+            report.append("background.reason=no-track-in-start-report")
+            writeText(report.joined(separator: "\n"), name: "background-verify.txt", directory: directory)
+            try? "done".write(to: directory.appendingPathComponent("background-done.txt"),
+                              atomically: true, encoding: .utf8)
+            exit(0)
+        }
+        report.append("verify.track=\(id)")
+        if DownloadStore.shared.isDownloaded(id) {
+            report.append("background.deliveredBeforeCheck=true")
+        }
+        waitUntil({ DownloadStore.shared.pendingCount == 0 }, timeout: 150) { _ in
+            report.append("background.indexed=\(DownloadStore.shared.isDownloaded(id))")
+            report.append("background.pendingAfter=\(DownloadStore.shared.pendingCount)")
+            report.append("background.saved=\(DownloadStore.shared.saved.count)")
+            report.append("background.bytes=\(DownloadStore.shared.totalBytes)")
+            report.append("background.failed=\(DownloadStore.shared.failedItems.count)")
+            report.append("background.ok=\(DownloadStore.shared.isDownloaded(id))")
+            writeText(report.joined(separator: "\n"), name: "background-verify.txt", directory: directory)
+            try? "done".write(to: directory.appendingPathComponent("background-done.txt"),
+                              atomically: true, encoding: .utf8)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { exit(0) }
+        }
+    }
+
+    private static func readBackgroundReport(directory: URL) -> [String] {
+        guard let text = try? String(contentsOf: directory.appendingPathComponent("background-report.txt"),
+                                     encoding: .utf8) else { return [] }
+        return text.split(separator: "\n").map(String.init)
+    }
+
     fileprivate static func writeReport(_ text: String, directory: URL) {
-        try? text.write(to: directory.appendingPathComponent("download-report.txt"),
+        writeText(text, name: "download-report.txt", directory: directory)
+    }
+
+    fileprivate static func writeText(_ text: String, name: String, directory: URL) {
+        try? FileManager.default.createDirectory(at: directory,
+                                                 withIntermediateDirectories: true,
+                                                 attributes: nil)
+        try? text.write(to: directory.appendingPathComponent(name),
                         atomically: true, encoding: .utf8)
     }
 
@@ -432,8 +747,11 @@ private final class DownloadCapture {
     var report: [String] = []
     var seedTrack: Track?
     var extraTrack: Track?
+    var spareTrack: Track?
     var highBytes: Int64 = 0
     var saverBytes: Int64 = 0
+    var syncedTitle = ""
+    var syncedTracks: [Track] = []
 
     init(window: UIWindow, root: RootViewController, directory: URL) {
         self.window = window

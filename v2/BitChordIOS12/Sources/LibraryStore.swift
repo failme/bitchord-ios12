@@ -129,6 +129,40 @@ final class LibraryStore {
         announce()
     }
 
+    /// Pulls a public YouTube Music playlist in and keeps it locally, tracks and
+    /// order included. Syncing the same playlist again replaces its contents in
+    /// place rather than adding a duplicate.
+    func syncPlaylist(remoteID: String, completion: @escaping (Bool, String) -> Void) {
+        let identifier = PlaylistSync.identifier(from: remoteID)
+        guard !identifier.isEmpty else {
+            completion(false, "That does not look like a playlist link.")
+            return
+        }
+        InnerTube.shared.fetchPlaylist(identifier: identifier) { title, tracks, error in
+            guard let tracks = tracks, !tracks.isEmpty else {
+                let message = error ?? "This playlist has no playable songs."
+                DispatchQueue.main.async { completion(false, message) }
+                return
+            }
+            let key = "remote:\(identifier)"
+            var playlist = self.playlists.first(where: { $0.id == key })
+                ?? Playlist(id: key, title: title ?? "Playlist",
+                            author: "YouTube Music", playlistDescription: nil, tracks: [])
+            if let title = title, !title.isEmpty { playlist.title = title }
+            playlist.tracks = tracks
+            if let index = self.playlists.firstIndex(where: { $0.id == key }) {
+                self.playlists[index] = playlist
+            } else {
+                self.playlists.append(playlist)
+            }
+            self.save(self.playlists, key: self.playlistsKey)
+            self.announce()
+            DispatchQueue.main.async {
+                completion(true, "Synced \(tracks.count) song\(tracks.count == 1 ? "" : "s").")
+            }
+        }
+    }
+
     func deletePlaylist(_ id: String) {
         playlists.removeAll(where: { $0.id == id })
         save(playlists, key: playlistsKey)

@@ -244,6 +244,33 @@ jobs:
           xcrun simctl install "$UDID" "$APP"
           CONTAINER=$(xcrun simctl get_app_container "$UDID" "$BUNDLE" data)
           mkdir -p "$CONTAINER/Documents/shots"
+          # A local addon, speaking the same two HTTP calls the app's AddonService
+          # uses. It serves one generated lossless file for the one track the
+          # harness nominates and 404s everything else, so the fallback is real.
+          python3 - <<'PY'
+          import random, struct, wave
+          random.seed(7)
+          sr = 44100; secs = 40
+          with wave.open('/tmp/bc_lossless.wav', 'wb') as w:
+              w.setnchannels(2); w.setsampwidth(2); w.setframerate(sr)
+              frames = bytearray()
+              for _ in range(sr * secs):
+                  v = random.randint(-28000, 28000)
+                  frames += struct.pack('<hh', v, v)
+              w.writeframes(bytes(frames))
+          PY
+          afconvert -f m4af -d alac /tmp/bc_lossless.wav /tmp/bc_lossless.m4a
+          python3 tools/addon_server.py --port 8765 --media /tmp/bc_lossless.m4a > /tmp/addon-server.log 2>&1 &
+          ADDON_PID=$!
+          for i in $(seq 1 20); do
+            curl -sf http://127.0.0.1:8765/manifest > /dev/null && break
+            sleep 0.5
+          done
+          curl -sf http://127.0.0.1:8765/manifest || {
+            echo "::error ::addon server did not start"
+            cat /tmp/addon-server.log 2>/dev/null || true
+            exit 1
+          }
           # First launch downloads one track and quits; the second launch below
           # reads that index back off disk, so the capture proves persistence
           # across a relaunch rather than same-process memory.
@@ -261,7 +288,7 @@ jobs:
           # download sequence (resume check, offline playback, delete, quality
           # probe, mid-transfer shot, menus, Wi-Fi hold). It writes done.txt
           # when finished, so wait for the work rather than guessing.
-          for i in $(seq 1 120); do
+          for i in $(seq 1 180); do
             [ -f "$CONTAINER/Documents/shots/done.txt" ] && break
             sleep 2
           done
@@ -319,10 +346,90 @@ jobs:
           grep -q "sheet.delete.downloaded=true" "$REPORT"
           grep -q "sheet.cancel.downloading=true" "$REPORT"
           grep -q "sheet.download.idle=true" "$REPORT"
+
+          # Storage limit: the 10 MB cap refuses a track that would pass it, the
+          # reason is on the row, the file already saved is untouched, and a cap
+          # lowered under the usage keeps every byte on disk.
+          grep -q "cap.blocked=true" "$REPORT"
+          grep -q "cap.reason=Storage limit reached." "$REPORT"
+          grep -q "cap.savedUnchanged=true" "$REPORT"
+          grep -q "cap.lowLimitFiles=true" "$REPORT"
+          grep -q "cap.lowLimitCount=1" "$REPORT"
+
+          # Playlist sync: real playlist pulled from the catalogue, tracks in
+          # order, and a visible failure that changes nothing.
+          grep -q "sync.ok=true" "$REPORT"
+          SYNC_TRACKS=$(sed -n 's/^sync.tracks=//p' "$REPORT" | head -1)
+          echo "synced tracks: $SYNC_TRACKS"
+          test -n "$SYNC_TRACKS"
+          test "$SYNC_TRACKS" -ge 1
+          test -n "$(sed -n 's/^sync.first=//p' "$REPORT" | head -1)"
+          grep -q "sync.failure.ok=true" "$REPORT"
+          grep -q "sync.failure.unchanged=true" "$REPORT"
+
+          # Lossless addon: the addon's file must be a genuinely higher-bitrate,
+          # larger file than the standard rendition, and a track the addon does
+          # not serve must still download from the standard catalogue.
+          grep -q "addon.label=Lossless" "$REPORT"
+          grep -q "addon.fallback.ok=true" "$REPORT"
+          grep -q "addon.fallback.label=JioSaavn 320kbps" "$REPORT"
+          test -s shots/quality-lossless.m4a
+          test -s shots/quality-fallback.m4a
+          LOSS_RATE=$(rate shots/quality-lossless.m4a)
+          STD_RATE=$(rate shots/quality-fallback.m4a)
+          LOSS_SIZE=$(stat -f%z shots/quality-lossless.m4a)
+          STD_SIZE=$(stat -f%z shots/quality-fallback.m4a)
+          echo "lossless: ${LOSS_RATE}bps ${LOSS_SIZE}B | standard: ${STD_RATE}bps ${STD_SIZE}B"
+          test -n "$LOSS_RATE"
+          test -n "$STD_RATE"
+          test "$LOSS_RATE" -gt 500000
+          test "$STD_RATE" -lt 400000
+          test "$LOSS_RATE" -gt "$STD_RATE"
+          test "$LOSS_SIZE" -gt 1000000
+
           for shot in downloads download-progress downloads-saver settings-downloads \
-                      sheet-delete sheet-cancel sheet-download wifi-blocked offline downloads-empty; do
+                      sheet-delete sheet-cancel sheet-download wifi-blocked offline downloads-empty \
+                      storage-cap settings-storage library-synced playlist-synced sync-failed \
+                      downloads-addon; do
             test -s "shots/$shot.png" || { echo "::error ::missing $shot.png"; exit 1; }
           done
+
+          # Background transfer: start one, kill the process while it is still
+          # running, then relaunch and inspect the index in a fresh process.
+          rm -f "$CONTAINER/Documents/shots/background-report.txt" \
+                "$CONTAINER/Documents/shots/background-verify.txt" \
+                "$CONTAINER/Documents/shots/background-done.txt"
+          xcrun simctl launch "$UDID" "$BUNDLE" -BCBackgroundStart "$CONTAINER/Documents/shots"
+          for i in $(seq 1 45); do
+            [ -f "$CONTAINER/Documents/shots/background-report.txt" ] && break
+            sleep 1
+          done
+          echo "### Background start"
+          cat "$CONTAINER/Documents/shots/background-report.txt" 2>/dev/null || true
+          grep -q "background.live=true" "$CONTAINER/Documents/shots/background-report.txt"
+          sleep 1
+          xcrun simctl terminate "$UDID" "$BUNDLE" || true
+          sleep 2
+          xcrun simctl launch "$UDID" "$BUNDLE" -BCBackgroundVerify "$CONTAINER/Documents/shots"
+          for i in $(seq 1 120); do
+            [ -f "$CONTAINER/Documents/shots/background-done.txt" ] && break
+            sleep 2
+          done
+          echo "### Background verify"
+          cat "$CONTAINER/Documents/shots/background-verify.txt" 2>/dev/null || true
+          cp -R "$CONTAINER/Documents/shots/." shots/ || true
+          [ -f shots/background-verify.txt ] || { echo "::error ::no background verify report"; exit 1; }
+          grep -q "background.indexed=true" shots/background-verify.txt
+          grep -q "background.pendingAfter=0" shots/background-verify.txt
+
+          # The playlist is read back from disk in that relaunched process, and
+          # has to match what the sync wrote in the process before it.
+          VERIFY_FIRST=$(sed -n 's/^verify.playlistFirst=//p' shots/background-verify.txt | head -1)
+          SYNC_FIRST=$(sed -n 's/^sync.first=//p' "$REPORT" | head -1)
+          echo "playlist first: synced [$SYNC_FIRST] read-back [$VERIFY_FIRST]"
+          test -n "$SYNC_FIRST"
+          test "$SYNC_FIRST" = "$VERIFY_FIRST"
+          kill "$ADDON_PID" 2>/dev/null || true
 
       - name: Upload screens
         if: always()

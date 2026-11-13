@@ -95,6 +95,65 @@ extension InnerTube {
         }
     }
 
+    /// Playlist sync: the same browse call, keeping the playlist's own title so
+    /// the saved copy reads like the remote one.
+    func fetchPlaylist(identifier: String,
+                       completion: @escaping (String?, [Track]?, String?) -> Void) {
+        let trimmed = identifier.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            completion(nil, nil, "Missing playlist id.")
+            return
+        }
+        let browseID = trimmed.hasPrefix("VL") ? trimmed : "VL\(trimmed)"
+        let body: [String: Any] = [
+            "context": [
+                "client": [
+                    "clientName": "WEB_REMIX",
+                    "clientVersion": "1.20241011.01.00",
+                    "hl": "en",
+                    "gl": "US"
+                ]
+            ],
+            "browseId": browseID
+        ]
+        post(path: "browse", body: body, userAgent: InnerTube.browserUserAgent) { json, error in
+            guard let json = json else {
+                completion(nil, nil, error ?? "Could not reach the catalogue.")
+                return
+            }
+            let tracks = self.parseSearch(json)
+            guard !tracks.isEmpty else {
+                completion(nil, nil, "This playlist has no playable songs.")
+                return
+            }
+            completion(self.playlistTitle(in: json), tracks, nil)
+        }
+    }
+
+    private func playlistTitle(in json: [String: Any]) -> String? {
+        func find(_ node: Any, depth: Int) -> [String: Any]? {
+            guard depth < 8 else { return nil }
+            if let dict = node as? [String: Any] {
+                if let meta = dict["playlistMetadataRenderer"] as? [String: Any],
+                   let title = meta["title"] as? String, !title.isEmpty {
+                    return meta
+                }
+                for value in dict.values {
+                    if let found = find(value, depth: depth + 1) { return found }
+                }
+            } else if let array = node as? [Any] {
+                for value in array {
+                    if let found = find(value, depth: depth + 1) { return found }
+                }
+            }
+            return nil
+        }
+        if let meta = find(json, depth: 0), let title = meta["title"] as? String {
+            return title
+        }
+        return nil
+    }
+
     func parseCollections(_ json: [String: Any]) -> [CollectionItem] {
         var items: [CollectionItem] = []
         var seen = Set<String>()

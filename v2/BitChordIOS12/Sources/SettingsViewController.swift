@@ -114,6 +114,29 @@ final class SettingsViewController: UIViewController {
         SettingsStore.shared.set(sender.isOn, for: key)
     }
 
+    /// The addon is a URL the user owns; the row shows the host once set, and an
+    /// empty answer clears it so the app goes back to the standard catalogue.
+    private func addonPrompt(item: SettingItem) {
+        let current = SettingsStore.shared.string(AddonService.urlKey, "")
+        let alert = UIAlertController(title: item.title,
+                                      message: "The addon's address, for example http://192.168.1.20:8765. Leave it empty to turn the addon off.",
+                                      preferredStyle: .alert)
+        alert.addTextField { field in
+            field.placeholder = "http://host:port"
+            field.text = current
+            field.autocapitalizationType = .none
+            field.autocorrectionType = .no
+            field.keyboardType = .URL
+        }
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel, handler: nil))
+        alert.addAction(UIAlertAction(title: "Save", style: .default) { [weak self] _ in
+            let text = (alert.textFields?.first?.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            SettingsStore.shared.set(text, for: AddonService.urlKey)
+            self?.tableView.reloadData()
+        })
+        present(alert, animated: true, completion: nil)
+    }
+
     private func choose(item: SettingItem, options: [String]) {
         let sheet = UIAlertController(title: item.title, message: nil, preferredStyle: .actionSheet)
         for option in options {
@@ -190,6 +213,9 @@ extension SettingsViewController: UITableViewDataSource, UITableViewDelegate {
             let downloads = DownloadsViewController()
             downloads.modalPresentationStyle = .fullScreen
             present(downloads, animated: true, completion: nil)
+        }
+        if case .addon = item.kind {
+            addonPrompt(item: item)
         }
         if case .page(let explanation) = item.kind {
             let alert = UIAlertController(title: item.title, message: explanation, preferredStyle: .alert)
@@ -375,6 +401,9 @@ final class SettingsCell: UITableViewCell {
             trailingValue = true
         case .storage:
             detailLabel.text = DownloadStore.shared.storageText()
+            showsChevron = true
+        case .addon:
+            detailLabel.text = AddonService.shared.displayName ?? "Not configured"
             showsChevron = true
         case .unavailable:
             // The real app greys the row out; a subtitle, where it has one,

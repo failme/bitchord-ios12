@@ -12,8 +12,9 @@ struct DownloadedTrack: Codable {
 
 /// What the download setting means for the file that gets fetched.
 ///
-/// The Android app keeps a separate ceiling for downloads; here it maps onto the
-/// renditions JioSaavn actually serves, which tops out at 320 kbps.
+/// `lossless` asks a configured addon for its lossless tier first and falls back
+/// to the best the standard catalogue has; the rest map onto the renditions
+/// JioSaavn actually serves, which tops out at 320 kbps.
 enum DownloadQuality: String {
     case lossless = "Lossless"
     case high = "High"
@@ -35,6 +36,45 @@ enum DownloadQuality: String {
     }
 }
 
+/// The download storage limit, kept as the text the row shows. `0` is
+/// "Unlimited"; anything else is a byte ceiling for the downloaded set only —
+/// it never touches files that are already there.
+enum DownloadLimit {
+    static let options = ["512 MB", "1 GB", "2 GB", "5 GB", "Unlimited"]
+    static let fallback = "2 GB"
+
+    static func bytes(for text: String) -> Int64 {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if trimmed.isEmpty || trimmed == "unlimited" { return 0 }
+        let number = Double(trimmed.split(separator: " ").first.map(String.init) ?? "") ?? 0
+        if trimmed.contains("gb") { return Int64(number * 1024 * 1024 * 1024) }
+        if trimmed.contains("mb") { return Int64(number * 1024 * 1024) }
+        if trimmed.contains("kb") { return Int64(number * 1024) }
+        return Int64(number)
+    }
+
+    static func text(for bytes: Int64) -> String {
+        if bytes <= 0 { return "Unlimited" }
+        let megabytes = bytes / (1024 * 1024)
+        if megabytes >= 1024 {
+            let gigabytes = Double(megabytes) / 1024
+            return gigabytes == gigabytes.rounded()
+                ? "\(Int(gigabytes)) GB"
+                : String(format: "%.1f GB", gigabytes)
+        }
+        return "\(megabytes) MB"
+    }
+}
+
+/// A download handed to the system and not finished yet. Written to disk so a
+/// relaunch can pick the task back up: a background transfer outlives the
+/// process, and its delegate callbacks arrive in the next one.
+struct PendingDownload: Codable {
+    var track: Track
+    var qualityLabel: String
+    var startedAt: Date
+}
+
 extension Notification.Name {
     /// Posted on the main queue whenever the saved set, a progress figure or a
     /// failure changes, so every surface showing download state can refresh.
@@ -46,13 +86,16 @@ extension Notification.Name {
 /// Two kinds of state, deliberately separate, as upstream splits them:
 ///  - `saved` is what survives a relaunch — an index written to Application
 ///    Support, with one audio file beside it per track.
-///  - `active` / `failed` is what is happening now — in memory, because a
-///    download interrupted by the process dying did not happen.
+///  - `active` / `failed` is what is happening now, with pending transfers
+///    mirrored to `pending.json` so a background task can be adopted again.
 ///
-/// Downloads are fetched from the same JioSaavn CDN the player already resolves,
-/// so a downloaded track is the exact bytes AVPlayer would have streamed.
+/// Transfers run in a background `URLSession`, so a download continues while the
+/// app is suspended or killed and lands on the next launch. The harness can ask
+/// for a paced foreground transport when it needs a transfer slow enough to
+/// watch; the resolve, destination, index entry and completion are shared.
 final class DownloadStore: NSObject {
     static let shared = DownloadStore()
+    static let storageLimitKey = "BitChord.Download.StorageLimit"
 
     private(set) var saved: [DownloadedTrack] = []
     /// videoID -> 0…1 while running.
@@ -60,28 +103,78 @@ final class DownloadStore: NSObject {
     /// videoID -> reason, for a download that stopped.
     private(set) var failed: [String: String] = [:]
 
-    private var session: URLSession!
+    /// The completion iOS hands us when a background session has events to
+    /// deliver; released once the session says it is done.
+    var backgroundEventsCompletion: (() -> Void)?
+
+    private var session: URLSession!       // background transfers
+    private var pacedSession: URLSession!  // foreground, capture harness only
     private var tasks: [Int: String] = [:]
     private var completions: [String: (Bool, String) -> Void] = [:]
     private var lastReported: [String: Double] = [:]
 
+    private var pendingTracks: [String: Track] = [:]
+    private var pendingQuality: [String: String] = [:]
+    private var failedTracks: [String: Track] = [:]
+    private var failedOrder: [String] = []
+    private var activeOrder: [String] = []
+    /// Tracks the user stopped on purpose. A cancel is not a failure, so it
+    /// leaves no row behind; only an actual download error does.
+    private var cancelledByUser: Set<String> = []
+
+    /// Replaces the system reachability check. Only the capture harness sets it,
+    /// to stand on a metered connection a CI mac never has; the decision it feeds
+    /// is the same `isOnWiFi()` branch the app runs on a phone.
+    var connectivityOverride: (() -> Bool)?
+
+    /// Seconds to pause per 32 KB chunk. Only the capture harness sets it: the
+    /// transfer then runs through a data task that consumes the body at human
+    /// speed, so a genuine mid-transfer frame exists to photograph.
+    var progressPace: TimeInterval = 0
+
+    private struct PacedTransfer {
+        let videoID: String
+        let track: Track
+        let handle: FileHandle
+        let partURL: URL
+        var received: Int64
+    }
+    private var paced: [Int: PacedTransfer] = [:]
+
     private let directory: URL
     private let indexURL: URL
+    private let pendingURL: URL
 
     private override init() {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSTemporaryDirectory())
         directory = base.appendingPathComponent("BitChordDownloads", isDirectory: true)
         indexURL = directory.appendingPathComponent("index.json")
+        pendingURL = directory.appendingPathComponent("pending.json")
         super.init()
         try? FileManager.default.createDirectory(at: directory,
                                                  withIntermediateDirectories: true,
                                                  attributes: nil)
         load()
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 30
-        config.timeoutIntervalForResource = 300
-        session = URLSession(configuration: config, delegate: self, delegateQueue: nil)
+        loadPending()
+
+        let background = URLSessionConfiguration.background(withIdentifier: "com.bitchord.ios12v2.downloads")
+        background.sessionSendsLaunchEvents = true
+        background.isDiscretionary = false
+        background.timeoutIntervalForResource = 600
+        session = URLSession(configuration: background, delegate: self, delegateQueue: nil)
+
+        let foreground = URLSessionConfiguration.default
+        foreground.timeoutIntervalForRequest = 30
+        foreground.timeoutIntervalForResource = 300
+        pacedSession = URLSession(configuration: foreground, delegate: self, delegateQueue: nil)
+
+        // A background task started before the last launch may already be done
+        // or still running; give the reconnect a moment, then settle anything the
+        // system no longer knows about.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 12) { [weak self] in
+            self?.reconcilePending()
+        }
     }
 
     // MARK: - Queries
@@ -92,6 +185,43 @@ final class DownloadStore: NSObject {
 
     var isEmpty: Bool {
         return saved.isEmpty && active.isEmpty
+    }
+
+    /// Downloads started but not yet finished, in the order they were started.
+    var activeItems: [Track] {
+        return activeOrder.compactMap { pendingTracks[$0] }
+    }
+
+    /// Downloads that were refused or stopped, with the reason to show on screen.
+    var failedItems: [(track: Track, reason: String)] {
+        var items: [(track: Track, reason: String)] = []
+        for id in failedOrder {
+            guard let track = failedTracks[id] else { continue }
+            items.append((track, failed[id] ?? "Download failed."))
+        }
+        return items
+    }
+
+    var pendingCount: Int {
+        return pendingTracks.count
+    }
+
+    var storageLimitBytes: Int64 {
+        return DownloadLimit.bytes(for: SettingsStore.shared.string(DownloadStore.storageLimitKey,
+                                                                   DownloadLimit.fallback))
+    }
+
+    var storageLimitText: String {
+        return DownloadLimit.text(for: storageLimitBytes)
+    }
+
+    /// Roughly how big a track will be at this quality, from its duration. Used
+    /// for the cap, where exactness does not matter and waiting for the file
+    /// would defeat the point of refusing early.
+    func estimatedBytes(for track: Track, quality: DownloadQuality) -> Int64 {
+        let seconds = track.durationSeconds > 0 ? track.durationSeconds : 210
+        let kbps = Double(quality.kbps ?? 320)
+        return Int64((kbps * 1000 / 8) * seconds) + 96 * 1024
     }
 
     func isDownloaded(_ videoID: String) -> Bool {
@@ -124,20 +254,24 @@ final class DownloadStore: NSObject {
         return (size ?? 0) > 0 ? url : nil
     }
 
+    /// "1 song · 2.5 MB of 10 MB", the line both the Downloads header and the
+    /// Settings row show.
     func storageText() -> String {
-        if saved.isEmpty { return "No downloads" }
-        let formatter = ByteCountFormatter()
-        formatter.countStyle = .file
-        let size = formatter.string(fromByteCount: totalBytes)
-        return "\(saved.count) song\(saved.count == 1 ? "" : "s") · \(size)"
+        let size = ByteCountFormatter.string(fromByteCount: totalBytes, countStyle: .file)
+        let limit = storageLimitText
+        if saved.isEmpty {
+            return limit == "Unlimited" ? "No downloads" : "No downloads · limit \(limit)"
+        }
+        let songs = "\(saved.count) song\(saved.count == 1 ? "" : "s")"
+        return limit == "Unlimited" ? "\(songs) · \(size)" : "\(songs) · \(size) of \(limit)"
     }
 
     // MARK: - Downloading
 
     /// Starts a download, or answers at once when the track is already here.
     ///
-    /// `Wi-Fi only` is enforced here rather than at the call sites so every entry
-    /// point obeys the same rule.
+    /// The storage limit and `Wi-Fi only` are enforced here rather than at the
+    /// call sites so every entry point obeys the same rules.
     func download(_ track: Track, completion: ((Bool, String) -> Void)? = nil) {
         if isDownloaded(track.videoID) {
             completion?(true, "Already downloaded")
@@ -147,6 +281,23 @@ final class DownloadStore: NSObject {
             completion?(false, "Already downloading")
             return
         }
+
+        let quality = DownloadQuality(setting: SettingsStore.shared.string("BitChord.Download.Quality",
+                                                                         DownloadQuality.high.rawValue))
+        let limit = storageLimitBytes
+        if limit > 0 {
+            let estimate = estimatedBytes(for: track, quality: quality)
+            if totalBytes + estimate > limit {
+                let reason = "Storage limit reached. \(storageText()) — free space or raise the limit in Settings."
+                failed[track.videoID] = "Storage limit reached."
+                failedTracks[track.videoID] = track
+                if !failedOrder.contains(track.videoID) { failedOrder.append(track.videoID) }
+                postChange()
+                completion?(false, reason)
+                return
+            }
+        }
+
         if SettingsStore.shared.bool("BitChord.Download.WifiOnly", true), !isOnWiFi() {
             // Held rather than silently skipped: the row stays on the screen
             // with the reason (the fuller instruction goes to the alert), which
@@ -167,8 +318,29 @@ final class DownloadStore: NSObject {
         lastReported[track.videoID] = 0
         postChange()
 
-        let quality = DownloadQuality(setting: SettingsStore.shared.string("BitChord.Download.Quality",
-                                                                          DownloadQuality.high.rawValue))
+        // Lossless asks the addon first. No addon, or nothing for this track,
+        // falls through to the standard catalogue without mentioning it.
+        if quality == .lossless, AddonService.shared.isConfigured {
+            AddonService.shared.stream(for: track) { [weak self] stream in
+                DispatchQueue.main.async {
+                    guard let self = self, self.active[track.videoID] != nil else { return }
+                    if let stream = stream {
+                        self.startTransfer(track: track, url: stream.url,
+                                           qualityLabel: stream.label, completion: completion)
+                    } else {
+                        self.resolveAndStart(track: track, quality: quality, completion: completion)
+                    }
+                }
+            }
+            return
+        }
+
+        resolveAndStart(track: track, quality: quality, completion: completion)
+    }
+
+    private func resolveAndStart(track: Track,
+                                 quality: DownloadQuality,
+                                 completion: ((Bool, String) -> Void)?) {
         JioSaavnService.shared.resolve(title: track.title,
                                        artist: track.artist,
                                        durationSeconds: track.durationSeconds,
@@ -179,23 +351,32 @@ final class DownloadStore: NSObject {
                 completion?(false, reason)
                 return
             }
-            // Every mutation of the queue happens on the main queue, so the
-            // table can read it without racing the URLSession delegate queue.
             DispatchQueue.main.async {
                 // Cancelled while the resolve was in flight.
                 guard self.active[track.videoID] != nil else { return }
-                self.completions[track.videoID] = completion
-                self.pendingTracks[track.videoID] = track
-                if !self.activeOrder.contains(track.videoID) { self.activeOrder.append(track.videoID) }
-                self.pendingQuality[track.videoID] = JioSaavnService.shared.lastQualityLabel
-                if self.progressPace > 0 {
-                    self.startPacedTransfer(track: track, url: url)
-                } else {
-                    let task = self.session.downloadTask(with: url)
-                    self.tasks[task.taskIdentifier] = track.videoID
-                    task.resume()
-                }
+                self.startTransfer(track: track, url: url,
+                                   qualityLabel: JioSaavnService.shared.lastQualityLabel,
+                                   completion: completion)
             }
+        }
+    }
+
+    private func startTransfer(track: Track,
+                               url: URL,
+                               qualityLabel: String,
+                               completion: ((Bool, String) -> Void)?) {
+        completions[track.videoID] = completion
+        pendingTracks[track.videoID] = track
+        pendingQuality[track.videoID] = qualityLabel
+        if !activeOrder.contains(track.videoID) { activeOrder.append(track.videoID) }
+        savePending()
+        if progressPace > 0 {
+            startPacedTransfer(track: track, url: url)
+        } else {
+            let task = session.downloadTask(with: url)
+            task.taskDescription = track.videoID
+            tasks[task.taskIdentifier] = track.videoID
+            task.resume()
         }
     }
 
@@ -209,7 +390,8 @@ final class DownloadStore: NSObject {
             finish(track: track, error: "Could not open a file for the download.")
             return
         }
-        let task = session.dataTask(with: url)
+        let task = pacedSession.dataTask(with: url)
+        task.taskDescription = track.videoID
         paced[task.taskIdentifier] = PacedTransfer(videoID: track.videoID, track: track,
                                                   handle: handle, partURL: partURL, received: 0)
         tasks[task.taskIdentifier] = track.videoID
@@ -221,25 +403,33 @@ final class DownloadStore: NSObject {
         guard let pair = tasks.first(where: { $0.value == videoID }) else {
             active.removeValue(forKey: videoID)
             cancelledByUser.remove(videoID)
+            clearPending(videoID)
             postChange()
             return
         }
-        session.getTasksWithCompletionHandler { [weak self] dataTasks, _, downloadTasks in
-            // Paced transfers are data tasks; ordinary downloads are download
-            // tasks, so both lists have to be searched.
-            let all: [URLSessionTask] = dataTasks.map { $0 } + downloadTasks.map { $0 }
-            for task in all where task.taskIdentifier == pair.key {
-                task.cancel()
+        let session = self.session
+        let pacedSession = self.pacedSession
+        let find: (URLSession) -> Void = { target in
+            target.getTasksWithCompletionHandler { dataTasks, _, downloadTasks in
+                // Paced transfers are data tasks; ordinary downloads are download
+                // tasks, so both lists have to be searched.
+                let all: [URLSessionTask] = dataTasks.map { $0 } + downloadTasks.map { $0 }
+                for task in all where task.taskIdentifier == pair.key {
+                    task.cancel()
+                }
             }
-            DispatchQueue.main.async {
-                self?.active.removeValue(forKey: videoID)
-                self?.tasks.removeValue(forKey: pair.key)
-                self?.activeOrder.removeAll(where: { $0 == videoID })
-                self?.pendingTracks.removeValue(forKey: videoID)
-                self?.pendingQuality.removeValue(forKey: videoID)
-                self?.completions.removeValue(forKey: videoID)
-                self?.postChange()
-            }
+        }
+        find(session)
+        find(pacedSession)
+        DispatchQueue.main.async { [weak self] in
+            self?.active.removeValue(forKey: videoID)
+            self?.tasks.removeValue(forKey: pair.key)
+            self?.activeOrder.removeAll(where: { $0 == videoID })
+            self?.pendingTracks.removeValue(forKey: videoID)
+            self?.pendingQuality.removeValue(forKey: videoID)
+            self?.completions.removeValue(forKey: videoID)
+            self?.clearPending(videoID)
+            self?.postChange()
         }
     }
 
@@ -265,51 +455,6 @@ final class DownloadStore: NSObject {
         postChange()
     }
 
-    /// Replaces the system reachability check. Only the capture harness sets it,
-    /// to stand on a metered connection a CI mac never has; the decision it feeds
-    /// is the same `isOnWiFi()` branch the app runs on a phone.
-    var connectivityOverride: (() -> Bool)?
-
-    /// Seconds to pause per 32 KB chunk. Only the capture harness sets it: the
-    /// transfer then runs through a data task that consumes the body at human
-    /// speed, so a genuine mid-transfer frame exists to photograph. The resolve,
-    /// destination, index entry and progress are the same code either way.
-    var progressPace: TimeInterval = 0
-    private struct PacedTransfer {
-        let videoID: String
-        let track: Track
-        let handle: FileHandle
-        let partURL: URL
-        var received: Int64
-    }
-    private var paced: [Int: PacedTransfer] = [:]
-
-    private var pendingTracks: [String: Track] = [:]
-    private var pendingQuality: [String: String] = [:]
-    private var failedTracks: [String: Track] = [:]
-    private var failedOrder: [String] = []
-    /// Tracks the user stopped on purpose. A cancel is not a failure, so it
-    /// leaves no row behind; only an actual download error does.
-    private var cancelledByUser: Set<String> = []
-
-    /// Downloads that were refused or stopped, with the reason to show on screen.
-    var failedItems: [(track: Track, reason: String)] {
-        var items: [(track: Track, reason: String)] = []
-        for id in failedOrder {
-            guard let track = failedTracks[id] else { continue }
-            items.append((track, failed[id] ?? "Download failed."))
-        }
-        return items
-    }
-    /// Insertion order for the in-flight downloads, so the screen lists them the
-    /// way they were started rather than in dictionary order.
-    private var activeOrder: [String] = []
-
-    /// The downloads in flight, in the order they were started.
-    var activeItems: [Track] {
-        return activeOrder.compactMap { pendingTracks[$0] }
-    }
-
     private func finish(track: Track, error: String) {
         let userStopped = cancelledByUser.remove(track.videoID) != nil
         active.removeValue(forKey: track.videoID)
@@ -321,6 +466,7 @@ final class DownloadStore: NSObject {
         activeOrder.removeAll(where: { $0 == track.videoID })
         pendingTracks.removeValue(forKey: track.videoID)
         pendingQuality.removeValue(forKey: track.videoID)
+        clearPending(track.videoID)
         let completion = completions.removeValue(forKey: track.videoID)
         postChange()
         completion?(false, error)
@@ -346,6 +492,89 @@ final class DownloadStore: NSObject {
     private func save() {
         guard let data = try? JSONEncoder().encode(saved) else { return }
         try? data.write(to: indexURL, options: .atomic)
+    }
+
+    private func loadPending() {
+        guard let data = try? Data(contentsOf: pendingURL),
+              let stored = try? JSONDecoder().decode([String: PendingDownload].self, from: data),
+              !stored.isEmpty else { return }
+        for (videoID, item) in stored {
+            pendingTracks[videoID] = item.track
+            pendingQuality[videoID] = item.qualityLabel
+            active[videoID] = 0
+            activeOrder.append(videoID)
+        }
+    }
+
+    private func savePending() {
+        var stored: [String: PendingDownload] = [:]
+        for (videoID, track) in pendingTracks {
+            stored[videoID] = PendingDownload(track: track,
+                                              qualityLabel: pendingQuality[videoID] ?? "",
+                                              startedAt: Date())
+        }
+        guard !stored.isEmpty else {
+            try? FileManager.default.removeItem(at: pendingURL)
+            return
+        }
+        guard let data = try? JSONEncoder().encode(stored) else { return }
+        try? data.write(to: pendingURL, options: .atomic)
+    }
+
+    private func clearPending(_ videoID: String) {
+        pendingTracks.removeValue(forKey: videoID)
+        pendingQuality.removeValue(forKey: videoID)
+        savePending()
+    }
+
+    /// Whatever the system no longer knows about after a relaunch is settled
+    /// here: a file that landed is adopted, anything else is reported rather
+    /// than left spinning forever.
+    private func reconcilePending() {
+        guard !pendingTracks.isEmpty else { return }
+        session.getAllTasks { [weak self] tasks in
+            let live = Set(tasks.compactMap { $0.taskDescription })
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                for (videoID, track) in self.pendingTracks {
+                    if live.contains(videoID) { continue }
+                    if let item = self.adoptFinishedFile(videoID: videoID, track: track) {
+                        self.saved.removeAll(where: { $0.track.videoID == videoID })
+                        self.saved.insert(item, at: 0)
+                        self.save()
+                        self.active.removeValue(forKey: videoID)
+                        self.activeOrder.removeAll(where: { $0 == videoID })
+                        self.clearPending(videoID)
+                        continue
+                    }
+                    self.active.removeValue(forKey: videoID)
+                    let userStopped = self.cancelledByUser.remove(videoID) != nil
+                    if !userStopped {
+                        self.failed[videoID] = "Download interrupted. Tap to try again."
+                        self.failedTracks[videoID] = track
+                        if !self.failedOrder.contains(videoID) { self.failedOrder.append(videoID) }
+                    }
+                    self.activeOrder.removeAll(where: { $0 == videoID })
+                    self.clearPending(videoID)
+                }
+                self.postChange()
+            }
+        }
+    }
+
+    /// A background transfer can finish while the app is dead; its file is moved
+    /// into place by the delegate on relaunch, but if only the bytes survive,
+    /// this turns them back into an index entry.
+    private func adoptFinishedFile(videoID: String, track: Track) -> DownloadedTrack? {
+        let fileName = videoID.replacingOccurrences(of: "/", with: "_") + ".m4a"
+        let destination = directory.appendingPathComponent(fileName)
+        guard let size = (try? FileManager.default.attributesOfItem(atPath: destination.path)[.size] as? NSNumber)?.int64Value,
+              size > 0 else { return nil }
+        return DownloadedTrack(track: track,
+                               fileName: fileName,
+                               byteSize: size,
+                               qualityLabel: pendingQuality[videoID] ?? "",
+                               downloadedAt: Date())
     }
 
     private func postChange() {
@@ -377,6 +606,17 @@ final class DownloadStore: NSObject {
         guard SCNetworkReachabilityGetFlags(reach, &flags) else { return true }
         return !flags.contains(.isWWAN)
     }
+
+    /// The track a task belongs to, across relaunches: the system persists the
+    /// task description, so it can be adopted before any in-memory map exists.
+    private func videoID(for task: URLSessionTask) -> String? {
+        if let known = tasks[task.taskIdentifier] { return known }
+        if let described = task.taskDescription, pendingTracks[described] != nil {
+            tasks[task.taskIdentifier] = described
+            return described
+        }
+        return nil
+    }
 }
 
 extension DownloadStore: URLSessionDownloadDelegate {
@@ -385,7 +625,7 @@ extension DownloadStore: URLSessionDownloadDelegate {
                     didWriteData bytesWritten: Int64,
                     totalBytesWritten: Int64,
                     totalBytesExpectedToWrite: Int64) {
-        guard let videoID = tasks[downloadTask.taskIdentifier] else { return }
+        guard let videoID = videoID(for: downloadTask) else { return }
         guard totalBytesExpectedToWrite > 0 else { return }
         let fraction = Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)
         // Report in whole percent: the UI only ever prints an integer, and this
@@ -402,7 +642,7 @@ extension DownloadStore: URLSessionDownloadDelegate {
     func urlSession(_ session: URLSession,
                     downloadTask: URLSessionDownloadTask,
                     didFinishDownloadingTo location: URL) {
-        guard let videoID = tasks[downloadTask.taskIdentifier],
+        guard let videoID = videoID(for: downloadTask),
               let track = pendingTracks[videoID] else { return }
         storeCompletedFile(videoID: videoID, track: track, from: location,
                            clearing: downloadTask.taskIdentifier)
@@ -442,8 +682,7 @@ extension DownloadStore: URLSessionDownloadDelegate {
             self.failedOrder.removeAll(where: { $0 == videoID })
             self.cancelledByUser.remove(videoID)
             self.activeOrder.removeAll(where: { $0 == videoID })
-            self.pendingTracks.removeValue(forKey: videoID)
-            self.pendingQuality.removeValue(forKey: videoID)
+            self.clearPending(videoID)
             if let identifier = identifier { self.tasks.removeValue(forKey: identifier) }
             let completion = self.completions.removeValue(forKey: videoID)
             self.postChange()
@@ -478,7 +717,7 @@ extension DownloadStore: URLSessionDownloadDelegate {
             return
         }
         guard let error = error,
-              let videoID = tasks[task.taskIdentifier],
+              let videoID = videoID(for: task),
               let track = pendingTracks[videoID] else { return }
         let message = (error as NSError).code == NSURLErrorCancelled
             ? "Download cancelled."
@@ -486,6 +725,14 @@ extension DownloadStore: URLSessionDownloadDelegate {
         DispatchQueue.main.async {
             self.tasks.removeValue(forKey: task.taskIdentifier)
             self.finish(track: track, error: message)
+        }
+    }
+
+    func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {
+        DispatchQueue.main.async {
+            let completion = self.backgroundEventsCompletion
+            self.backgroundEventsCompletion = nil
+            completion?()
         }
     }
 }

@@ -11,6 +11,8 @@ enum SettingKind {
     /// A row that reports live state (how much disk downloads use) and opens the
     /// screen where that state can be changed.
     case storage
+    /// A row that prompts for the addon server that supplies lossless tiers.
+    case addon
     /// Row is shown for parity but has no effect here; the reason is surfaced to the user.
     case unavailable(String)
 }
@@ -127,7 +129,10 @@ enum SettingsCatalog {
             SettingItem(key: "BitChord.Audio.Sources", title: "Sources",
                         detail: "Where audio comes from and the order used",
                         icon: .speaker,
-                        kind: .page("Addon sources are not ported; streams come from YouTube Music directly.")),
+                        kind: .page("Streams come from YouTube Music and JioSaavn. A lossless addon can be pointed at below.")),
+            SettingItem(key: "BitChord.Sources.Addon", title: "Lossless addon",
+                        detail: "FLAC and ALAC straight from a source you point at",
+                        kind: .addon),
             SettingItem(key: "BitChord.Audio.DirectSourceStream", title: "Direct Source Stream",
                         kind: .toggle(false)),
             SettingItem(key: "BitChord.Audio.WifiQuality", title: "On Wi-Fi",
@@ -204,6 +209,9 @@ enum SettingsCatalog {
                         kind: .choice("High", DownloadQuality.all)),
             SettingItem(key: "BitChord.Download.WifiOnly", title: "Download over Wi-Fi only",
                         kind: .toggle(true)),
+            SettingItem(key: "BitChord.Download.StorageLimit", title: "Download storage limit",
+                        detail: "Downloads stop before passing this",
+                        kind: .choice(DownloadLimit.fallback, DownloadLimit.options)),
             SettingItem(key: "BitChord.Download.Storage", title: "Storage used",
                         kind: .storage),
             SettingItem(key: "BitChord.Download.KeepUpdated", title: "Keep downloads updated",

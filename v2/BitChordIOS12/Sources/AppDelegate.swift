@@ -25,4 +25,12 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         ScreenshotHarness.runIfRequested()
         return true
     }
+
+    /// The system wakes the app for a finished background transfer and expects
+    /// this handler to be held until the session has delivered its events.
+    func application(_ application: UIApplication,
+                     handleEventsForBackgroundURLSession identifier: String,
+                     completionHandler: @escaping () -> Void) {
+        DownloadStore.shared.backgroundEventsCompletion = completionHandler
+    }
 }
