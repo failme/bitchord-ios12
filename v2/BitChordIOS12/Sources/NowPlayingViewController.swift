@@ -1044,4 +1044,18 @@ extension QueueViewController: UITableViewDataSource, UITableViewDelegate {
         PlayerService.shared.playTrack(at: indexPath.row)
         dismiss(animated: true, completion: nil)
     }
+
+    /// Upstream lets a song be dropped from the queue; on iOS 12 the swipe is
+    /// the gesture that exists.
+    func tableView(_ tableView: UITableView,
+                   trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath)
+        -> UISwipeActionsConfiguration? {
+        if showsHistory, indexPath.section == 0 { return nil }
+        let action = UIContextualAction(style: .destructive, title: "Remove") { _, _, done in
+            PlayerService.shared.removeFromQueue(at: indexPath.row)
+            tableView.reloadData()
+            done(true)
+        }
+        return UISwipeActionsConfiguration(actions: [action])
+    }
 }

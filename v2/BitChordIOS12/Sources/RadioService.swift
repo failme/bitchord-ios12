@@ -8,24 +8,30 @@ enum RadioService {
                       host: UIViewController?,
                       onReady: (([Track]) -> Void)? = nil) {
         let presenter = host ?? TrackActions.topController()
-        resolveSeed(track) { seed in
-            guard let seed = seed else {
-                DispatchQueue.main.async {
-                    presentFailure("This song isn't on YouTube Music, so it has no radio.", on: presenter)
-                }
+        mix(from: track) { tracks in
+            guard let tracks = tracks, !tracks.isEmpty else {
+                presentFailure("This track has no radio.", on: presenter)
                 return
             }
-            InnerTube.shared.radio(seedVideoID: seed) { tracks, error in
+            onReady?(tracks)
+            PlayerService.shared.play(tracks: tracks, startingAt: 0)
+            let player = NowPlayingViewController()
+            player.modalPresentationStyle = .fullScreen
+            presenter?.present(player, animated: true, completion: nil)
+        }
+    }
+
+    /// The mix itself, with no UI: autoplay at the end of a queue uses the same
+    /// request the "Start radio" row does.
+    static func mix(from track: Track, completion: @escaping ([Track]?) -> Void) {
+        resolveSeed(track) { seed in
+            guard let seed = seed else {
+                completion(nil)
+                return
+            }
+            InnerTube.shared.radio(seedVideoID: seed) { tracks, _ in
                 DispatchQueue.main.async {
-                    guard let tracks = tracks, !tracks.isEmpty else {
-                        presentFailure(error ?? "This track has no radio.", on: presenter)
-                        return
-                    }
-                    onReady?(tracks)
-                    PlayerService.shared.play(tracks: tracks, startingAt: 0)
-                    let player = NowPlayingViewController()
-                    player.modalPresentationStyle = .fullScreen
-                    presenter?.present(player, animated: true, completion: nil)
+                    completion(tracks)
                 }
             }
         }

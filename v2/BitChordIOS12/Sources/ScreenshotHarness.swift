@@ -897,8 +897,179 @@ enum ScreenshotHarness {
                     capture.report.append("moods.title=\(moodList()?.title ?? "")")
                     capture.report.append("moods.tracks=\(moodList()?.tracks.count ?? 0)")
                     capture.checkpoint()
-                    cacheProbe(capture)
+                    menuProbe(capture)
                 }
+            }
+        }
+    }
+
+    // MARK: - Song menu, playlists, queue edits, history, info, autoplay
+
+    private static func menuProbe(_ capture: DownloadCapture) {
+        guard let track = capture.seedTrack ?? capture.store.saved.first?.track else {
+            cacheProbe(capture)
+            return
+        }
+        // The same builder the sheet uses, so an action that disappeared from
+        // the app cannot stay in the report.
+        let titles = TrackActions.titles(for: track)
+        capture.report.append("menu.items=\(titles.joined(separator: "|"))")
+        capture.report.append("menu.hasPlayNext=\(titles.contains("Play next"))")
+        capture.report.append("menu.hasAddToQueue=\(titles.contains("Add to queue"))")
+        capture.report.append("menu.hasPlaylist=\(titles.contains("Add to playlist"))")
+        capture.report.append("menu.hasSongInfo=\(titles.contains("Song info"))")
+        capture.report.append("menu.hasArtist=\(titles.contains("Go to artist"))")
+
+        let list = TrackListViewController()
+        list.tracks = [track]
+        list.title = "Song"
+        capture.root.present(chrome(list), animated: false) {
+            after(0.8) {
+                TrackActions.present(for: track, from: list, sourceView: nil)
+                after(0.9) {
+                    capture.shot("song-actions")
+                    capture.root.dismiss(animated: false) {
+                        playlistProbe(capture, track: track)
+                    }
+                }
+            }
+        }
+    }
+
+    private static func playlistProbe(_ capture: DownloadCapture, track: Track) {
+        var playlist = LibraryStore.shared.playlists.first(where: { $0.title == "Menu Test" })
+        if playlist == nil {
+            playlist = LibraryStore.shared.createPlaylist(title: "Menu Test")
+        }
+        guard let playlist = playlist else {
+            capture.report.append("menu.playlistTracks=0")
+            queueEditProbe(capture)
+            return
+        }
+        let before = playlist.tracks.count
+        let list = TrackListViewController()
+        list.tracks = [track]
+        list.title = "Song"
+        capture.root.present(chrome(list), animated: false) {
+            after(0.8) {
+                PlaylistPicker.present(for: track, from: list)
+                after(0.9) {
+                    capture.shot("add-to-playlist")
+                    let after = PlaylistPicker.add(track, to: playlist.id)
+                    capture.report.append("menu.playlistBefore=\(before)")
+                    capture.report.append("menu.playlistTracks=\(after)")
+                    capture.report.append("menu.playlistGrew=\(after == before + 1)")
+                    capture.root.dismiss(animated: false) {
+                        queueEditProbe(capture)
+                    }
+                }
+            }
+        }
+    }
+
+    private static func queueEditProbe(_ capture: DownloadCapture) {
+        guard let first = capture.seedTrack ?? capture.store.saved.first?.track,
+              let second = capture.extraTrack else {
+            historyPageProbe(capture)
+            return
+        }
+        PlayerService.shared.setRepeatMode(.off)
+        PlayerService.shared.play(tracks: [first, second], startingAt: 0)
+        after(1.2) {
+            let before = PlayerService.shared.queue.count
+            PlayerService.shared.addToQueue(first)
+            let added = PlayerService.shared.queue.count
+            PlayerService.shared.removeFromQueue(at: PlayerService.shared.queue.count - 1)
+            let removed = PlayerService.shared.queue.count
+            PlayerService.shared.playNext(second)
+            let index = PlayerService.shared.currentIndex
+            let queued = PlayerService.shared.queue
+            let nextIsSecond = index + 1 < queued.count && queued[index + 1].videoID == second.videoID
+            capture.report.append("queue.before=\(before)")
+            capture.report.append("queue.afterAdd=\(added)")
+            capture.report.append("queue.afterRemove=\(removed)")
+            capture.report.append("queue.playNext=\(nextIsSecond)")
+            capture.checkpoint()
+            let sheet = QueueViewController()
+            sheet.modalPresentationStyle = .fullScreen
+            capture.root.present(sheet, animated: false) {
+                after(1.0) {
+                    capture.shot("queue-edit")
+                    sheet.dismiss(animated: false) { historyPageProbe(capture) }
+                }
+            }
+        }
+    }
+
+    private static func historyPageProbe(_ capture: DownloadCapture) {
+        let history = HistoryViewController()
+        capture.root.present(chrome(history), animated: false) {
+            after(0.9) {
+                capture.report.append("historyPage.rows=\(history.rowCount)")
+                capture.shot("history")
+                history.clearForCapture()
+                after(0.6) {
+                    capture.report.append("historyPage.afterClear=\(history.rowCount)")
+                    capture.shot("history-empty")
+                    // The relaunch proof reads this store back; keep it populated.
+                    if let first = capture.seedTrack, let second = capture.extraTrack {
+                        PlayerService.shared.play(tracks: [first, second], startingAt: 0)
+                    }
+                    after(1.2) {
+                        capture.report.append("historyPage.restored=\(history.rowCount)")
+                        history.dismiss(animated: false) { songInfoProbe(capture) }
+                    }
+                }
+            }
+        }
+    }
+
+    private static func songInfoProbe(_ capture: DownloadCapture) {
+        guard let track = PlayerService.shared.currentTrack else {
+            cacheProbe(capture)
+            return
+        }
+        let rows = SongInfoViewController.rows(for: track)
+        let value: (String) -> String = { label in
+            return rows.first(where: { $0.label == label })?.value ?? ""
+        }
+        capture.report.append("info.rows=\(rows.count)")
+        capture.report.append("info.title=\(value("Title"))")
+        capture.report.append("info.source=\(value("Source"))")
+        capture.report.append("info.quality=\(value("Quality"))")
+        let info = SongInfoViewController(track: track)
+        info.modalPresentationStyle = .fullScreen
+        capture.root.present(info, animated: false) {
+            after(1.0) {
+                capture.shot("song-info")
+                capture.checkpoint()
+                info.dismiss(animated: false) { autoplayProbe(capture) }
+            }
+        }
+    }
+
+    private static func autoplayProbe(_ capture: DownloadCapture) {
+        SettingsStore.shared.set(true, "BitChord.Audio.AutoPlay")
+        capture.report.append("autoplay.setting=\(PlayerService.shared.autoplayEnabled)")
+        guard let seed = capture.seedTrack else {
+            cacheProbe(capture)
+            return
+        }
+        PlayerService.shared.setRepeatMode(.off)
+        let before = PlayerService.shared.autoplayCount
+        PlayerService.shared.play(tracks: [seed], startingAt: 0)
+        after(1.2) {
+            // The queue has one song, so this is the end-of-queue branch.
+            PlayerService.shared.advance()
+            waitUntil({ PlayerService.shared.autoplayCount > before }, timeout: 45) { met in
+                capture.report.append("autoplay.started=\(met)")
+                capture.report.append("autoplay.tracks=\(PlayerService.shared.queue.count)")
+                capture.report.append("autoplay.first=\(PlayerService.shared.currentTrack?.title ?? "")")
+                capture.checkpoint()
+                if met {
+                    capture.shot("autoplay")
+                }
+                cacheProbe(capture)
             }
         }
     }

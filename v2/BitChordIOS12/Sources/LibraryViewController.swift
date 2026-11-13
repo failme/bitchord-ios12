@@ -162,11 +162,11 @@ final class LibraryViewController: UIViewController {
     private func buildRows() {
         rowsHolder.axis = .vertical
         rowsHolder.alignment = .fill
-        let rows = ["Downloads", "Local Music"]
+        let rows = ["Downloads", "Local Music", "History"]
         var index = 0
         for title in rows {
             let row = LibraryRowButton(title: title,
-                                       icon: index == 0 ? .download : .list)
+                                       icon: index == 0 ? .download : (index == 1 ? .list : .musicNote))
             row.addTarget(self, action: #selector(rowTapped(_:)), for: .touchUpInside)
             row.tag = index
             rowsHolder.addArrangedSubview(row)
@@ -325,10 +325,13 @@ final class LibraryViewController: UIViewController {
     }
 
     @objc private func rowTapped(_ sender: LibraryRowButton) {
-        if sender.tag == 0 {
+        switch sender.tag {
+        case 0:
             navigationController?.pushViewController(DownloadsViewController(), animated: true)
-        } else {
+        case 1:
             navigationController?.pushViewController(LocalMusicViewController(), animated: true)
+        default:
+            navigationController?.pushViewController(HistoryViewController(), animated: true)
         }
     }
 

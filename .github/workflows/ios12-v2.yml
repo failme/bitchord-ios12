@@ -425,11 +425,40 @@ jobs:
           grep -q "cache.cleared=true" "$REPORT"
           grep -q "cache.limit=" "$REPORT"
 
+          # Song menu, add-to-playlist, queue edits, the History screen, song
+          # info and autoplay past the end of a queue.
+          grep -q "menu.hasPlayNext=true" "$REPORT"
+          grep -q "menu.hasAddToQueue=true" "$REPORT"
+          grep -q "menu.hasPlaylist=true" "$REPORT"
+          grep -q "menu.hasSongInfo=true" "$REPORT"
+          grep -q "menu.hasArtist=true" "$REPORT"
+          grep -q "menu.playlistGrew=true" "$REPORT"
+          grep -q "queue.before=2" "$REPORT"
+          grep -q "queue.afterAdd=3" "$REPORT"
+          grep -q "queue.afterRemove=2" "$REPORT"
+          grep -q "queue.playNext=true" "$REPORT"
+          HISTORY_PAGE=$(sed -n 's/^historyPage.rows=//p' "$REPORT" | head -1)
+          test -n "$HISTORY_PAGE"
+          test "$HISTORY_PAGE" -ge 2
+          grep -q "historyPage.afterClear=0" "$REPORT"
+          HISTORY_RESTORED=$(sed -n 's/^historyPage.restored=//p' "$REPORT" | head -1)
+          test -n "$HISTORY_RESTORED"
+          test "$HISTORY_RESTORED" -ge 2
+          grep -q "info.rows=7" "$REPORT"
+          test -n "$(sed -n 's/^info.title=//p' "$REPORT" | head -1)"
+          test -n "$(sed -n 's/^info.source=//p' "$REPORT" | head -1)"
+          grep -q "autoplay.setting=true" "$REPORT"
+          grep -q "autoplay.started=true" "$REPORT"
+          AUTOPLAY=$(sed -n 's/^autoplay.tracks=//p' "$REPORT" | head -1)
+          test -n "$AUTOPLAY"
+          test "$AUTOPLAY" -ge 5
+
           for shot in downloads download-progress downloads-saver settings-downloads \
                       sheet-delete sheet-cancel sheet-download wifi-blocked offline downloads-empty \
                       storage-cap settings-storage library-synced playlist-synced sync-failed \
                       downloads-addon local-music local-songs queue-history radio radio-failed \
-                      lyrics-karaoke artist moods settings-cache; do
+                      lyrics-karaoke artist moods settings-cache song-actions add-to-playlist \
+                      queue-edit history history-empty song-info autoplay; do
             test -s "shots/$shot.png" || { echo "::error ::missing $shot.png"; exit 1; }
           done
 

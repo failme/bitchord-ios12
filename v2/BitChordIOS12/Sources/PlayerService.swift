@@ -32,6 +32,10 @@ final class PlayerService: NSObject {
     private(set) var duration: TimeInterval = 0
     private(set) var isShuffled = false
     private(set) var repeatMode: RepeatMode = .off
+    /// How many times the queue has been continued by autoplay; the capture
+    /// harness reads it as proof the end-of-queue branch ran.
+    private(set) var autoplayCount = 0
+    private var autoplayInFlight = false
 
     var isScrubbing = false
 
@@ -311,7 +315,91 @@ final class PlayerService: NSObject {
             loadCurrent()
             return
         }
+        // Upstream keeps playing past the end of the queue: the last song seeds
+        // a radio and the mix is appended. A local file has no seed, so the
+        // queue simply ends there.
+        if autoplayEnabled, let track = currentTrack,
+           !track.videoID.hasPrefix(LocalMusicStore.idPrefix) {
+            isPlaying = false
+            postChange()
+            extendWithAutoplay(from: track)
+            return
+        }
         isPlaying = false
+        postChange()
+    }
+
+    var autoplayEnabled: Bool {
+        return SettingsStore.shared.bool("BitChord.Audio.AutoPlay", true)
+    }
+
+    private func extendWithAutoplay(from track: Track) {
+        guard !autoplayInFlight else { return }
+        autoplayInFlight = true
+        statusText = "Finding more music…"
+        postChange()
+        RadioService.mix(from: track) { [weak self] mix in
+            guard let self = self else { return }
+            self.autoplayInFlight = false
+            self.statusText = ""
+            let known = Set(self.queue.map { $0.videoID })
+            let fresh = mix.filter { !known.contains($0.videoID) }
+            guard !fresh.isEmpty else {
+                self.isPlaying = false
+                self.postChange()
+                return
+            }
+            let start = self.queue.count
+            self.queue += fresh
+            self.currentIndex = start
+            self.autoplayCount += 1
+            self.loadCurrent()
+            self.postChange()
+        }
+    }
+
+    // MARK: - Queue editing
+
+    /// "Play next": the song starts after the current one, not at the end.
+    func playNext(_ track: Track) {
+        guard !queue.isEmpty, currentIndex >= 0 else {
+            play(tracks: [track], startingAt: 0)
+            return
+        }
+        queue.insert(track, at: currentIndex + 1)
+        postChange()
+    }
+
+    func addToQueue(_ track: Track) {
+        guard !queue.isEmpty, currentIndex >= 0 else {
+            play(tracks: [track], startingAt: 0)
+            return
+        }
+        queue.append(track)
+        postChange()
+    }
+
+    /// Removing the playing row moves playback to whatever took its place.
+    func removeFromQueue(at index: Int) {
+        guard index >= 0, index < queue.count else { return }
+        let wasCurrent = index == currentIndex
+        queue.remove(at: index)
+        if index < currentIndex {
+            currentIndex -= 1
+        }
+        if queue.isEmpty {
+            currentIndex = -1
+            AudioEngine.shared.pause()
+            isPlaying = false
+            duration = 0
+            currentTime = 0
+            postChange()
+            return
+        }
+        if wasCurrent {
+            currentIndex = min(index, queue.count - 1)
+            loadCurrent()
+        }
         postChange()
     }
 
@@ -354,6 +442,11 @@ final class PlayerService: NSObject {
                 currentIndex = index
             }
         }
+        postChange()
+    }
+
+    func setRepeatMode(_ mode: RepeatMode) {
+        repeatMode = mode
         postChange()
     }
 
