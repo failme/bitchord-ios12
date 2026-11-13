@@ -1,17 +1,20 @@
 import UIKit
 
-/// Search over the same catalogue that plays.
-///
-/// The previous screen searched YouTube Music and kept only rows whose type token
-/// said "Song" — artists and albums have no video id at all, so they were thrown
-/// away, and any query whose top hits were a band or a record came back empty.
-/// This one asks the catalogue for all three kinds at once and puts them behind
-/// the same pill selector upstream uses.
+/// Search, shaped like the real screen: the field and account avatar on top,
+/// the YouTube / Library / Addons source bar directly under them, and one
+/// result list — songs, then albums, then artists — in the order the real
+/// results list puts them.
 final class SearchViewController: UIViewController {
-    private enum Mode: Int {
-        case songs
-        case artists
-        case albums
+    private enum Source: Int {
+        case youtube
+        case library
+        case addons
+    }
+
+    private enum Row {
+        case song(Track)
+        case album(CatalogueAlbum)
+        case artist(CatalogueArtist)
     }
 
     private let fieldContainer = UIView()
@@ -19,7 +22,7 @@ final class SearchViewController: UIViewController {
     private let field = UITextField()
     private let clearButton = UIButton(type: .system)
     private let avatarButton = UIButton(type: .system)
-    private let selector = PillSelectorView(titles: ["Songs", "Artists", "Albums"])
+    private let sourceSelector = PillSelectorView(titles: ["YouTube", "Library", "Addons"])
     private let tableView = UITableView(frame: .zero, style: .plain)
     private let emptyLabel = UILabel()
     private let spinner = UIActivityIndicatorView(frame: CGRect(x: 0, y: 0, width: 20, height: 20))
@@ -27,8 +30,7 @@ final class SearchViewController: UIViewController {
     private var songs: [Track] = []
     private var artists: [CatalogueArtist] = []
     private var albums: [CatalogueAlbum] = []
-    private var mode: Mode = .songs
-    private var modeChosen = false
+    private var source: Source = .youtube
     private var query = ""
     private var pendingWork: DispatchWorkItem?
     private var requestToken = 0
@@ -40,7 +42,7 @@ final class SearchViewController: UIViewController {
         view.backgroundColor = Theme.background
         navigationItem.largeTitleDisplayMode = .never
         buildField()
-        buildSelector()
+        buildSourceBar()
         buildList()
         refresh()
     }
@@ -48,6 +50,7 @@ final class SearchViewController: UIViewController {
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         tableView.reloadData()
+        refresh()
     }
 
     // MARK: - Chrome
@@ -69,7 +72,7 @@ final class SearchViewController: UIViewController {
         field.tintColor = Theme.accent
         field.font = Theme.font(16)
         field.attributedPlaceholder = NSAttributedString(
-            string: "Songs, artists, albums",
+            string: "Artists, Songs, Lyrics and More",
             attributes: [.foregroundColor: Theme.secondaryText]
         )
         field.keyboardAppearance = .dark
@@ -124,23 +127,28 @@ final class SearchViewController: UIViewController {
         ])
     }
 
-    private func buildSelector() {
-        selector.translatesAutoresizingMaskIntoConstraints = false
-        selector.isHidden = true
-        selector.onSelect = { [weak self] index in
-            guard let self = self, let picked = Mode(rawValue: index) else { return }
-            self.modeChosen = true
-            self.mode = picked
+    private func buildSourceBar() {
+        sourceSelector.translatesAutoresizingMaskIntoConstraints = false
+        sourceSelector.select(0, animated: false)
+        sourceSelector.onSelect = { [weak self] index in
+            guard let self = self, let picked = Source(rawValue: index) else { return }
+            self.source = picked
             self.tableView.setContentOffset(.zero, animated: false)
             self.tableView.reloadData()
             self.refresh()
+            // Switching back to YouTube re-runs the live query; the other two
+            // sources answer from the library and need no request.
+            if picked == .youtube, self.query.count >= 2 {
+                self.requestToken += 1
+                self.run(self.query)
+            }
         }
-        view.addSubview(selector)
+        view.addSubview(sourceSelector)
         NSLayoutConstraint.activate([
-            selector.topAnchor.constraint(equalTo: fieldContainer.bottomAnchor, constant: 10),
-            selector.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: Theme.gutter),
-            selector.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -Theme.gutter),
-            selector.heightAnchor.constraint(equalToConstant: 40)
+            sourceSelector.topAnchor.constraint(equalTo: fieldContainer.bottomAnchor, constant: 10),
+            sourceSelector.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: Theme.gutter),
+            sourceSelector.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -Theme.gutter),
+            sourceSelector.heightAnchor.constraint(equalToConstant: 40)
         ])
     }
 
@@ -170,19 +178,59 @@ final class SearchViewController: UIViewController {
         view.addSubview(spinner)
 
         NSLayoutConstraint.activate([
-            tableView.topAnchor.constraint(equalTo: selector.bottomAnchor, constant: 6),
+            tableView.topAnchor.constraint(equalTo: sourceSelector.bottomAnchor, constant: 6),
             tableView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             tableView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             tableView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
 
+            // The real empty state sits in the upper third, not dead centre.
             emptyLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            emptyLabel.centerYAnchor.constraint(equalTo: view.centerYAnchor, constant: -40),
+            emptyLabel.topAnchor.constraint(equalTo: sourceSelector.bottomAnchor, constant: 64),
             emptyLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 32),
             emptyLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -32),
 
             spinner.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             spinner.topAnchor.constraint(equalTo: emptyLabel.bottomAnchor, constant: 16)
         ])
+    }
+
+    // MARK: - Rows
+
+    private var rows: [Row] {
+        switch source {
+        case .youtube:
+            return songs.map(Row.song) + albums.map(Row.album) + artists.map(Row.artist)
+        case .library:
+            return libraryRows()
+        case .addons:
+            return []
+        }
+    }
+
+    private func libraryRows() -> [Row] {
+        guard !query.isEmpty else { return [] }
+        let store = LibraryStore.shared
+        let pool = store.likedTracks
+            + store.recentTracks
+            + store.playlists.flatMap { $0.tracks }
+        let needle = query.lowercased()
+        var seen = Set<String>()
+        var found: [Row] = []
+        for track in pool {
+            let matches = track.title.lowercased().contains(needle)
+                || track.artist.lowercased().contains(needle)
+                || track.album.lowercased().contains(needle)
+            guard matches, seen.insert(track.videoID).inserted else { continue }
+            found.append(.song(track))
+        }
+        return found
+    }
+
+    private var songQueue: [Track] {
+        return rows.compactMap { row in
+            if case .song(let track) = row { return track }
+            return nil
+        }
     }
 
     // MARK: - Searching
@@ -199,10 +247,8 @@ final class SearchViewController: UIViewController {
             songs = []
             artists = []
             albums = []
-            modeChosen = false
             inFlight = 0
             spinner.stopAnimating()
-            selector.isHidden = true
             tableView.reloadData()
             refresh()
             return
@@ -210,7 +256,13 @@ final class SearchViewController: UIViewController {
 
         let work = DispatchWorkItem { [weak self] in
             guard let self = self, token == self.requestToken else { return }
-            self.run(text)
+            if self.source == .youtube {
+                self.run(text)
+            } else {
+                self.query = text
+                self.tableView.reloadData()
+                self.refresh()
+            }
         }
         pendingWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: work)
@@ -244,43 +296,34 @@ final class SearchViewController: UIViewController {
     private func landed(token: Int) {
         guard token == requestToken else { return }
         inFlight = max(0, inFlight - 1)
-        if inFlight == 0 {
-            spinner.stopAnimating()
-            // The first batch decides the tab, unless the user already picked one.
-            if !modeChosen {
-                mode = songs.isEmpty && !artists.isEmpty ? .artists : .songs
-                selector.select(mode.rawValue, animated: false)
-            }
-            selector.isHidden = (songs.isEmpty && artists.isEmpty && albums.isEmpty)
-            tableView.reloadData()
-            refresh()
-        }
+        guard inFlight == 0 else { return }
+        spinner.stopAnimating()
+        tableView.reloadData()
+        refresh()
     }
 
     private func refresh() {
-        let isEmpty = isEmptyForMode()
+        let isEmpty = rows.isEmpty
         if query.isEmpty {
-            emptyLabel.text = "Search songs, artists and albums"
+            switch source {
+            case .youtube:
+                emptyLabel.text = "Search millions of songs on YouTube Music."
+            case .library:
+                emptyLabel.text = "Search your liked songs, playlists and recents."
+            case .addons:
+                emptyLabel.text = "No addon sources are configured."
+            }
         } else if isEmpty {
-            emptyLabel.text = emptyText()
+            switch source {
+            case .youtube:
+                emptyLabel.text = "No results for \u{201C}\(query)\u{201D}."
+            case .library:
+                emptyLabel.text = "Nothing in your library matches \u{201C}\(query)\u{201D}."
+            case .addons:
+                emptyLabel.text = "No addon sources are configured."
+            }
         }
         emptyLabel.isHidden = inFlight > 0 || !isEmpty
-    }
-
-    private func emptyText() -> String {
-        switch mode {
-        case .songs: return "No songs for \u{201C}\(query)\u{201D}."
-        case .artists: return "No artists for \u{201C}\(query)\u{201D}."
-        case .albums: return "No albums for \u{201C}\(query)\u{201D}."
-        }
-    }
-
-    private func isEmptyForMode() -> Bool {
-        switch mode {
-        case .songs: return songs.isEmpty
-        case .artists: return artists.isEmpty
-        case .albums: return albums.isEmpty
-        }
     }
 
     @objc private func clearTapped() {
@@ -319,7 +362,13 @@ extension SearchViewController: UITextFieldDelegate {
         let text = (textField.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         guard text.count >= 1 else { return true }
         requestToken += 1
-        run(text)
+        if source == .youtube {
+            run(text)
+        } else {
+            query = text
+            tableView.reloadData()
+            refresh()
+        }
         textField.resignFirstResponder()
         return true
     }
@@ -327,37 +376,32 @@ extension SearchViewController: UITextFieldDelegate {
 
 extension SearchViewController: UITableViewDataSource, UITableViewDelegate {
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        switch mode {
-        case .songs: return songs.count
-        case .artists: return artists.count
-        case .albums: return albums.count
-        }
+        return rows.count
     }
 
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        switch mode {
-        case .songs:
+        let row = rows[indexPath.row]
+        switch row {
+        case .song(let track):
             let cell = tableView.dequeueReusableCell(withIdentifier: TrackCell.reuseIdentifier, for: indexPath)
             if let trackCell = cell as? TrackCell {
-                trackCell.configure(with: songs[indexPath.row])
+                trackCell.configure(with: track)
             }
             return cell
-        case .artists:
+        case .album(let album):
             let cell = tableView.dequeueReusableCell(withIdentifier: CatalogueRowCell.reuseIdentifier, for: indexPath)
             if let row = cell as? CatalogueRowCell {
-                let artist = artists[indexPath.row]
-                row.configure(title: artist.name, subtitle: "Artist", artwork: artist.artwork, circular: true)
-            }
-            return cell
-        case .albums:
-            let cell = tableView.dequeueReusableCell(withIdentifier: CatalogueRowCell.reuseIdentifier, for: indexPath)
-            if let row = cell as? CatalogueRowCell {
-                let album = albums[indexPath.row]
                 let bits = [album.artist, album.year].filter { !$0.isEmpty }
                 row.configure(title: album.title,
-                              subtitle: bits.isEmpty ? "Album" : bits.joined(separator: " \u{00B7} "),
+                              subtitle: bits.isEmpty ? "Album" : "Album \u{00B7} " + bits.joined(separator: " \u{00B7} "),
                               artwork: album.artwork,
                               circular: false)
+            }
+            return cell
+        case .artist(let artist):
+            let cell = tableView.dequeueReusableCell(withIdentifier: CatalogueRowCell.reuseIdentifier, for: indexPath)
+            if let row = cell as? CatalogueRowCell {
+                row.configure(title: artist.name, subtitle: "Artist", artwork: artist.artwork, circular: true)
             }
             return cell
         }
@@ -365,23 +409,20 @@ extension SearchViewController: UITableViewDataSource, UITableViewDelegate {
 
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
-        switch mode {
-        case .songs:
-            // Capture the queue first: nothing else touches it while the player
-            // is presented, and the list must stay as the user left it.
-            let picked = songs
-            guard indexPath.row < picked.count else { return }
+        let row = rows[indexPath.row]
+        switch row {
+        case .song(let track):
+            let queue = songQueue
+            let start = queue.firstIndex(where: { $0.videoID == track.videoID }) ?? 0
             field.resignFirstResponder()
-            PlayerService.shared.play(tracks: picked, startingAt: indexPath.row)
+            PlayerService.shared.play(tracks: queue, startingAt: start)
             DispatchQueue.main.async { [weak self] in
                 self?.presentNowPlayingFromRoot()
             }
-        case .artists:
-            guard indexPath.row < artists.count else { return }
-            openArtist(artists[indexPath.row])
-        case .albums:
-            guard indexPath.row < albums.count else { return }
-            openAlbum(albums[indexPath.row])
+        case .album(let album):
+            openAlbum(album)
+        case .artist(let artist):
+            openArtist(artist)
         }
     }
 }
