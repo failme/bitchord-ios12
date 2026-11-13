@@ -230,13 +230,13 @@ final class LibraryViewController: UIViewController {
         firstRow.spacing = 10
         firstRow.distribution = .fillEqually
 
-        let create = PlaylistActionCard(title: "New playlist",
+        let create = PlaylistCard(title: "New playlist",
                                         caption: "Saved to YouTube Music",
                                         icon: .plus)
         create.onTap = { [weak self] in self?.createPlaylistPrompt() }
         firstRow.addArrangedSubview(create)
 
-        let importCard = PlaylistActionCard(title: "Import Spotify",
+        let importCard = PlaylistCard(title: "Import Spotify",
                                             caption: "From a playlist link",
                                             icon: .logo)
         importCard.onTap = { [weak self] in
@@ -495,15 +495,5 @@ class PlaylistCard: UIControl {
 
     @objc private func tapped() {
         onTap?()
-    }
-}
-
-final class PlaylistActionCard: PlaylistCard {
-    init(title: String, caption: String, icon: Icons.Kind) {
-        super.init(title: title, caption: caption, icon: icon)
-    }
-
-    required init?(coder: NSCoder) {
-        return nil
     }
 }
