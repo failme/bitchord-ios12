@@ -28,6 +28,11 @@ Every push runs three jobs (`.github/workflows/ios12-v2.yml`):
    a background transfer that is resumed, and one that is force-quit. The job
    fails if any assertion or any expected screenshot is missing.
 
+Latest full run: commit `604452f`, all three jobs green (`43375904069`). The
+committed IPA was built by that run and inspected again locally:
+`MinimumOSVersion 12.0`, `UIDeviceFamily [1,2]`, executable `arm64`
+(`cputype 0x100000c`), 16,906,942 bytes.
+
 The harness (`Sources/ScreenshotHarness.swift`) touches the app the way a user
 does: presents screens, taps table rows, opens the long-press sheet, plays
 tracks, and photographs the result. Where a platform state cannot exist in CI
@@ -52,7 +57,7 @@ the real one and only its input is injected; those two are named below.
 | Storage cap, Wi-Fi-only, background transfers | `DownloadStore`, `AppDelegate` | below |
 | Playlist sync by public YouTube Music link | `PlaylistSync`, `LibraryStore` | `sync.tracks=100`, relaunch read-back, `playlist-synced.png` |
 | Lossless addon | `AddonService`, Settings | `addon.label=Lossless · 1411 kbps` |
-| Cache limit + clearing | `CacheStore`, Settings | `cache.limit=250 MB`, `cache.freed=7868416`, `settings-cache.png` |
+| Cache limit + clearing | `CacheStore`, Settings | `cache.limit=250 MB`, `cache.freed=11026432`, `settings-cache.png` |
 | 73 settings keys, persistence | `SettingsStore`, `SettingsViewController` | `settings.png`, `settings-downloads.png` |
 
 Screens are laid out for a 320 pt width (the SE) and verified at that size in CI;
@@ -72,10 +77,10 @@ nothing in the app assumes an iPhone X-class safe area.
 
 Measured in CI (reports committed under `shots-v2/`):
 
-- **Relaunch**: `resume.saved=1`, `resume.totalBytes=8197355` — the index and file
+- **Relaunch**: `resume.saved=1`, `resume.totalBytes=8182315` — the index and file
   survived a restart.
 - **Offline**: `localPlayback=true`, `source=Downloaded`.
-- **Quality changes the rendition**: `JioSaavn 320kbps` at 8197355 B against
+- **Quality changes the rendition**: `JioSaavn 320kbps` at 8182315 B against
   `Data saver` at 2489491 B; `afinfo` in CI measures 326337 bps vs 98124 bps.
 - **Cap**: `cap.blocked=true`, `cap.reason=Storage limit reached.`,
   `cap.savedUnchanged=true`, and at a 1 MB limit `cap.lowLimitCount=1` with
@@ -85,16 +90,29 @@ Measured in CI (reports committed under `shots-v2/`):
   `background.phantom=false`.
 - **Background force-quit**: `verify.pendingAtLaunch=1`,
   `background.reported=true`, `background.reason=Download interrupted. Tap to try
-  again.`, `background.pendingAfter=0`.
+  again.`, `background.pendingAfter=0`, `background.failed=1`.
+- **The same fresh process reads the locker and the history back**:
+  `verify.localTracks=1`, `verify.localTitle=01 Levitating`, `verify.history=3`,
+  `verify.historyTop=Blinding Lights` — three songs were played during the
+  capture, and only the last 25 are kept by design.
 - **Addon vs catalogue**: `Lossless · 1411 kbps` (775186 bps / 3883053 B) against
   `JioSaavn 320kbps` (320353 bps / 8198941 B), both fetched by the app.
 - **Sync**: 100 songs, first and last titles recorded, read back after a fresh
   launch; the failure path leaves the saved set unchanged and shows
   `sync-failed.png`.
-- **Local music**: the locker finds the folder, shows it, plays the file through
-  the local branch, and a fresh process still lists it.
-- **Radio**: the catalogue seed is resolved to its YouTube recording, the mix
-  replaces the queue and plays, and the failure alert is photographed.
+- **Local music**: `local.folders=1`, `local.tracks=1`,
+  `local.title=01 Levitating`, `local.playing=true`, engine
+  `native Local Music t=1.0/204`, and a fresh process still lists it.
+- **Queue history**: `history.count=2`, `history.limit=25`,
+  `history.top=Shape of You`, shown as its own section above the queue.
+- **Karaoke**: enhanced-LRC tags parse into three timed syllables
+  (`lyrics.words=3`, `lyrics.syllables=3`), the highlight advances with the
+  clock (`lyrics.revealAdvance=true`), and live lyrics from the real source are
+  word-synced when the file carries tags.
+- **Radio**: `radio.seed=catalogue-resolved`, `radio.tracks=50`,
+  `radio.first=Blinding Lights`, `radio.playing=true`, `radio.queued=50` — the
+  catalogue seed was resolved to its YouTube recording, the mix replaced the
+  queue and played. The refusal path is photographed as `radio-failed.png`.
 - **Cache**: a known 1 MB file plus the app's own caches are cleared;
   `cache.freed` is the measured difference.
 - **Menus**: `sheet.delete.downloaded=true`, `sheet.cancel.downloading=true`,
@@ -135,3 +153,21 @@ this repository, and the app says so in Settings rather than pretending.
   `NSURLErrorUnknown (-1)` before a byte arrives; the store retries once in a
   foreground session and records `transport`. On a device the first session is
   the one that runs.
+
+## Commit log (this pass)
+
+| Commit | Scope |
+| --- | --- |
+| `b9b7ab7` | Local locker, queue history, radio service, syllable LRC, downloaded badge, cache limit |
+| `83d880f` | Radio seeds resolved onto YouTube; artist rows/pages from YouTube Music |
+| `0745c81` | Mix endpoint asked for a radio (`params=wAEB`) |
+| `3d50e7d` | Sync probe skips channel ids and retries the next real playlist |
+| `01e2a0f` | Radio probe drives the menu path, seed resolution included |
+| `ebb545a` | Play pill readable on the white accent; capture screens get their nav bars |
+| `32af791` | Radio probe reports the mix the service loaded |
+| `f935f34` | Local engine assertion matches the app; audit rewritten |
+| `604452f` | Artist assertion matches the harness key — all three jobs green |
+
+Earlier passes covered the download store and offline playback, the storage cap,
+background transfers, addon tiers and playlist sync (`add1ae1`), and the four
+tabs, search/browse, Now Playing and Settings before that.
