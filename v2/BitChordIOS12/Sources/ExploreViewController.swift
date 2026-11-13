@@ -1,175 +1,152 @@
 import UIKit
 
-/// Explore, shaped like upstream's: a mood strip, then sideways shelves of
-/// trending songs, new albums and top charts instead of one long table.
+/// Explore as the real app draws it: no shelves, just a two-column grid of
+/// 110pt mood tiles, each a tinted gradient with its name in the top-left.
 final class ExploreViewController: UIViewController {
-    private let scrollView = UIScrollView()
-    private let stack = UIStackView()
-    private let spinner = UIActivityIndicatorView(frame: CGRect(x: 0, y: 0, width: 20, height: 20))
+    private struct Mood {
+        let title: String
+        let top: UIColor
+        let bottom: UIColor
+    }
 
-    private let moods: [String] = [
-        "Chill", "Energy", "Workout", "Focus", "Party", "Romance",
-        "Sad", "Sleep", "Commute", "Feel good", "Pop", "Hip-hop",
-        "Rock", "R&B", "Jazz", "Classical", "Electronic", "Indie"
+    // Order and hues read off the running Android app.
+    private let moods: [Mood] = [
+        Mood(title: "Chill", top: UIColor(red: 0.72, green: 0.82, blue: 0.95, alpha: 1),
+             bottom: UIColor(red: 0.55, green: 0.68, blue: 0.88, alpha: 1)),
+        Mood(title: "Christmas", top: UIColor(red: 0.16, green: 0.48, blue: 0.22, alpha: 1),
+             bottom: UIColor(red: 0.09, green: 0.33, blue: 0.15, alpha: 1)),
+        Mood(title: "Commute", top: UIColor(red: 0.88, green: 0.66, blue: 0.24, alpha: 1),
+             bottom: UIColor(red: 0.72, green: 0.49, blue: 0.14, alpha: 1)),
+        Mood(title: "Diwali", top: UIColor(red: 0.46, green: 0.45, blue: 0.37, alpha: 1),
+             bottom: UIColor(red: 0.30, green: 0.29, blue: 0.24, alpha: 1)),
+        Mood(title: "Energize", top: UIColor(red: 0.79, green: 0.65, blue: 0.44, alpha: 1),
+             bottom: UIColor(red: 0.64, green: 0.49, blue: 0.31, alpha: 1)),
+        Mood(title: "Feel good", top: UIColor(red: 0.31, green: 0.64, blue: 0.37, alpha: 1),
+             bottom: UIColor(red: 0.20, green: 0.48, blue: 0.26, alpha: 1)),
+        Mood(title: "Focus", top: UIColor(red: 0.62, green: 0.64, blue: 0.66, alpha: 1),
+             bottom: UIColor(red: 0.45, green: 0.47, blue: 0.49, alpha: 1)),
+        Mood(title: "Gaming", top: UIColor(red: 0.36, green: 0.37, blue: 0.48, alpha: 1),
+             bottom: UIColor(red: 0.23, green: 0.24, blue: 0.33, alpha: 1)),
+        Mood(title: "Party", top: UIColor(red: 0.61, green: 0.42, blue: 0.84, alpha: 1),
+             bottom: UIColor(red: 0.45, green: 0.27, blue: 0.68, alpha: 1)),
+        Mood(title: "Romance", top: UIColor(red: 0.75, green: 0.22, blue: 0.18, alpha: 1),
+             bottom: UIColor(red: 0.56, green: 0.13, blue: 0.11, alpha: 1)),
+        Mood(title: "Sleep", top: UIColor(red: 0.26, green: 0.32, blue: 0.52, alpha: 1),
+             bottom: UIColor(red: 0.16, green: 0.20, blue: 0.36, alpha: 1)),
+        Mood(title: "Workout", top: UIColor(red: 0.80, green: 0.36, blue: 0.26, alpha: 1),
+             bottom: UIColor(red: 0.60, green: 0.24, blue: 0.18, alpha: 1)),
+        Mood(title: "Sad", top: UIColor(red: 0.34, green: 0.42, blue: 0.55, alpha: 1),
+             bottom: UIColor(red: 0.22, green: 0.28, blue: 0.39, alpha: 1)),
+        Mood(title: "Classical", top: UIColor(red: 0.55, green: 0.47, blue: 0.35, alpha: 1),
+             bottom: UIColor(red: 0.39, green: 0.32, blue: 0.23, alpha: 1)),
+        Mood(title: "Jazz", top: UIColor(red: 0.45, green: 0.30, blue: 0.29, alpha: 1),
+             bottom: UIColor(red: 0.30, green: 0.19, blue: 0.19, alpha: 1)),
+        Mood(title: "Pop", top: UIColor(red: 0.72, green: 0.36, blue: 0.60, alpha: 1),
+             bottom: UIColor(red: 0.54, green: 0.22, blue: 0.44, alpha: 1))
     ]
 
-    private let chips = ChipRowView()
-    private let trendingShelf = ShelfRowView()
-    private let albumsShelf = CardShelfView()
-    private let chartsShelf = CardShelfView()
-
-    private var trending: [Track] = []
-    private var albums: [CollectionItem] = []
-    private var charts: [CollectionItem] = []
+    private let scrollView = UIScrollView()
+    private let titleLabel = UILabel()
+    private let grid = UIStackView()
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = "Explore"
         view.backgroundColor = Theme.background
-        navigationItem.largeTitleDisplayMode = .always
 
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.alwaysBounceVertical = true
         scrollView.showsVerticalScrollIndicator = false
         view.addSubview(scrollView)
 
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        stack.axis = .vertical
-        stack.spacing = 26
-        stack.alignment = .fill
-        scrollView.addSubview(stack)
+        titleLabel.text = "Explore"
+        titleLabel.font = Theme.font(34, weight: .bold)
+        titleLabel.textColor = Theme.primaryText
+        titleLabel.translatesAutoresizingMaskIntoConstraints = false
+        scrollView.addSubview(titleLabel)
+
+        grid.axis = .vertical
+        grid.spacing = 10
+        grid.distribution = .fillEqually
+        grid.translatesAutoresizingMaskIntoConstraints = false
+        scrollView.addSubview(grid)
+
+        var row: UIStackView?
+        for (index, mood) in moods.enumerated() {
+            if index % 2 == 0 {
+                let newRow = UIStackView()
+                newRow.axis = .horizontal
+                newRow.spacing = 10
+                newRow.distribution = .fillEqually
+                grid.addArrangedSubview(newRow)
+                newRow.heightAnchor.constraint(equalToConstant: 110).isActive = true
+                row = newRow
+            }
+            let tile = MoodTileView(mood: mood.title, top: mood.top, bottom: mood.bottom)
+            tile.addTarget(self, action: #selector(tileTapped(_:)), for: .touchUpInside)
+            row?.addArrangedSubview(tile)
+        }
 
         NSLayoutConstraint.activate([
-            scrollView.topAnchor.constraint(equalTo: view.topAnchor),
+            scrollView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
             scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
 
-            stack.topAnchor.constraint(equalTo: scrollView.topAnchor, constant: 4),
-            stack.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor),
-            stack.trailingAnchor.constraint(equalTo: scrollView.trailingAnchor),
-            stack.bottomAnchor.constraint(equalTo: scrollView.bottomAnchor, constant: -28),
-            stack.widthAnchor.constraint(equalTo: scrollView.widthAnchor)
+            titleLabel.topAnchor.constraint(equalTo: scrollView.topAnchor, constant: 8),
+            titleLabel.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor, constant: 16),
+
+            grid.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 18),
+            grid.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor, constant: 16),
+            grid.trailingAnchor.constraint(equalTo: scrollView.trailingAnchor, constant: -16),
+            grid.bottomAnchor.constraint(equalTo: scrollView.bottomAnchor, constant: -110),
+            grid.widthAnchor.constraint(equalTo: scrollView.widthAnchor, constant: -32)
         ])
+    }
 
-        chips.configure(titles: moods)
-        chips.onSelect = { [weak self] mood in self?.openMood(mood) }
-        addShelf(chips, height: ChipRowView.rowHeight)
+    @objc private func tileTapped(_ sender: MoodTileView) {
+        let controller = CollectionViewController(title: sender.moodTitle,
+                                                  subtitle: "Made for you",
+                                                  query: sender.moodTitle,
+                                                  kind: .songs)
+        navigationController?.pushViewController(controller, animated: true)
+    }
+}
 
-        trendingShelf.configure(title: "Trending now", tracks: [])
-        trendingShelf.onSelect = { [weak self] index in
-            guard let self = self else { return }
-            PlayerService.shared.play(tracks: self.trending, startingAt: index)
-            self.presentNowPlayingFromRoot()
-        }
-        trendingShelf.onPlayAll = { [weak self] in
-            guard let self = self, !self.trending.isEmpty else { return }
-            PlayerService.shared.play(tracks: self.trending, startingAt: 0)
-            self.presentNowPlayingFromRoot()
-        }
-        addShelf(trendingShelf, height: ShelfRowView.rowHeight)
+/// One gradient mood tile with its name in the top-left corner.
+final class MoodTileView: UIButton {
+    let moodTitle: String
+    private let gradient = CAGradientLayer()
+    private let label = UILabel()
 
-        albumsShelf.configure(title: "New albums", items: [])
-        albumsShelf.onSelect = { [weak self] index in
-            guard let self = self, index < self.albums.count else { return }
-            self.openCollection(self.albums[index])
-        }
-        addShelf(albumsShelf, height: CardShelfView.rowHeight)
+    init(mood: String, top: UIColor, bottom: UIColor) {
+        moodTitle = mood
+        super.init(frame: .zero)
+        layer.cornerRadius = 12
+        layer.masksToBounds = true
 
-        chartsShelf.configure(title: "Top charts", items: [])
-        chartsShelf.onSelect = { [weak self] index in
-            guard let self = self, index < self.charts.count else { return }
-            self.openCollection(self.charts[index])
-        }
-        addShelf(chartsShelf, height: CardShelfView.rowHeight)
+        gradient.colors = [top.cgColor, bottom.cgColor]
+        gradient.startPoint = CGPoint(x: 0, y: 0)
+        gradient.endPoint = CGPoint(x: 1, y: 1)
+        layer.addSublayer(gradient)
 
-        spinner.translatesAutoresizingMaskIntoConstraints = false
-        spinner.hidesWhenStopped = true
-        view.addSubview(spinner)
+        label.text = mood
+        label.font = Theme.font(15, weight: .semibold)
+        label.textColor = .white
+        label.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(label)
+
         NSLayoutConstraint.activate([
-            spinner.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            spinner.centerYAnchor.constraint(equalTo: view.centerYAnchor)
+            label.topAnchor.constraint(equalTo: topAnchor, constant: 10),
+            label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12)
         ])
-
-        load()
     }
 
-    override func viewDidLayoutSubviews() {
-        super.viewDidLayoutSubviews()
-        scrollView.contentInset.bottom = 104
-        scrollView.scrollIndicatorInsets.bottom = 104
+    required init?(coder: NSCoder) {
+        return nil
     }
 
-    private func addShelf(_ view: UIView, height: CGFloat) {
-        view.heightAnchor.constraint(equalToConstant: height).isActive = true
-        stack.addArrangedSubview(view)
-    }
-
-    private func load() {
-        spinner.startAnimating()
-        let year = Calendar.current.component(.year, from: Date())
-
-        InnerTube.shared.search("Trending songs today \(year)", filter: .songs) { [weak self] tracks, _ in
-            guard let self = self else { return }
-            self.spinner.stopAnimating()
-            guard let tracks = tracks, !tracks.isEmpty else { return }
-            self.trending = Array(tracks.prefix(20))
-            self.trendingShelf.configure(title: "Trending now", tracks: self.trending)
-        }
-
-        InnerTube.shared.searchCollections("New album releases \(year)", filter: .albums) { [weak self] items in
-            guard let self = self, !items.isEmpty else { return }
-            self.albums = Array(items.prefix(20))
-            self.albumsShelf.configure(title: "New albums", items: self.cards(from: self.albums))
-        }
-
-        InnerTube.shared.searchCollections("Top charts \(year)", filter: .playlists) { [weak self] items in
-            guard let self = self, !items.isEmpty else { return }
-            self.charts = Array(items.prefix(20))
-            self.chartsShelf.configure(title: "Top charts", items: self.cards(from: self.charts))
-        }
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 8) { [weak self] in
-            self?.spinner.stopAnimating()
-        }
-    }
-
-    private func cards(from items: [CollectionItem]) -> [CardItem] {
-        return items.map { CardItem(id: $0.browseID,
-                                    title: $0.title,
-                                    subtitle: $0.subtitle,
-                                    artworkURL: $0.artworkURL) }
-    }
-
-    private func openCollection(_ item: CollectionItem) {
-        let list = TrackListViewController()
-        list.title = item.title
-        list.emptyText = "Loading \(item.title)\u{2026}"
-        navigationController?.pushViewController(list, animated: true)
-
-        InnerTube.shared.fetchCollection(item.browseID) { tracks, error in
-            if let tracks = tracks, !tracks.isEmpty {
-                list.setTracks(tracks)
-            } else {
-                list.emptyText = error ?? "Could not open \(item.title)."
-                list.setTracks([])
-            }
-        }
-    }
-
-    private func openMood(_ mood: String) {
-        let list = TrackListViewController()
-        list.title = mood
-        list.emptyText = "Searching \(mood)\u{2026}"
-        navigationController?.pushViewController(list, animated: true)
-
-        InnerTube.shared.search("\(mood) music", filter: .songs) { tracks, error in
-            if let tracks = tracks, !tracks.isEmpty {
-                list.setTracks(tracks)
-            } else {
-                list.emptyText = error ?? "No results for \(mood)."
-                list.setTracks([])
-            }
-        }
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        gradient.frame = bounds
     }
 }
