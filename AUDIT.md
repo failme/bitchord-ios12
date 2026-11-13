@@ -100,3 +100,24 @@ Spotify (6), LocalMusic (3), Source (2), Storage (2), Performance (3), Discord (
 
 Every build above was verified green with `MinimumOSVersion 12.0`, `LC_BUILD_VERSION minos 12.0`,
 `arm64`. Nothing in this port has been run on a device.
+
+## Downloads and offline playback (v2 port)
+
+Status: **implemented and exercised in the simulator**; not verified on an iOS 12 device.
+
+| Piece | File | What it does |
+| --- | --- | --- |
+| Download store | `v2/BitChordIOS12/Sources/DownloadStore.swift` | Queue, real progress, persisted index + files, delete, storage total, Wi-Fi-only and quality policy |
+| Downloads screen | `v2/BitChordIOS12/Sources/DownloadsViewController.swift` | Live rows with percentage and progress bar, saved rows with quality + size, swipe to delete, empty state |
+| Entry point | `v2/BitChordIOS12/Sources/TrackCell.swift` | Long-press a song → Download / Delete download (iOS 12 has no context-menu API) |
+| Library route | `v2/BitChordIOS12/Sources/LibraryViewController.swift` | The Downloads row pushes the new screen, with the download glyph |
+| Offline playback | `v2/BitChordIOS12/Sources/NativeAudioPlayer.swift`, `AudioEngine.swift` | A downloaded track plays through the same AVPlayer path, queue, now-playing and lock screen; no further request is made |
+| Settings | `SettingsStore.swift`, `SettingsViewController.swift` | Download quality (Lossless/High/Normal/Data saver), Download over Wi-Fi only, Storage used (live) |
+| Proof | `ScreenshotHarness.swift`, `.github/workflows/ios12-v2.yml` | First launch downloads a track and exits; second launch captures Downloads and offline playback and writes `download-report.txt`, which the job asserts |
+
+Files live in `Application Support/BitChordDownloads/`, one `.m4a` per track plus
+`index.json`. The index is pruned on load of any entry whose file is gone.
+
+Not done in this feature: background/suspended downloads (foreground URLSession
+only), lossless or addon-source downloads, playlist sync, cache eviction and a
+storage cap, and a per-row downloaded badge outside the Downloads screen.

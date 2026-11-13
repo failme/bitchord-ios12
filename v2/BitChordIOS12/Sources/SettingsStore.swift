@@ -8,6 +8,9 @@ enum SettingKind {
     /// Row opens something that is not in this build; the text says what it
     /// would need, and tapping explains rather than pretending to navigate.
     case page(String)
+    /// A row that reports live state (how much disk downloads use) and opens the
+    /// screen where that state can be changed.
+    case storage
     /// Row is shown for parity but has no effect here; the reason is surfaced to the user.
     case unavailable(String)
 }
@@ -197,11 +200,14 @@ enum SettingsCatalog {
 
         SettingSection(title: "Library & downloads", items: [
             SettingItem(key: "BitChord.Download.Quality", title: "Download quality",
-                        kind: .unavailable("Download manager is not ported.")),
-            SettingItem(key: "BitChord.Download.WifiOnly", title: "Wi-Fi only downloads",
-                        kind: .unavailable("Download manager is not ported.")),
+                        detail: "Per track, whatever the connection",
+                        kind: .choice("High", DownloadQuality.all)),
+            SettingItem(key: "BitChord.Download.WifiOnly", title: "Download over Wi-Fi only",
+                        kind: .toggle(true)),
+            SettingItem(key: "BitChord.Download.Storage", title: "Storage used",
+                        kind: .storage),
             SettingItem(key: "BitChord.Download.KeepUpdated", title: "Keep downloads updated",
-                        kind: .unavailable("Download manager is not ported.")),
+                        kind: .unavailable("Playlist sync is not ported.")),
             SettingItem(key: "BitChord.Download.ExportCompatible", title: "Export compatible files",
                         kind: .unavailable("Download manager is not ported.")),
             SettingItem(key: "BitChord.LocalMusic.SelectedFolder", title: "Local music folder",

@@ -12,6 +12,12 @@ final class SettingsViewController: UIViewController {
 
     private let card = UIColor(red: 0x1C / 255.0, green: 0x1C / 255.0, blue: 0x1E / 255.0, alpha: 1)
 
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        // Storage used is live state: it changes as downloads come and go.
+        tableView.reloadData()
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = Theme.background
@@ -170,6 +176,11 @@ extension SettingsViewController: UITableViewDataSource, UITableViewDelegate {
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
         let item = sections[indexPath.section].items[indexPath.row]
+        if case .storage = item.kind {
+            let downloads = DownloadsViewController()
+            downloads.modalPresentationStyle = .fullScreen
+            present(downloads, animated: true, completion: nil)
+        }
         if case .page(let explanation) = item.kind {
             let alert = UIAlertController(title: item.title, message: explanation, preferredStyle: .alert)
             alert.addAction(UIAlertAction(title: "OK", style: .default, handler: nil))
@@ -352,6 +363,9 @@ final class SettingsCell: UITableViewCell {
                 : "\(Int(value))\(unit)"
             showsChevron = true
             trailingValue = true
+        case .storage:
+            detailLabel.text = DownloadStore.shared.storageText()
+            showsChevron = true
         case .unavailable:
             // The real app greys the row out; a subtitle, where it has one,
             // explains why the row is inert rather than hiding the reason.

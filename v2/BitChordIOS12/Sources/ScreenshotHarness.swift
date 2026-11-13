@@ -9,6 +9,13 @@ import UIKit
 enum ScreenshotHarness {
     static func runIfRequested() {
         let arguments = ProcessInfo.processInfo.arguments
+        // A first launch downloads one track and exits; CI then relaunches with
+        // -BCScreenshots, so the capture proves the index survived a restart
+        // rather than reading back this process's memory.
+        if let seed = arguments.firstIndex(of: "-BCSeedDownload"), seed + 1 < arguments.count {
+            seedDownload(directory: URL(fileURLWithPath: arguments[seed + 1], isDirectory: true))
+            return
+        }
         guard let flag = arguments.firstIndex(of: "-BCScreenshots"),
               flag + 1 < arguments.count else { return }
         let directory = URL(fileURLWithPath: arguments[flag + 1], isDirectory: true)
@@ -72,12 +79,100 @@ enum ScreenshotHarness {
                     player.present(settings, animated: false) {
                         DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
                             write(window: window, name: "settings", directory: directory)
-                            exit(0)
+                            captureDownloads(window: window, root: root, directory: directory)
                         }
                     }
                 }
             }
         }
+    }
+
+    // MARK: - Downloads
+
+    /// Downloads one track and writes what happened beside the screenshots.
+    private static func seedDownload(directory: URL) {
+        try? FileManager.default.createDirectory(at: directory,
+                                                 withIntermediateDirectories: true,
+                                                 attributes: nil)
+        var report = ["seed: start"]
+        CatalogueSearch.shared.songs("Blinding Lights The Weeknd") { tracks in
+            guard let track = tracks.first else {
+                report.append("seed: no search results")
+                writeReport(report.joined(separator: "\n"), directory: directory)
+                exit(0)
+            }
+            report.append("seed: track \(track.title) / \(track.artist)")
+            if DownloadStore.shared.isDownloaded(track.videoID) {
+                report.append("seed: already downloaded")
+                writeReport(report.joined(separator: "\n"), directory: directory)
+                exit(0)
+            }
+            DownloadStore.shared.download(track) { ok, message in
+                report.append("seed: download ok=\(ok) message=\(message)")
+                report.append("seed: saved=\(DownloadStore.shared.saved.count)")
+                report.append("seed: bytes=\(DownloadStore.shared.totalBytes)")
+                if let url = DownloadStore.shared.localURL(for: track.videoID) {
+                    report.append("seed: file=\(url.lastPathComponent)")
+                    let size = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? NSNumber)?.int64Value ?? 0
+                    report.append("seed: fileBytes=\(size)")
+                } else {
+                    report.append("seed: no local file")
+                }
+                writeReport(report.joined(separator: "\n"), directory: directory)
+                exit(0)
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 120) {
+            report.append("seed: timed out")
+            writeReport(report.joined(separator: "\n"), directory: directory)
+            exit(0)
+        }
+    }
+
+    /// Photographs the Downloads screen, then plays the saved file and
+    /// photographs the player — recording whether the engine really took the
+    /// local path rather than a stream.
+    private static func captureDownloads(window: UIWindow, root: RootViewController, directory: URL) {
+        var report: [String] = []
+        let store = DownloadStore.shared
+        report.append("saved=\(store.saved.count)")
+        report.append("totalBytes=\(store.totalBytes)")
+        if let item = store.saved.first {
+            let url = store.localURL(for: item.track.videoID)
+            report.append("first=\(item.track.title)")
+            report.append("fileExists=\(url != nil)")
+            report.append("fileBytes=\(item.byteSize)")
+        }
+
+        root.dismiss(animated: false) {
+            let downloads = DownloadsViewController()
+            downloads.modalPresentationStyle = .fullScreen
+            root.present(downloads, animated: false) {
+                write(window: window, name: "downloads", directory: directory)
+                guard let item = store.saved.first else {
+                    writeReport(report.joined(separator: "\n"), directory: directory)
+                    exit(0)
+                }
+                PlayerService.shared.play(tracks: [item.track], startingAt: 0)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 7) {
+                    report.append("localPlayback=\(AudioEngine.shared.currentIsLocal)")
+                    report.append("source=\(AudioEngine.shared.currentSourceLabel)")
+                    report.append(String(format: "position=%.1f", PlayerService.shared.currentTime))
+                    report.append("duration=\(Int(PlayerService.shared.duration))")
+                    writeReport(report.joined(separator: "\n"), directory: directory)
+                    downloads.dismiss(animated: false) { root.presentNowPlaying() }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                        write(window: window, name: "offline", directory: directory)
+                        exit(0)
+                    }
+                }
+            }
+        }
+    }
+
+    private static func writeReport(_ text: String, directory: URL) {
+        try? text.write(to: directory.appendingPathComponent("download-report.txt"),
+                        atomically: true, encoding: .utf8)
     }
 
     private static func write(window: UIWindow, name: String, directory: URL) {

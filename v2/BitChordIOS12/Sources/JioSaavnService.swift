@@ -44,9 +44,12 @@ final class JioSaavnService {
     // MARK: - Resolution
 
     /// Finds the catalogue row matching `title`/`artist` and returns its direct CDN URL.
+    /// `preferredKbps` is the download ceiling; nil keeps the player's own
+    /// choice (320 when the catalogue states the rendition exists).
     func resolve(title: String,
                  artist: String,
                  durationSeconds: Double?,
+                 preferredKbps: Int? = nil,
                  completion: @escaping (URL?, String) -> Void) {
         let parts = [title, artist].map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
         let query = parts.joined(separator: " ")
@@ -72,7 +75,7 @@ final class JioSaavnService {
                 return
             }
             self.lastIsExplicit = match.isExplicit
-            self.details(for: match.id, completion: completion)
+            self.details(for: match.id, preferredKbps: preferredKbps, completion: completion)
         }
     }
 
@@ -126,7 +129,9 @@ final class JioSaavnService {
         return best
     }
 
-    private func details(for songId: String, completion: @escaping (URL?, String) -> Void) {
+    private func details(for songId: String,
+                         preferredKbps: Int?,
+                         completion: @escaping (URL?, String) -> Void) {
         get(call: "song.getDetails", params: ["pids": songId]) { [weak self] json, error in
             guard let self = self else { return }
             guard let json = json else {
@@ -144,7 +149,8 @@ final class JioSaavnService {
                   let info = row["more_info"] as? [String: Any],
                   let encrypted = info["encrypted_media_url"] as? String, !encrypted.isEmpty,
                   let stream = self.bestStream(encrypted: encrypted,
-                                              supports320: (info["320kbps"] as? String ?? "").lowercased() == "true"),
+                                              supports320: (info["320kbps"] as? String ?? "").lowercased() == "true",
+                                              preferredKbps: preferredKbps),
                   let url = URL(string: stream.url), url.scheme?.hasPrefix("http") == true else {
                 completion(nil, "JioSaavn had no stream URL.")
                 return
@@ -162,11 +168,16 @@ final class JioSaavnService {
     /// Decrypts to the catalogue's rendition URL and upgrades to 320kbps when the
     /// catalogue states that rendition exists. Deliberately no minimum-bitrate
     /// refusal (unlike Android): on iOS 12 any playable stream beats silence.
-    private func bestStream(encrypted: String, supports320: Bool) -> (url: String, kbps: Int?)? {
+    private func bestStream(encrypted: String,
+                            supports320: Bool,
+                            preferredKbps: Int?) -> (url: String, kbps: Int?)? {
         guard let decrypted = decrypt(encrypted), !decrypted.isEmpty else { return nil }
         guard let match = renditionMatch(in: decrypted) else { return (decrypted, nil) }
-        guard supports320 else { return (decrypted, match.kbps) }
-        return (decrypted.replacingCharacters(in: match.range, with: "_320." + match.ext), 320)
+        // A download ceiling lowers the rendition; it never asks the catalogue
+        // for a 320 file it has already said does not exist.
+        var target = preferredKbps ?? 320
+        if target >= 320 && !supports320 { target = 160 }
+        return (decrypted.replacingCharacters(in: match.range, with: "_\(target)." + match.ext), target)
     }
 
     private func renditionMatch(in url: String) -> (range: Range<String.Index>, kbps: Int, ext: String)? {

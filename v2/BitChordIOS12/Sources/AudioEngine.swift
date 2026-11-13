@@ -95,6 +95,11 @@ final class AudioEngine {
         mode == .native ? native.sourceLabel : ""
     }
 
+    /// True when the loaded item is a downloaded file rather than a stream.
+    var currentIsLocal: Bool {
+        mode == .native ? native.isPlayingLocalFile : false
+    }
+
     /// Whether the loaded item was flagged explicit (Apple-style E badge).
     var currentIsExplicit: Bool {
         mode == .native ? native.lastExplicit : false
@@ -126,6 +131,12 @@ final class AudioEngine {
         web.stop()
         mode = .native
         nativeFailure = ""
+        // A downloaded track never touches the network: it is the same engine,
+        // queue and lock screen, reading a file instead of a URL.
+        if let local = DownloadStore.shared.localURL(for: track.videoID) {
+            native.playLocal(url: local, track: track)
+            return
+        }
         native.play(track: track) { [weak self] resolved in
             guard let self = self else { return }
             guard !resolved else { return }

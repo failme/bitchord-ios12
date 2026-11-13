@@ -166,7 +166,7 @@ final class LibraryViewController: UIViewController {
         var index = 0
         for title in rows {
             let row = LibraryRowButton(title: title,
-                                       icon: index == 0 ? .musicNote : .list)
+                                       icon: index == 0 ? .download : .list)
             row.addTarget(self, action: #selector(rowTapped(_:)), for: .touchUpInside)
             row.tag = index
             rowsHolder.addArrangedSubview(row)
@@ -288,7 +288,7 @@ final class LibraryViewController: UIViewController {
 
     @objc private func rowTapped(_ sender: LibraryRowButton) {
         if sender.tag == 0 {
-            push([], title: "Downloads", empty: "No downloads yet.")
+            navigationController?.pushViewController(DownloadsViewController(), animated: true)
         } else {
             push([], title: "Local Music", empty: "No local files found.")
         }

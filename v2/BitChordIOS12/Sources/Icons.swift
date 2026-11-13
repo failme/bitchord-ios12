@@ -13,7 +13,7 @@ enum Icons {
         case ellipsis
         case chevronDown, chevronRight, chevronLeft
         case search, close, plus
-        case musicNote, headphones
+        case musicNote, headphones, download
         case house, compass, library, list, gear
         case grid, books, person, logo
         case globe, cast, bubble, speaker
@@ -335,6 +335,23 @@ enum Icons {
                 l.addLine(to: pt(0.74, y))
                 stroke(l)
             }
+        case .download:
+            // Arrow into a tray, the glyph the real Downloads row uses.
+            let shaft = UIBezierPath()
+            shaft.move(to: pt(0.50, 0.20))
+            shaft.addLine(to: pt(0.50, 0.56))
+            stroke(shaft)
+            let head = UIBezierPath()
+            head.move(to: pt(0.35, 0.43))
+            head.addLine(to: pt(0.50, 0.58))
+            head.addLine(to: pt(0.65, 0.43))
+            stroke(head)
+            let tray = UIBezierPath()
+            tray.move(to: pt(0.26, 0.62))
+            tray.addLine(to: pt(0.26, 0.78))
+            tray.addLine(to: pt(0.74, 0.78))
+            tray.addLine(to: pt(0.74, 0.62))
+            stroke(tray)
         case .headphones:
             let band = UIBezierPath(arcCenter: pt(0.50, 0.52), radius: 0.26 * s,
                                     startAngle: .pi, endAngle: 0, clockwise: true)

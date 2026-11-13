@@ -32,6 +32,8 @@ final class NativeAudioPlayer: NSObject {
     private var currentTrack: Track?
     /// Which catalogue served the loaded item ("JioSaavn 320kbps", "YouTube", or "").
     private(set) var sourceLabel = ""
+    /// Whether the loaded item came off disk rather than the network.
+    private(set) var isPlayingLocalFile = false
     private(set) var lastExplicit = false
     private(set) var lastDiagnostic = ""
     private(set) var diagnosticsSummary = "native: idle"
@@ -61,10 +63,30 @@ final class NativeAudioPlayer: NSObject {
 
     // MARK: - Loading
 
+    /// Plays a file that is already on the device. No resolve, no network: the
+    /// same AVPlayer, transport, clock and end-of-item handling as a stream.
+    func playLocal(url: URL, track: Track) {
+        currentVideoId = track.videoID
+        currentTrack = track
+        sourceLabel = "Downloaded"
+        lastExplicit = track.isExplicit
+        isPausedByUser = false
+        isReady = false
+        isPlayingLocalFile = true
+        lastKnownPosition = 0
+        lastProgressDate = Date()
+        secondsSinceProgress = 0
+        requestTicket += 1
+        lastDiagnostic = ""
+        diagnosticsSummary = "native: local file"
+        start(url: url, at: 0)
+    }
+
     func play(track: Track, at position: Double = 0, completion: @escaping (Bool) -> Void) {
         currentVideoId = track.videoID
         currentTrack = track
         sourceLabel = ""
+        isPlayingLocalFile = false
         lastExplicit = false
         isPausedByUser = false
         isReady = false
