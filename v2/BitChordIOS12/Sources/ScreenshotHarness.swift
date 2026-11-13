@@ -238,17 +238,24 @@ enum ScreenshotHarness {
         }
     }
 
-    /// Waits for a percentage that is genuinely mid-transfer, then shoots it.
+    /// Waits for a percentage that is clearly mid-transfer, then shoots it. The
+    /// last real partial value is kept, so a transfer that outruns the camera
+    /// still gets the best frame it produced rather than a 0% one.
     private static func snapProgress(_ capture: DownloadCapture, track: Track, attempt: Int,
-                                     then: @escaping () -> Void) {
+                                     best: Double = 0, then: @escaping () -> Void) {
         let fraction = capture.store.progress(for: track.videoID) ?? 0
-        if (fraction > 0.02 && fraction < 0.98) || attempt >= 8 {
-            capture.report.append("progress.captured=\(Int((fraction * 100).rounded()))")
+        let partial = fraction > 0 && fraction < 0.98 ? fraction : 0
+        let bestNow = max(best, partial)
+        if bestNow >= 0.2 || attempt >= 12 {
+            let percent = Int((bestNow * 100).rounded())
+            capture.report.append("progress.captured=\(percent)")
             capture.shot("download-progress")
             then()
             return
         }
-        after(0.8) { snapProgress(capture, track: track, attempt: attempt + 1, then: then) }
+        after(0.6) {
+            snapProgress(capture, track: track, attempt: attempt + 1, best: bestNow, then: then)
+        }
     }
 
     private static func captureSettings(_ capture: DownloadCapture, host: UIViewController) {
