@@ -282,7 +282,7 @@ enum ScreenshotHarness {
             }
             capture.extraTrack = untouched
             capture.store.progressPace = 1.5
-            capture.store.download(downloading) { _ in }
+            capture.store.download(downloading) { _, _ in }
             after(0.8) {
                 host.dismiss(animated: false) {
                     let list = TrackListViewController()
