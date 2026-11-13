@@ -288,7 +288,7 @@ jobs:
           # download sequence (resume check, offline playback, delete, quality
           # probe, mid-transfer shot, menus, Wi-Fi hold). It writes done.txt
           # when finished, so wait for the work rather than guessing.
-          for i in $(seq 1 240); do
+          for i in $(seq 1 480); do
             [ -f "$CONTAINER/Documents/shots/done.txt" ] && break
             sleep 2
           done
