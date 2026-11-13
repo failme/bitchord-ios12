@@ -14,6 +14,11 @@ final class RootViewController: UIViewController {
     private let overlayPadding: CGFloat = 8
     private let overlayInset: CGFloat = 16
 
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        presentOnboardingIfNeeded()
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = Theme.background
@@ -136,6 +141,29 @@ final class RootViewController: UIViewController {
     /// Drives the tabs for the screenshot harness.
     func showTab(_ index: Int) {
         install(index)
+    }
+
+    func navigationForTab(_ index: Int) -> UINavigationController? {
+        guard index >= 0, index < navigations.count else { return nil }
+        return navigations[index]
+    }
+
+    /// Deep-linked "home": every tab back to its first screen.
+    func resetToHome() {
+        for navigation in navigations {
+            navigation.popToRootViewController(animated: false)
+        }
+        install(0)
+    }
+
+    /// Shows the first-run flow once; the capture harness drives it when it
+    /// wants to photograph it.
+    func presentOnboardingIfNeeded() {
+        guard !OnboardingViewController.hasCompleted,
+              presentedViewController == nil else { return }
+        let onboarding = OnboardingViewController()
+        onboarding.modalPresentationStyle = .fullScreen
+        present(onboarding, animated: false, completion: nil)
     }
 
     // MARK: - Now playing

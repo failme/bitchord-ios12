@@ -14,6 +14,14 @@ final class SettingsViewController: UIViewController {
 
     /// Brings the download rows into view so the capture can show that they
     /// carry live state (storage used) rather than placeholder copy.
+    /// The Settings row and the capture both land here; the row is what a user
+    /// taps, so the flow is exercised through the same entry point.
+    func showOnboarding() {
+        let onboarding = OnboardingViewController()
+        onboarding.modalPresentationStyle = .fullScreen
+        present(onboarding, animated: true, completion: nil)
+    }
+
     func scrollToDownloadSection() {
         guard let section = sections.firstIndex(where: { section in
             section.items.contains(where: { $0.key == "BitChord.Download.Storage" })
@@ -240,6 +248,12 @@ extension SettingsViewController: UITableViewDataSource, UITableViewDelegate {
         if case .cache(let which) = item.kind {
             clearCache(which)
         }
+        if case .onboarding = item.kind {
+            showOnboarding()
+        }
+        if case .sources = item.kind {
+            navigationController?.pushViewController(SourcesViewController(), animated: true)
+        }
         if case .page(let explanation) = item.kind {
             let alert = UIAlertController(title: item.title, message: explanation, preferredStyle: .alert)
             alert.addAction(UIAlertAction(title: "OK", style: .default, handler: nil))
@@ -436,7 +450,7 @@ final class SettingsCell: UITableViewCell {
             // The real app greys the row out; a subtitle, where it has one,
             // explains why the row is inert rather than hiding the reason.
             available = false
-        case .page:
+        case .page, .onboarding, .sources:
             showsChevron = true
         case .toggle:
             showsChevron = false

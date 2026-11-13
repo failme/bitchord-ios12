@@ -34,6 +34,18 @@ enum ScreenshotHarness {
                              label: label)
             return
         }
+        // A separate 320x568 launch just for the first-run flow.
+        if let flag = arguments.firstIndex(of: "-BCOnboardingOnly"), flag + 1 < arguments.count {
+            let directory = URL(fileURLWithPath: arguments[flag + 1], isDirectory: true)
+            try? FileManager.default.createDirectory(at: directory,
+                                                     withIntermediateDirectories: true,
+                                                     attributes: nil)
+            OnboardingViewController.reset()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+                captureOnboardingOnly(directory: directory)
+            }
+            return
+        }
         guard let flag = arguments.firstIndex(of: "-BCScreenshots"),
               flag + 1 < arguments.count else { return }
         let directory = URL(fileURLWithPath: arguments[flag + 1], isDirectory: true)
@@ -49,6 +61,93 @@ enum ScreenshotHarness {
     private static func capture(directory: URL) {
         guard let window = UIApplication.shared.keyWindow,
               let root = window.rootViewController as? RootViewController else { return }
+        let capture = DownloadCapture(window: window, root: root, directory: directory)
+        let begin = { captureTabs(window: window, root: root, directory: directory) }
+        if let onboarding = root.presentedViewController as? OnboardingViewController {
+            captureOnboarding(onboarding, capture: capture, completion: begin)
+        } else {
+            begin()
+        }
+    }
+
+    /// The first-run flow, photographed step by step before the tabs are shown.
+    private static func captureOnboarding(_ onboarding: OnboardingViewController,
+                                         capture: DownloadCapture,
+                                         completion: @escaping () -> Void) {
+        capture.report.append("onboarding.shown=true")
+        capture.report.append("onboarding.step1=\(onboarding.stepTitle)")
+        capture.shot("onboarding-welcome")
+        onboarding.advanceForCapture()
+        after(0.4) {
+            capture.report.append("onboarding.step2=\(onboarding.stepTitle)")
+            capture.shot("onboarding-tour")
+            onboarding.advanceForCapture()
+            after(0.4) {
+                capture.report.append("onboarding.step3=\(onboarding.stepTitle)")
+                capture.shot("onboarding-library")
+                onboarding.chooseLocalForCapture()
+                after(0.4) {
+                    capture.report.append("onboarding.step4=\(onboarding.stepTitle)")
+                    capture.shot("onboarding-ready")
+                    onboarding.advanceForCapture()
+                    after(0.8) {
+                        capture.report.append("onboarding.completed=\(OnboardingViewController.hasCompleted)")
+                        capture.report.append("onboarding.dismissed=\(capture.root.presentedViewController == nil)")
+                        capture.checkpoint()
+                        completion()
+                    }
+                }
+            }
+        }
+    }
+
+    /// A 320x568 launch: the same flow, checking every control lands on screen.
+    private static func captureOnboardingOnly(directory: URL) {
+        guard let window = UIApplication.shared.keyWindow,
+              let root = window.rootViewController as? RootViewController,
+              let onboarding = root.presentedViewController as? OnboardingViewController else {
+            writeText("onboarding.absent=true", name: "onboarding-small-report.txt", directory: directory)
+            exit(0)
+            return
+        }
+        var report: [String] = []
+        report.append("onboarding.shown=true")
+        report.append("onboarding.window=\(Int(window.bounds.width))x\(Int(window.bounds.height))")
+        let within = { (controller: OnboardingViewController) -> Bool in
+            let frame = controller.primaryFrameInWindow
+            return frame.maxY <= controller.view.bounds.height + 0.5 && frame.maxY <= window.bounds.height
+        }
+        report.append("onboarding.primaryVisible=\(within(onboarding))")
+        write(window: window, name: "onboarding-small-welcome", directory: directory)
+        report.append("onboarding.step1=\(onboarding.stepTitle)")
+        onboarding.advanceForCapture()
+        after(0.3) {
+            report.append("onboarding.step2=\(onboarding.stepTitle)")
+            report.append("onboarding.primaryVisible2=\(within(onboarding))")
+            write(window: window, name: "onboarding-small-tour", directory: directory)
+            onboarding.advanceForCapture()
+            after(0.3) {
+                report.append("onboarding.step3=\(onboarding.stepTitle)")
+                report.append("onboarding.primaryVisible3=\(within(onboarding))")
+                write(window: window, name: "onboarding-small-library", directory: directory)
+                onboarding.chooseLocalForCapture()
+                after(0.3) {
+                    report.append("onboarding.step4=\(onboarding.stepTitle)")
+                    report.append("onboarding.primaryVisible4=\(within(onboarding))")
+                    write(window: window, name: "onboarding-small-ready", directory: directory)
+                    onboarding.advanceForCapture()
+                    after(0.8) {
+                        report.append("onboarding.completed=\(OnboardingViewController.hasCompleted)")
+                        report.append("onboarding.dismissed=\(root.presentedViewController == nil)")
+                        writeText(report.joined(separator: "\n"), name: "onboarding-small-report.txt", directory: directory)
+                        exit(0)
+                    }
+                }
+            }
+        }
+    }
+
+    private static func captureTabs(window: UIWindow, root: RootViewController, directory: URL) {
         let names = ["home", "explore", "library", "search"]
         var index = 0
         var step: (() -> Void)?
@@ -287,7 +386,21 @@ enum ScreenshotHarness {
                     capture.shot("settings-downloads")
                     capture.report.append("settings.storage=\(capture.store.storageText())")
                     capture.checkpoint()
-                    settings.dismiss(animated: false) { captureSheets(capture, host: host) }
+                    // Re-run the flow from the real Settings entry point.
+                    settings.showOnboarding()
+                    after(0.8) {
+                        if let rerun = settings.presentedViewController as? OnboardingViewController {
+                            capture.report.append("onboarding.rerun=true")
+                            capture.report.append("onboarding.rerunTitle=\(rerun.stepTitle)")
+                            capture.shot("onboarding-rerun")
+                            rerun.dismiss(animated: false) {
+                                settings.dismiss(animated: false) { captureSheets(capture, host: host) }
+                            }
+                        } else {
+                            capture.report.append("onboarding.rerun=false")
+                            settings.dismiss(animated: false) { captureSheets(capture, host: host) }
+                        }
+                    }
                 }
             }
         }
@@ -1090,7 +1203,81 @@ enum ScreenshotHarness {
                 if met {
                     capture.shot("autoplay")
                 }
-                cacheProbe(capture)
+                webdavProbe(capture)
+            }
+        }
+    }
+
+    /// A real WebDAV server (started by CI on the runner) reached from the
+    /// simulator: list, browse, stream, then the wrong-password path.
+    private static func webdavProbe(_ capture: DownloadCapture) {
+        writeDeepLinkIDs(capture)
+        let environment = ProcessInfo.processInfo.environment
+        guard let base = environment["BC_WEBDAV_URL"], !base.isEmpty else {
+            capture.report.append("webdav.env=false")
+            cacheProbe(capture)
+            return
+        }
+        let username = environment["BC_WEBDAV_USER"] ?? ""
+        let password = environment["BC_WEBDAV_PASS"] ?? ""
+        let sources = SourcesViewController()
+        capture.root.present(chrome(sources), animated: false) {
+            after(0.5) {
+                sources.connectForCapture(url: base, username: username, password: password)
+                waitUntil({ !sources.isBusy && !sources.entryNames.isEmpty }, timeout: 20) { listed in
+                    capture.report.append("webdav.listed=\(listed)")
+                    capture.report.append("webdav.root=\(sources.entryNames.joined(separator: "|"))")
+                    capture.report.append("webdav.hasMusic=\(sources.entryNames.contains("Music"))")
+                    capture.shot("webdav-tree")
+                    guard let folder = sources.browseForCapture(named: "Music") else {
+                        capture.report.append("webdav.folder=false")
+                        capture.checkpoint()
+                        capture.root.dismiss(animated: false) { cacheProbe(capture) }
+                        return
+                    }
+                    waitUntil({ !folder.isBusy && !folder.entryNames.isEmpty }, timeout: 20) { nested in
+                        capture.report.append("webdav.folder=\(nested) \(folder.entryNames.joined(separator: "|"))")
+                        capture.report.append("webdav.hasTrack=\(folder.entryNames.contains("track.m4a"))")
+                        folder.playForCapture(named: "track.m4a")
+                        waitUntil({ PlayerService.shared.currentTrack?.videoID.hasPrefix("webdav:") == true }, timeout: 20) { started in
+                            capture.report.append("webdav.playing=\(started)")
+                            capture.report.append("webdav.title=\(PlayerService.shared.currentTrack?.title ?? "")")
+                            waitUntil({ PlayerService.shared.isPlaying }, timeout: 20) { audible in
+                                capture.report.append("webdav.isPlaying=\(audible)")
+                                capture.shot("webdav-playing")
+                                capture.checkpoint()
+                                capture.root.dismiss(animated: false) {
+                                    let bad = SourcesViewController()
+                                    capture.root.present(chrome(bad), animated: false) {
+                                        bad.connectForCapture(url: base, username: username, password: "wrong-password")
+                                        waitUntil({ !bad.isBusy && !bad.errorText.isEmpty }, timeout: 20) { failed in
+                                            capture.report.append("webdav.authErrorShown=\(failed)")
+                                            capture.report.append("webdav.authError=\(bad.errorText)")
+                                            capture.shot("webdav-error")
+                                            capture.checkpoint()
+                                            bad.dismiss(animated: false) { cacheProbe(capture) }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Real catalogue ids for the deep-link run; CI opens the scheme with them
+    /// once the capture has finished.
+    private static func writeDeepLinkIDs(_ capture: DownloadCapture) {
+        var lines: [String] = []
+        if let seed = capture.seedTrack { lines.append("track=\(seed.videoID)") }
+        if let playlist = LibraryStore.shared.playlists.first { lines.append("playlist=\(playlist.id)") }
+        InnerTube.shared.searchCollections("Ed Sheeran", filter: .artists) { artists in
+            if let id = artists.first?.browseID { lines.append("artist=\(id)") }
+            InnerTube.shared.searchCollections("Divide", filter: .albums) { albums in
+                if let id = albums.first?.browseID { lines.append("album=\(id)") }
+                writeText(lines.joined(separator: "\n"), name: "deeplink-ids.txt", directory: capture.directory)
             }
         }
     }
@@ -1223,6 +1410,9 @@ enum ScreenshotHarness {
         // Read-back of the playlist the previous process synced: a fresh launch
         // reads it off disk, so this is the relaunch proof, not memory.
         report.append("verify.playlists=\(LibraryStore.shared.playlists.count)")
+        // A fresh process after the first-run flow must not show it again.
+        report.append("verify.onboardingCompleted=\(OnboardingViewController.hasCompleted)")
+        report.append("verify.onboardingPresented=\(UIApplication.shared.keyWindow?.rootViewController?.presentedViewController is OnboardingViewController)")
         if let playlist = LibraryStore.shared.playlists.first(where: { $0.id.hasPrefix("remote:") }) {
             report.append("verify.playlistTitle=\(playlist.title)")
             report.append("verify.playlistTracks=\(playlist.tracks.count)")

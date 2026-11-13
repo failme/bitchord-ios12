@@ -82,6 +82,26 @@ final class NativeAudioPlayer: NSObject {
         start(url: url, at: 0)
     }
 
+    /// Streams a remote file with request headers. `AVURLAssetHTTPHeaderFieldsKey`
+    /// is the only way iOS 12 lets AVPlayer send Authorization; there is no
+    /// public per-request header API before iOS 16's AVPlayerItem delegates.
+    func playRemote(url: URL, headers: [String: String], track: Track) {
+        currentVideoId = track.videoID
+        currentTrack = track
+        sourceLabel = "WebDAV"
+        lastExplicit = false
+        isPausedByUser = false
+        isReady = false
+        isPlayingLocalFile = false
+        lastKnownPosition = 0
+        lastProgressDate = Date()
+        secondsSinceProgress = 0
+        requestTicket += 1
+        lastDiagnostic = ""
+        diagnosticsSummary = "native: remote file"
+        start(url: url, at: 0, headers: headers)
+    }
+
     func play(track: Track, at position: Double = 0, completion: @escaping (Bool) -> Void) {
         currentVideoId = track.videoID
         currentTrack = track
@@ -128,10 +148,13 @@ final class NativeAudioPlayer: NSObject {
         }
     }
 
-    private func start(url: URL, at position: Double) {
+    private func start(url: URL, at position: Double, headers: [String: String] = [:]) {
         teardownItem()
 
-        let newItem = AVPlayerItem(url: url)
+        let asset = headers.isEmpty
+            ? AVURLAsset(url: url)
+            : AVURLAsset(url: url, options: ["AVURLAssetHTTPHeaderFieldsKey": headers])
+        let newItem = AVPlayerItem(asset: asset)
         item = newItem
         lastProgressDate = Date()
         secondsSinceProgress = 0

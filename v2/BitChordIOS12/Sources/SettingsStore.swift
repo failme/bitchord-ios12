@@ -17,6 +17,10 @@ enum SettingKind {
     case cache(String)
     /// Row is shown for parity but has no effect here; the reason is surfaced to the user.
     case unavailable(String)
+    /// Re-opens the first-run flow.
+    case onboarding
+    /// Opens the WebDAV source browser.
+    case sources
 }
 
 struct SettingItem {
@@ -51,6 +55,10 @@ final class SettingsStore {
     func bool(_ key: String, _ fallback: Bool) -> Bool {
         guard defaults.object(forKey: key) != nil else { return fallback }
         return defaults.bool(forKey: key)
+    }
+
+    func data(_ key: String) -> Data? {
+        return defaults.data(forKey: key)
     }
 
     func double(_ key: String, _ fallback: Double) -> Double {
@@ -238,6 +246,9 @@ enum SettingsCatalog {
         ]),
 
         SettingSection(title: "Sources & addons", items: [
+            SettingItem(key: "BitChord.Source.WebDAV", title: "Sources & folders",
+                        detail: "WebDAV servers you can stream from",
+                        kind: .sources),
             SettingItem(key: "BitChord.Source.JioSaavn", title: "JioSaavn",
                         kind: .unavailable("Addon sources are not ported.")),
             SettingItem(key: "BitChord.Source.TrackLengthTolerance", title: "Track length tolerance",
@@ -316,7 +327,10 @@ enum SettingsCatalog {
             SettingItem(key: "BitChord.Misc.WorkOutGenres", title: "Workout genres",
                         kind: .unavailable("Workout mode is not ported.")),
             SettingItem(key: "BitChord.Misc.AppLanguage", title: "Language",
-                        kind: .choice("System", ["System", "English", "Indonesian"]))
+                        kind: .choice("System", ["System", "English", "Indonesian"])),
+            SettingItem(key: "BitChord.Misc.ShowOnboarding", title: "Show onboarding again",
+                        detail: "Welcome, tour and library choice",
+                        kind: .onboarding)
         ]),
 
         SettingSection(title: "Performance & advanced", items: [

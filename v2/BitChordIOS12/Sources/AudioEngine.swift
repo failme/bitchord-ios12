@@ -131,6 +131,15 @@ final class AudioEngine {
         web.stop()
         mode = .native
         nativeFailure = ""
+        // A WebDAV file streams from its own URL with the stored credentials,
+        // through the same player and end-of-item handling as a local file.
+        if track.videoID.hasPrefix("webdav:"),
+           let url = URL(string: String(track.videoID.dropFirst("webdav:".count))) {
+            let credentials = WebDAVStore.shared.credentials(for: url)
+            let headers = credentials.map { ["Authorization": WebDAVClient.basic(username: $0.0, password: $0.1)] } ?? [:]
+            native.playRemote(url: url, headers: headers, track: track)
+            return
+        }
         // A downloaded track never touches the network: it is the same engine,
         // queue and lock screen, reading a file instead of a URL.
         if let local = DownloadStore.shared.localURL(for: track.videoID) {

@@ -271,6 +271,24 @@ jobs:
             cat /tmp/addon-server.log 2>/dev/null || true
             exit 1
           }
+          # The WebDAV fixture the simulator connects to: a known tree, one
+          # real AAC file, and Basic auth so the wrong-password path is real.
+          mkdir -p /tmp/webdav/Music/Nested
+          cp /tmp/bc_lossless.m4a /tmp/webdav/Music/track.m4a
+          printf 'BitChord WebDAV fixture\n' > /tmp/webdav/readme.txt
+          python3 tools/webdav_server.py --port 8791 --user demo --password secret \
+            --root /tmp/webdav > /tmp/webdav-server.log 2>&1 &
+          WEBDAV_PID=$!
+          for i in $(seq 1 20); do
+            curl -sf -u demo:secret -X PROPFIND -H 'Depth: 1' http://127.0.0.1:8791/ > /dev/null && break
+            sleep 0.5
+          done
+          curl -sf -u demo:secret -X PROPFIND -H 'Depth: 1' http://127.0.0.1:8791/ \
+            | grep -q 'Music' || {
+              echo "::error ::WebDAV fixture did not start"
+              cat /tmp/webdav-server.log 2>/dev/null || true
+              exit 1
+            }
           # First launch downloads one track and quits; the second launch below
           # reads that index back off disk, so the capture proves persistence
           # across a relaunch rather than same-process memory.
@@ -283,6 +301,9 @@ jobs:
           cat "$CONTAINER/Documents/shots/download-report.txt" 2>/dev/null || echo "(seed wrote nothing)"
           xcrun simctl terminate "$UDID" "$BUNDLE" || true
           sleep 2
+          SIMCTL_CHILD_BC_WEBDAV_URL=http://127.0.0.1:8791/ \
+          SIMCTL_CHILD_BC_WEBDAV_USER=demo \
+          SIMCTL_CHILD_BC_WEBDAV_PASS=secret \
           xcrun simctl launch "$UDID" "$BUNDLE" -BCScreenshots "$CONTAINER/Documents/shots"
           # The harness walks the tabs, plays a track, then runs the whole
           # download sequence (resume check, offline playback, delete, quality
@@ -304,6 +325,65 @@ jobs:
           cp -R "$CONTAINER/Documents/shots/." shots/ || true
           ls -l shots
           ls shots/*.png > /dev/null
+
+          # Deep links: track, album, artist, playlist, radio, home, then a
+          # cold launch from a link. Each handler records the route it resolved
+          # and the screen it put on top, so the report is readable outside.
+          IDS="$CONTAINER/Documents/shots/deeplink-ids.txt"
+          echo "### Deep link ids"
+          cat "$IDS" 2>/dev/null || true
+          id_of() { sed -n "s/^$1=//p" "$IDS" 2>/dev/null | head -1; }
+          TRACK_ID=$(id_of track); ALBUM_ID=$(id_of album)
+          ARTIST_ID=$(id_of artist); PLAYLIST_ID=$(id_of playlist)
+          test -n "$TRACK_ID" || TRACK_ID="4NRXx6U8ABQ"
+          test -n "$ALBUM_ID" || ALBUM_ID="MPREb_4pL8Y0A0Gm0"
+          test -n "$ARTIST_ID" || ARTIST_ID="UCvVp1_4kM3Q0a4V4m0P0u2g"
+          test -n "$PLAYLIST_ID" || PLAYLIST_ID="PLBCfixture"
+          echo "deep links: track=$TRACK_ID album=$ALBUM_ID artist=$ARTIST_ID playlist=$PLAYLIST_ID"
+          open_link() {
+            xcrun simctl openurl "$UDID" "$1" || true
+            sleep 4
+          }
+          xcrun simctl terminate "$UDID" "$BUNDLE" || true
+          sleep 1
+          open_link "bitchord://track/$TRACK_ID"
+          xcrun simctl io "$UDID" screenshot shots/deeplink-track.png > /dev/null 2>&1 || true
+          open_link "bitchord://album/$ALBUM_ID"
+          open_link "bitchord://artist/$ARTIST_ID"
+          open_link "bitchord://playlist/$PLAYLIST_ID"
+          open_link "bitchord://radio/$TRACK_ID"
+          open_link "bitchord://home"
+          # Cold launch: the process is not running, SpringBoard starts it from
+          # the link, and the destination must survive the launch.
+          xcrun simctl terminate "$UDID" "$BUNDLE" || true
+          sleep 2
+          open_link "bitchord://album/$ALBUM_ID"
+          sleep 3
+          xcrun simctl io "$UDID" screenshot shots/deeplink-cold.png > /dev/null 2>&1 || true
+          cp "$CONTAINER/Documents/shots/deeplinks.txt" shots/deeplinks.txt 2>/dev/null || true
+          echo "### Deep link report"
+          cat shots/deeplinks.txt 2>/dev/null || echo "(no deep link report)"
+
+          # The first-run flow on a 320x568 window: every step photographed and
+          # every primary action checked to land on the small screen.
+          xcrun simctl terminate "$UDID" "$BUNDLE" || true
+          sleep 1
+          xcrun simctl launch "$UDID" "$BUNDLE" -BCOnboardingOnly "$CONTAINER/Documents/shots" -BCSmallScreen
+          for i in $(seq 1 30); do
+            [ -f "$CONTAINER/Documents/shots/onboarding-small-report.txt" ] && break
+            sleep 2
+          done
+          cp -R "$CONTAINER/Documents/shots/." shots/ || true
+          echo "### Onboarding 320x568 report"
+          cat shots/onboarding-small-report.txt 2>/dev/null || echo "(no small-screen report)"
+          grep -q "onboarding.window=320x568" shots/onboarding-small-report.txt
+          grep -q "onboarding.primaryVisible=true" shots/onboarding-small-report.txt
+          grep -q "onboarding.primaryVisible2=true" shots/onboarding-small-report.txt
+          grep -q "onboarding.primaryVisible3=true" shots/onboarding-small-report.txt
+          grep -q "onboarding.primaryVisible4=true" shots/onboarding-small-report.txt
+          grep -q "onboarding.completed=true" shots/onboarding-small-report.txt
+          grep -q "onboarding.dismissed=true" shots/onboarding-small-report.txt
+
           REPORT=shots/download-report.txt
           echo "### Download report"
           cat "$REPORT" || { echo "::error ::no download report written"; exit 1; }
@@ -465,12 +545,51 @@ jobs:
           test -n "$AUTOPLAY"
           test "$AUTOPLAY" -ge 5
 
+          # Onboarding: shown on first launch, completed, and re-runnable from
+          # the Settings row the user actually taps.
+          grep -q "onboarding.shown=true" "$REPORT"
+          grep -q "onboarding.step1=Welcome to BitChord" "$REPORT"
+          grep -q "onboarding.step2=A quick tour" "$REPORT"
+          grep -q "onboarding.step3=Choose your library" "$REPORT"
+          grep -q "onboarding.completed=true" "$REPORT"
+          grep -q "onboarding.dismissed=true" "$REPORT"
+          grep -q "onboarding.rerun=true" "$REPORT"
+
+          # Deep links resolved to distinct screens.
+          grep -q "route=track id=$TRACK_ID screen=NowPlaying" shots/deeplinks.txt
+          grep -q "route=album id=$ALBUM_ID screen=Album" shots/deeplinks.txt
+          grep -q "route=artist id=$ARTIST_ID screen=Artist" shots/deeplinks.txt
+          grep -q "route=playlist id=$PLAYLIST_ID screen=Playlist" shots/deeplinks.txt
+          grep -q "route=radio id=$TRACK_ID screen=Radio" shots/deeplinks.txt
+          grep -q "route=home screen=Home" shots/deeplinks.txt
+          grep -q "cold=1" shots/deeplinks.txt
+          test -s shots/deeplink-track.png
+          test -s shots/deeplink-cold.png
+
+          # WebDAV: the CI-hosted tree, a streamed file, and a visible auth error.
+          grep -q "webdav.listed=true" "$REPORT"
+          grep -q "webdav.hasMusic=true" "$REPORT"
+          grep -q "webdav.folder=true" "$REPORT"
+          grep -q "webdav.hasTrack=true" "$REPORT"
+          grep -q "webdav.playing=true" "$REPORT"
+          grep -q "webdav.title=track.m4a" "$REPORT"
+          grep -q "webdav.isPlaying=true" "$REPORT"
+          grep -q "webdav.authErrorShown=true" "$REPORT"
+          grep -q "webdav.authError=Wrong username or password." "$REPORT"
+          # The fixture saw a PROPFIND and a GET for the streamed file.
+          grep -q "PROPFIND" /tmp/webdav-server.log
+          grep -q "GET /Music/track.m4a" /tmp/webdav-server.log
+
           for shot in downloads download-progress downloads-saver settings-downloads \
                       sheet-delete sheet-cancel sheet-download wifi-blocked offline downloads-empty \
                       storage-cap settings-storage library-synced playlist-synced sync-failed \
                       downloads-addon local-music local-songs queue-history radio radio-failed \
                       lyrics-karaoke artist moods settings-cache song-actions add-to-playlist \
-                      queue-edit history history-empty replay song-info autoplay; do
+                      queue-edit history history-empty replay song-info autoplay \
+                      onboarding-welcome onboarding-tour onboarding-library onboarding-ready \
+                      onboarding-rerun onboarding-small-welcome onboarding-small-tour \
+                      onboarding-small-library onboarding-small-ready \
+                      webdav-tree webdav-playing webdav-error; do
             test -s "shots/$shot.png" || { echo "::error ::missing $shot.png"; exit 1; }
           done
 
@@ -541,6 +660,7 @@ jobs:
           test "$VERIFY_HISTORY" -ge 2
           test -n "$(sed -n 's/^verify.localTitle=//p' shots/background-killed.txt | head -1)"
           test -n "$(sed -n 's/^verify.historyTop=//p' shots/background-killed.txt | head -1)"
+          grep -q "verify.onboardingCompleted=true" shots/background-killed.txt
 
           # The playlist is read back from disk in that relaunched process, and
           # has to match what the sync wrote in the process before it.
@@ -550,6 +670,7 @@ jobs:
           test -n "$SYNC_FIRST"
           test "$SYNC_FIRST" = "$VERIFY_FIRST"
           kill "$ADDON_PID" 2>/dev/null || true
+          kill "$WEBDAV_PID" 2>/dev/null || true
 
       - name: Upload screens
         if: always()
