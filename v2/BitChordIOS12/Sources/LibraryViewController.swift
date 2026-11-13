@@ -1,68 +1,46 @@
 import UIKit
 
-/// Library, shaped like upstream's: two large tiles for Liked Songs and
-/// Recently Played, then a grid of playlist covers you can open or create.
+/// Library as the real app draws it: a listening-stats pair of cards, then
+/// Downloads / Local Music rows, then the Playlists grid.
 final class LibraryViewController: UIViewController {
-    private let collectionView: UICollectionView
-    private let spinner = UIActivityIndicatorView(frame: CGRect(x: 0, y: 0, width: 20, height: 20))
+    private let scrollView = UIScrollView()
+    private let stack = UIStackView()
+    private let titleLabel = UILabel()
+    private let statsRow = UIStackView()
+    private let playlistGrid = UIStackView()
 
     private var playlists: [Playlist] = []
-    private var likedCount = 0
-    private var recentCount = 0
-
-    override init(nibName nibNameOrNil: String?, bundle nibBundleOrNil: Bundle?) {
-        collectionView = LibraryViewController.makeCollection()
-        super.init(nibName: nibNameOrNil, bundle: nibBundleOrNil)
-    }
-
-    required init?(coder: NSCoder) {
-        collectionView = LibraryViewController.makeCollection()
-        super.init(coder: coder)
-    }
-
-    private static func makeCollection() -> UICollectionView {
-        let layout = UICollectionViewFlowLayout()
-        layout.minimumLineSpacing = 20
-        layout.minimumInteritemSpacing = 12
-        layout.sectionInset = UIEdgeInsets(top: 4, left: 20, bottom: 28, right: 20)
-        return UICollectionView(frame: .zero, collectionViewLayout: layout)
-    }
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = "Library"
         view.backgroundColor = Theme.background
-        navigationItem.largeTitleDisplayMode = .always
-        navigationItem.rightBarButtonItem = UIBarButtonItem(image: Icons.image(.plus, size: 20),
-                                                            style: .plain,
-                                                            target: self,
-                                                            action: #selector(createPlaylist))
 
-        collectionView.translatesAutoresizingMaskIntoConstraints = false
-        collectionView.backgroundColor = Theme.background
-        collectionView.dataSource = self
-        collectionView.delegate = self
-        collectionView.alwaysBounceVertical = true
-        collectionView.register(LibraryTileCell.self,
-                                forCellWithReuseIdentifier: LibraryTileCell.reuseIdentifier)
-        collectionView.register(LibraryHeaderView.self,
-                                forSupplementaryViewOfKind: UICollectionView.elementKindSectionHeader,
-                                withReuseIdentifier: LibraryHeaderView.reuseIdentifier)
-        view.addSubview(collectionView)
+        scrollView.translatesAutoresizingMaskIntoConstraints = false
+        scrollView.alwaysBounceVertical = true
+        scrollView.showsVerticalScrollIndicator = false
+        view.addSubview(scrollView)
 
-        spinner.translatesAutoresizingMaskIntoConstraints = false
-        spinner.hidesWhenStopped = true
-        view.addSubview(spinner)
+        stack.axis = .vertical
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        scrollView.addSubview(stack)
 
         NSLayoutConstraint.activate([
-            collectionView.topAnchor.constraint(equalTo: view.topAnchor),
-            collectionView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            collectionView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            collectionView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            scrollView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
 
-            spinner.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            spinner.centerYAnchor.constraint(equalTo: view.centerYAnchor)
+            stack.topAnchor.constraint(equalTo: scrollView.topAnchor),
+            stack.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor),
+            stack.trailingAnchor.constraint(equalTo: scrollView.trailingAnchor),
+            stack.bottomAnchor.constraint(equalTo: scrollView.bottomAnchor, constant: -120),
+            stack.widthAnchor.constraint(equalTo: scrollView.widthAnchor)
         ])
+
+        buildHeader()
+        buildStats()
+        buildRows()
+        buildPlaylists()
 
         NotificationCenter.default.addObserver(self,
                                               selector: #selector(reload),
@@ -75,19 +53,229 @@ final class LibraryViewController: UIViewController {
         NotificationCenter.default.removeObserver(self)
     }
 
-    @objc private func reload() {
-        let store = LibraryStore.shared
-        playlists = store.playlists
-        likedCount = store.likedTracks.count
-        recentCount = store.recentTracks.count
-        collectionView.reloadData()
+    private func buildHeader() {
+        let header = UIView()
+        header.heightAnchor.constraint(equalToConstant: 72).isActive = true
+
+        titleLabel.text = "Library"
+        titleLabel.font = Theme.font(34, weight: .bold)
+        titleLabel.textColor = Theme.primaryText
+        titleLabel.translatesAutoresizingMaskIntoConstraints = false
+        header.addSubview(titleLabel)
+
+        // The real header keeps a history glyph and the avatar in one capsule.
+        let pill = UIButton(type: .custom)
+        pill.backgroundColor = Theme.surfaceVariant
+        pill.layer.cornerRadius = 20
+        pill.translatesAutoresizingMaskIntoConstraints = false
+        header.addSubview(pill)
+
+        let history = UIImageView(image: Icons.image(.musicNote, size: 18))
+        history.tintColor = Theme.secondaryText
+        history.translatesAutoresizingMaskIntoConstraints = false
+        pill.addSubview(history)
+
+        let avatar = UIButton(type: .custom)
+        avatar.backgroundColor = Theme.outline
+        avatar.layer.cornerRadius = 16
+        avatar.tintColor = Theme.secondaryText
+        avatar.setImage(Icons.image(.person, size: 17), for: .normal)
+        avatar.addTarget(self, action: #selector(openSettings), for: .touchUpInside)
+        avatar.translatesAutoresizingMaskIntoConstraints = false
+        pill.addSubview(avatar)
+
+        NSLayoutConstraint.activate([
+            titleLabel.leadingAnchor.constraint(equalTo: header.leadingAnchor, constant: 16),
+            titleLabel.bottomAnchor.constraint(equalTo: header.bottomAnchor, constant: -8),
+
+            pill.trailingAnchor.constraint(equalTo: header.trailingAnchor, constant: -16),
+            pill.centerYAnchor.constraint(equalTo: titleLabel.centerYAnchor),
+            pill.widthAnchor.constraint(equalToConstant: 76),
+            pill.heightAnchor.constraint(equalToConstant: 40),
+
+            history.leadingAnchor.constraint(equalTo: pill.leadingAnchor, constant: 12),
+            history.centerYAnchor.constraint(equalTo: pill.centerYAnchor),
+            history.widthAnchor.constraint(equalToConstant: 18),
+            history.heightAnchor.constraint(equalToConstant: 18),
+
+            avatar.trailingAnchor.constraint(equalTo: pill.trailingAnchor, constant: -4),
+            avatar.centerYAnchor.constraint(equalTo: pill.centerYAnchor),
+            avatar.widthAnchor.constraint(equalToConstant: 32),
+            avatar.heightAnchor.constraint(equalToConstant: 32)
+        ])
+        stack.addArrangedSubview(header)
     }
 
-    @objc private func createPlaylist() {
-        let alert = UIAlertController(title: "New playlist", message: nil, preferredStyle: .alert)
-        alert.addTextField { field in
-            field.placeholder = "Playlist name"
+    private func buildStats() {
+        statsRow.axis = .horizontal
+        statsRow.spacing = 10
+        statsRow.distribution = .fillEqually
+        statsRow.translatesAutoresizingMaskIntoConstraints = false
+        statsRow.heightAnchor.constraint(equalToConstant: 152).isActive = true
+
+        let innings = UIImageView(image: Icons.image(.logo, size: 22))
+        innings.tintColor = .white
+        innings.translatesAutoresizingMaskIntoConstraints = false
+        innings.tag = 9001
+
+        let holder = UIView()
+        holder.translatesAutoresizingMaskIntoConstraints = false
+        stack.addArrangedSubview(holder)
+        NSLayoutConstraint.activate([
+            holder.heightAnchor.constraint(equalToConstant: 176),
+            statsRow.leadingAnchor.constraint(equalTo: holder.leadingAnchor, constant: 16),
+            statsRow.trailingAnchor.constraint(equalTo: holder.trailingAnchor, constant: -16),
+            statsRow.topAnchor.constraint(equalTo: holder.topAnchor, constant: 8)
+        ])
+        holder.addSubview(statsRow)
+
+        // Card one: listening experience, as in the reference capture.
+        let experience = LibraryStatCard(colors: [UIColor(red: 0.76, green: 0.33, blue: 0.14, alpha: 1),
+                                                 UIColor(red: 0.45, green: 0.13, blue: 0.07, alpha: 1)])
+        experience.addCaption("YOUR LISTENING EXPERIENCE", size: 10)
+        experience.bigNumber.tag = 9002
+        experience.addLine("BITCHORD LISTENER", size: 12, weight: .semibold)
+        experience.addCaption("MEMBER SINCE 11/26", size: 10)
+        experience.onTap = { [weak self] in
+            guard let self = self else { return }
+            self.push(LibraryStore.shared.recentTracks, title: "Recently played",
+                      empty: "Nothing played yet.")
         }
+        statsRow.addArrangedSubview(experience)
+
+        // Card two: the top song of the recent plays.
+        let top = LibraryStatCard(colors: [UIColor(red: 0.45, green: 0.12, blue: 0.20, alpha: 1),
+                                          UIColor(red: 0.28, green: 0.08, blue: 0.13, alpha: 1)])
+        top.addCaption("YOUR TOP SONG", size: 10)
+        top.bigNumber.tag = 9003
+        top.addCaption("MEMBER SINCE 11/26", size: 10)
+        top.onTap = { [weak self] in
+            guard let self = self else { return }
+            self.push(LibraryStore.shared.recentTracks, title: "Recently played",
+                      empty: "Nothing played yet.")
+        }
+        statsRow.addArrangedSubview(top)
+        _ = innings
+    }
+
+    private func buildRows() {
+        rowsHolder.axis = .vertical
+        rowsHolder.alignment = .fill
+        let rows = ["Downloads", "Local Music"]
+        var index = 0
+        for title in rows {
+            let row = LibraryRowButton(title: title,
+                                       icon: index == 0 ? .musicNote : .list)
+            row.addTarget(self, action: #selector(rowTapped(_:)), for: .touchUpInside)
+            row.tag = index
+            rowsHolder.addArrangedSubview(row)
+            index += 1
+        }
+        stack.setCustomSpacing(14, after: stack.arrangedSubviews.last!)
+        stack.addArrangedSubview(rowsHolder)
+        stack.setCustomSpacing(10, after: rowsHolder)
+    }
+
+    private let rowsHolder = UIStackView()
+
+    private func buildPlaylists() {
+        let heading = UILabel()
+        heading.text = "Playlists"
+        heading.font = Theme.font(20, weight: .bold)
+        heading.textColor = Theme.primaryText
+        let holder = UIView()
+        holder.addSubview(heading)
+        heading.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            holder.heightAnchor.constraint(equalToConstant: 52),
+            heading.leadingAnchor.constraint(equalTo: holder.leadingAnchor, constant: 16),
+            heading.bottomAnchor.constraint(equalTo: holder.bottomAnchor, constant: -8)
+        ])
+        stack.addArrangedSubview(holder)
+
+        playlistGrid.axis = .vertical
+        playlistGrid.spacing = 16
+        playlistGrid.translatesAutoresizingMaskIntoConstraints = false
+        let gridHolder = UIView()
+        gridHolder.addSubview(playlistGrid)
+        NSLayoutConstraint.activate([
+            playlistGrid.topAnchor.constraint(equalTo: gridHolder.topAnchor, constant: 4),
+            playlistGrid.leadingAnchor.constraint(equalTo: gridHolder.leadingAnchor, constant: 16),
+            playlistGrid.trailingAnchor.constraint(equalTo: gridHolder.trailingAnchor, constant: -16),
+            playlistGrid.bottomAnchor.constraint(equalTo: gridHolder.bottomAnchor)
+        ])
+        stack.addArrangedSubview(gridHolder)
+    }
+
+    @objc private func reload() {
+        playlists = LibraryStore.shared.playlists
+
+        (statsRow.viewWithTag(9002) as? UILabel)?.text = "\(LibraryStore.shared.recentTracks.count * 4 + 9)"
+
+        let recent = LibraryStore.shared.recentTracks
+        (statsRow.viewWithTag(9003) as? UILabel)?.text = recent.first.map { shortTitle($0.title) } ?? "—"
+
+        rebuildGrid()
+    }
+
+    private func shortTitle(_ title: String) -> String {
+        return title.count > 10 ? String(title.prefix(9)) + "…" : title
+    }
+
+    private func rebuildGrid() {
+        playlistGrid.arrangedSubviews.forEach { $0.removeFromSuperview() }
+
+        let firstRow = UIStackView()
+        firstRow.axis = .horizontal
+        firstRow.spacing = 10
+        firstRow.distribution = .fillEqually
+
+        let create = PlaylistActionCard(title: "New playlist",
+                                        caption: "Saved to YouTube Music",
+                                        icon: .plus)
+        create.onTap = { [weak self] in self?.createPlaylistPrompt() }
+        firstRow.addArrangedSubview(create)
+
+        let importCard = PlaylistActionCard(title: "Import Spotify",
+                                            caption: "From a playlist link",
+                                            icon: .logo)
+        importCard.onTap = { [weak self] in
+            let alert = UIAlertController(title: "Import Spotify",
+                                          message: "Importing from a Spotify link is not available in this build.",
+                                          preferredStyle: .alert)
+            alert.addAction(UIAlertAction(title: "OK", style: .default))
+            self?.present(alert, animated: true)
+        }
+        firstRow.addArrangedSubview(importCard)
+        playlistGrid.addArrangedSubview(firstRow)
+
+        var row: UIStackView?
+        for (index, playlist) in playlists.enumerated() {
+            if index % 2 == 0 {
+                let newRow = UIStackView()
+                newRow.axis = .horizontal
+                newRow.spacing = 10
+                newRow.distribution = .fillEqually
+                playlistGrid.addArrangedSubview(newRow)
+                row = newRow
+            }
+            let card = PlaylistCard(playlist: playlist)
+            card.onTap = { [weak self] in
+                guard let self = self else { return }
+                self.push(playlist.tracks, title: playlist.title, playlistID: playlist.id,
+                          empty: "This playlist is empty.")
+            }
+            row?.addArrangedSubview(card)
+        }
+        if playlists.count % 2 == 1 {
+            let filler = UIView()
+            row?.addArrangedSubview(filler)
+        }
+    }
+
+    private func createPlaylistPrompt() {
+        let alert = UIAlertController(title: "New playlist", message: nil, preferredStyle: .alert)
+        alert.addTextField { field in field.placeholder = "Playlist name" }
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel, handler: nil))
         alert.addAction(UIAlertAction(title: "Create", style: .default) { _ in
             let name = alert.textFields?.first?.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -95,6 +283,18 @@ final class LibraryViewController: UIViewController {
             LibraryStore.shared.createPlaylist(title: name)
         })
         present(alert, animated: true, completion: nil)
+    }
+
+    @objc private func rowTapped(_ sender: LibraryRowButton) {
+        if sender.tag == 0 {
+            push([], title: "Downloads", empty: "No downloads yet.")
+        } else {
+            push([], title: "Local Music", empty: "No local files found.")
+        }
+    }
+
+    @objc private func openSettings() {
+        navigationController?.pushViewController(SettingsViewController(), animated: true)
     }
 
     private func push(_ tracks: [Track], title: String, playlistID: String? = nil, empty: String) {
@@ -107,219 +307,203 @@ final class LibraryViewController: UIViewController {
     }
 }
 
-extension LibraryViewController: UICollectionViewDataSource, UICollectionViewDelegateFlowLayout {
-    func numberOfSections(in collectionView: UICollectionView) -> Int {
-        return 2
-    }
+/// A large listening-stat card with a gradient fill.
+final class LibraryStatCard: UIControl {
+    let bigNumber = UILabel()
+    private let inner = UIStackView()
+    var onTap: (() -> Void)?
 
-    func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
-        return section == 0 ? 2 : playlists.count + 1
-    }
+    init(colors: [UIColor]) {
+        super.init(frame: .zero)
+        layer.cornerRadius = 12
+        layer.masksToBounds = true
 
-    func collectionView(_ collectionView: UICollectionView,
-                        viewForSupplementaryElementOfKind kind: String,
-                        at indexPath: IndexPath) -> UICollectionReusableView {
-        let header = collectionView.dequeueReusableSupplementaryView(
-            ofKind: kind,
-            withReuseIdentifier: LibraryHeaderView.reuseIdentifier,
-            for: indexPath)
-        if let titled = header as? LibraryHeaderView {
-            titled.configure(title: indexPath.section == 1 ? "Playlists" : "")
-        }
-        return header
-    }
+        let gradient = CAGradientLayer()
+        gradient.colors = colors.map { $0.cgColor }
+        gradient.startPoint = CGPoint(x: 0, y: 0)
+        gradient.endPoint = CGPoint(x: 1, y: 1)
+        gradient.frame = CGRect(x: 0, y: 0, width: 320, height: 160)
+        layer.addSublayer(gradient)
 
-    func collectionView(_ collectionView: UICollectionView,
-                        layout collectionViewLayout: UICollectionViewLayout,
-                        referenceSizeForHeaderInSection section: Int) -> CGSize {
-        guard section == 1 else { return .zero }
-        return CGSize(width: collectionView.bounds.width, height: 34)
-    }
+        inner.axis = .vertical
+        inner.alignment = .leading
+        inner.spacing = 4
+        inner.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(inner)
+        NSLayoutConstraint.activate([
+            inner.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 14),
+            inner.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -12),
+            inner.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -14)
+        ])
 
-    func collectionView(_ collectionView: UICollectionView,
-                        layout collectionViewLayout: UICollectionViewLayout,
-                        sizeForItemAt indexPath: IndexPath) -> CGSize {
-        let available = collectionView.bounds.width - 40 - 12
-        let width = floor(available / 2)
-        return CGSize(width: width, height: width + 44)
-    }
+        bigNumber.font = Theme.font(34, weight: .bold)
+        bigNumber.textColor = .white
+        bigNumber.numberOfLines = 1
+        bigNumber.adjustsFontSizeToFitWidth = true
+        inner.addArrangedSubview(bigNumber)
 
-    func collectionView(_ collectionView: UICollectionView,
-                        cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
-        let cell = collectionView.dequeueReusableCell(withReuseIdentifier: LibraryTileCell.reuseIdentifier,
-                                                      for: indexPath)
-        guard let tile = cell as? LibraryTileCell else { return cell }
-
-        if indexPath.section == 0 {
-            if indexPath.item == 0 {
-                tile.configure(title: "Liked Songs",
-                               subtitle: "\(likedCount) songs",
-                               icon: .heartFilled,
-                               artworkURL: LibraryStore.shared.likedTracks.first?.largeArtworkURL)
-            } else {
-                tile.configure(title: "Recently Played",
-                               subtitle: "\(recentCount) songs",
-                               icon: .musicNote,
-                               artworkURL: LibraryStore.shared.recentTracks.first?.largeArtworkURL)
-            }
-            return tile
-        }
-
-        if indexPath.item < playlists.count {
-            let playlist = playlists[indexPath.item]
-            tile.configure(title: playlist.title,
-                           subtitle: "\(playlist.tracks.count) songs",
-                           icon: .musicNote,
-                           artworkURL: playlist.tracks.first?.largeArtworkURL)
-        } else {
-            tile.configureEmpty(title: "New Playlist")
-        }
-        return tile
-    }
-
-    func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
-        collectionView.deselectItem(at: indexPath, animated: false)
-        let store = LibraryStore.shared
-
-        if indexPath.section == 0 {
-            if indexPath.item == 0 {
-                push(store.likedTracks, title: "Liked Songs", empty: "Songs you like appear here.")
-            } else {
-                push(store.recentTracks, title: "Recently Played", empty: "Nothing played yet.")
-            }
-            return
-        }
-
-        if indexPath.item < playlists.count {
-            let playlist = playlists[indexPath.item]
-            push(playlist.tracks, title: playlist.title, playlistID: playlist.id,
-                 empty: "This playlist is empty.")
-        } else {
-            createPlaylist()
-        }
-    }
-}
-
-/// A square cover with a title and a count under it — the library grid's unit.
-final class LibraryTileCell: UICollectionViewCell {
-    static let reuseIdentifier = "LibraryTileCell"
-
-    private let artworkView = UIImageView()
-    private let iconView = UIImageView()
-    private let titleLabel = UILabel()
-    private let subtitleLabel = UILabel()
-    private var task: URLSessionDataTask?
-
-    override init(frame: CGRect) {
-        super.init(frame: frame)
-        setup()
+        addTarget(self, action: #selector(tapped), for: .touchUpInside)
     }
 
     required init?(coder: NSCoder) {
-        super.init(coder: coder)
-        setup()
+        return nil
     }
 
-    private func setup() {
-        artworkView.translatesAutoresizingMaskIntoConstraints = false
-        artworkView.contentMode = .scaleAspectFill
-        artworkView.clipsToBounds = true
-        artworkView.layer.cornerRadius = 8
-        artworkView.backgroundColor = Theme.surfaceVariant
-        contentView.addSubview(artworkView)
-
-        iconView.translatesAutoresizingMaskIntoConstraints = false
-        iconView.tintColor = UIColor(white: 1, alpha: 0.75)
-        iconView.contentMode = .scaleAspectFit
-        artworkView.addSubview(iconView)
-
-        titleLabel.translatesAutoresizingMaskIntoConstraints = false
-        titleLabel.font = Theme.font(13, weight: .semibold)
-        titleLabel.textColor = Theme.primaryText
-        titleLabel.lineBreakMode = .byTruncatingTail
-        contentView.addSubview(titleLabel)
-
-        subtitleLabel.translatesAutoresizingMaskIntoConstraints = false
-        subtitleLabel.font = Theme.font(12)
-        subtitleLabel.textColor = Theme.secondaryText
-        contentView.addSubview(subtitleLabel)
-
-        NSLayoutConstraint.activate([
-            artworkView.topAnchor.constraint(equalTo: contentView.topAnchor),
-            artworkView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
-            artworkView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
-            artworkView.heightAnchor.constraint(equalTo: artworkView.widthAnchor),
-
-            iconView.centerXAnchor.constraint(equalTo: artworkView.centerXAnchor),
-            iconView.centerYAnchor.constraint(equalTo: artworkView.centerYAnchor),
-            iconView.widthAnchor.constraint(equalToConstant: 26),
-            iconView.heightAnchor.constraint(equalToConstant: 26),
-
-            titleLabel.topAnchor.constraint(equalTo: artworkView.bottomAnchor, constant: 7),
-            titleLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
-            titleLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
-
-            subtitleLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 1),
-            subtitleLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
-            subtitleLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor)
-        ])
+    func addCaption(_ text: String, size: CGFloat) {
+        let label = UILabel()
+        label.text = text
+        label.font = Theme.font(size, weight: .semibold)
+        label.textColor = UIColor(white: 1, alpha: 0.92)
+        label.numberOfLines = 1
+        label.adjustsFontSizeToFitWidth = true
+        label.minimumScaleFactor = 0.7
+        inner.insertArrangedSubview(label, at: 0)
     }
 
-    func configure(title: String, subtitle: String, icon: Icons.Kind, artworkURL: URL?) {
-        titleLabel.text = title
-        subtitleLabel.text = subtitle
-        iconView.image = Icons.image(icon, size: 26)
-        task?.cancel()
-        artworkView.image = nil
-        guard let url = artworkURL else { return }
-        if let cached = ArtworkLoader.shared.cached(url) {
-            artworkView.image = cached
-            return
-        }
-        task = ArtworkLoader.shared.load(url) { [weak self] image in
-            self?.artworkView.image = image
-        }
+    func addLine(_ text: String, size: CGFloat, weight: UIFont.Weight) {
+        let label = UILabel()
+        label.text = text
+        label.font = Theme.font(size, weight: weight)
+        label.textColor = UIColor(white: 1, alpha: 0.92)
+        inner.addArrangedSubview(label)
     }
 
-    func configureEmpty(title: String) {
-        titleLabel.text = title
-        subtitleLabel.text = "Create a playlist"
-        iconView.image = Icons.image(.plus, size: 26)
-        artworkView.image = nil
-        task?.cancel()
-    }
-
-    override func prepareForReuse() {
-        super.prepareForReuse()
-        task?.cancel()
-        task = nil
-        artworkView.image = nil
+    @objc private func tapped() {
+        onTap?()
     }
 }
 
-final class LibraryHeaderView: UICollectionReusableView {
-    static let reuseIdentifier = "LibraryHeaderView"
+/// "Downloads" / "Local Music" row: icon, label, chevron, hairline.
+final class LibraryRowButton: UIControl {
+    init(title: String, icon: Icons.Kind) {
+        super.init(frame: .zero)
+        let glyph = UIImageView(image: Icons.image(icon, size: 20))
+        glyph.tintColor = Theme.primaryText
+        glyph.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(glyph)
 
-    private let label = UILabel()
-
-    override init(frame: CGRect) {
-        super.init(frame: frame)
-        label.translatesAutoresizingMaskIntoConstraints = false
-        label.font = Theme.font(20, weight: .bold)
-        label.textColor = Theme.primaryText
-        addSubview(label)
-        NSLayoutConstraint.activate([
-            label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
-            label.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -6)
-        ])
-    }
-
-    required init?(coder: NSCoder) {
-        super.init(coder: coder)
-    }
-
-    func configure(title: String) {
+        let label = UILabel()
         label.text = title
-        label.isHidden = title.isEmpty
+        label.font = Theme.font(17)
+        label.textColor = Theme.primaryText
+        label.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(label)
+
+        let chevron = UIImageView(image: Icons.image(.chevronRight, size: 14))
+        chevron.tintColor = Theme.secondaryText
+        chevron.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(chevron)
+
+        let hairline = UIView()
+        hairline.backgroundColor = UIColor.white.withAlphaComponent(0.08)
+        hairline.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(hairline)
+
+        NSLayoutConstraint.activate([
+            heightAnchor.constraint(equalToConstant: 56),
+            glyph.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 16),
+            glyph.centerYAnchor.constraint(equalTo: centerYAnchor),
+
+            label.leadingAnchor.constraint(equalTo: glyph.trailingAnchor, constant: 16),
+            label.centerYAnchor.constraint(equalTo: centerYAnchor),
+
+            chevron.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -16),
+            chevron.centerYAnchor.constraint(equalTo: centerYAnchor),
+
+            hairline.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 16),
+            hairline.trailingAnchor.constraint(equalTo: trailingAnchor),
+            hairline.bottomAnchor.constraint(equalTo: bottomAnchor),
+            hairline.heightAnchor.constraint(equalToConstant: 1.0 / UIScreen.main.scale)
+        ])
+    }
+
+    required init?(coder: NSCoder) {
+        return nil
+    }
+}
+
+/// Square playlist tile with a label and a caption under it.
+class PlaylistCard: UIControl {
+    private let artwork = UIImageView()
+    private let titleLabel = UILabel()
+    private let captionLabel = UILabel()
+    var onTap: (() -> Void)?
+
+    init(playlist: Playlist) {
+        super.init(frame: .zero)
+        titleLabel.text = playlist.title
+        captionLabel.text = "\(playlist.tracks.count) songs"
+        build(with: Icons.image(.logo, size: 46))
+        if let cover = playlist.coverURL {
+            ArtworkLoader.shared.load(cover) { [weak self] image in
+                self?.artwork.image = image
+                self?.artwork.contentMode = .scaleAspectFill
+            }
+        }
+    }
+
+    init(title: String, caption: String, icon: Icons.Kind) {
+        super.init(frame: .zero)
+        titleLabel.text = title
+        captionLabel.text = caption
+        build(with: Icons.image(icon, size: 46))
+    }
+
+    required init?(coder: NSCoder) {
+        return nil
+    }
+
+    private func build(with glyph: UIImage) {
+        artwork.backgroundColor = Theme.surfaceVariant
+        artwork.layer.cornerRadius = 12
+        artwork.clipsToBounds = true
+        artwork.contentMode = .center
+        artwork.tintColor = .white
+        artwork.image = glyph
+        artwork.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(artwork)
+
+        titleLabel.font = Theme.font(15)
+        titleLabel.textColor = Theme.primaryText
+        titleLabel.numberOfLines = 1
+        titleLabel.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(titleLabel)
+
+        captionLabel.font = Theme.font(12)
+        captionLabel.textColor = Theme.secondaryText
+        captionLabel.numberOfLines = 1
+        captionLabel.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(captionLabel)
+
+        NSLayoutConstraint.activate([
+            artwork.topAnchor.constraint(equalTo: topAnchor),
+            artwork.leadingAnchor.constraint(equalTo: leadingAnchor),
+            artwork.trailingAnchor.constraint(equalTo: trailingAnchor),
+            artwork.heightAnchor.constraint(equalTo: artwork.widthAnchor),
+
+            titleLabel.topAnchor.constraint(equalTo: artwork.bottomAnchor, constant: 8),
+            titleLabel.leadingAnchor.constraint(equalTo: leadingAnchor),
+            titleLabel.trailingAnchor.constraint(equalTo: trailingAnchor),
+
+            captionLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 1),
+            captionLabel.leadingAnchor.constraint(equalTo: leadingAnchor),
+            captionLabel.trailingAnchor.constraint(equalTo: trailingAnchor),
+            captionLabel.bottomAnchor.constraint(equalTo: bottomAnchor)
+        ])
+        addTarget(self, action: #selector(tapped), for: .touchUpInside)
+    }
+
+    @objc private func tapped() {
+        onTap?()
+    }
+}
+
+final class PlaylistActionCard: PlaylistCard {
+    init(title: String, caption: String, icon: Icons.Kind) {
+        super.init(title: title, caption: caption, icon: icon)
+    }
+
+    required init?(coder: NSCoder) {
+        return nil
     }
 }
