@@ -123,7 +123,7 @@ final class LocalFolderCell: UITableViewCell {
         contentView.addSubview(glyph)
 
         nameLabel.translatesAutoresizingMaskIntoConstraints = false
-        nameLabel.font = Theme.font(.titleMedium, weight: .medium)
+        nameLabel.font = Theme.font(.titleMedium)
         nameLabel.textColor = Theme.primaryText
         contentView.addSubview(nameLabel)
 
