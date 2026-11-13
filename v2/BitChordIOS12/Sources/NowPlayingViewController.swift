@@ -931,6 +931,7 @@ final class QueueViewController: UIViewController {
     private let tableView = UITableView(frame: .zero, style: .plain)
     private let headerLabel = UILabel()
     private var showsHistory = false
+    private let editButton = UIButton(type: .system)
 
     private static let emptyIdentifier = "QueueHistoryEmpty"
 
@@ -944,6 +945,15 @@ final class QueueViewController: UIViewController {
         headerLabel.textColor = Theme.primaryText
         headerLabel.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(headerLabel)
+
+        // Upstream reorders the queue by dragging; the table's own edit mode
+        // is the iOS 12 way to do that.
+        editButton.translatesAutoresizingMaskIntoConstraints = false
+        editButton.setTitle("Edit", for: .normal)
+        editButton.setTitleColor(Theme.primaryText, for: .normal)
+        editButton.titleLabel?.font = Theme.font(14, weight: .semibold)
+        editButton.addTarget(self, action: #selector(toggleEditing), for: .touchUpInside)
+        view.addSubview(editButton)
 
         tableView.translatesAutoresizingMaskIntoConstraints = false
         tableView.backgroundColor = Theme.background
@@ -962,6 +972,9 @@ final class QueueViewController: UIViewController {
             headerLabel.topAnchor.constraint(equalTo: view.topAnchor, constant: 20),
             headerLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
 
+            editButton.centerYAnchor.constraint(equalTo: headerLabel.centerYAnchor),
+            editButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
+
             tableView.topAnchor.constraint(equalTo: headerLabel.bottomAnchor, constant: 12),
             tableView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             tableView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
@@ -971,6 +984,11 @@ final class QueueViewController: UIViewController {
 
     @objc private func reload() {
         tableView.reloadData()
+    }
+
+    @objc private func toggleEditing() {
+        tableView.setEditing(!tableView.isEditing, animated: true)
+        editButton.setTitle(tableView.isEditing ? "Done" : "Edit", for: .normal)
     }
 
     private var historySection: Int? {
@@ -1043,6 +1061,22 @@ extension QueueViewController: UITableViewDataSource, UITableViewDelegate {
         }
         PlayerService.shared.playTrack(at: indexPath.row)
         dismiss(animated: true, completion: nil)
+    }
+
+    func tableView(_ tableView: UITableView, canMoveRowAt indexPath: IndexPath) -> Bool {
+        return !(showsHistory && indexPath.section == 0)
+    }
+
+    func tableView(_ tableView: UITableView,
+                   moveRowAt sourceIndexPath: IndexPath,
+                   to destinationIndexPath: IndexPath) {
+        guard !(showsHistory && sourceIndexPath.section == 0) else { return }
+        // UITableView's destination counts the row before removal.
+        let target = destinationIndexPath.row > sourceIndexPath.row
+            ? destinationIndexPath.row - 1
+            : destinationIndexPath.row
+        PlayerService.shared.moveInQueue(from: sourceIndexPath.row, to: target)
+        tableView.reloadData()
     }
 
     /// Upstream lets a song be dropped from the queue; on iOS 12 the swipe is

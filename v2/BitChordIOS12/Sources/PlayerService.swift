@@ -379,6 +379,23 @@ final class PlayerService: NSObject {
         postChange()
     }
 
+    /// Moving a row keeps the playing song playing: only its index changes.
+    /// `to` is the final index, after the removal has happened.
+    func moveInQueue(from source: Int, to destination: Int) {
+        guard source >= 0, source < queue.count, source != destination else { return }
+        let track = queue.remove(at: source)
+        let target = max(0, min(destination, queue.count))
+        queue.insert(track, at: target)
+        if source == currentIndex {
+            currentIndex = target
+        } else if source < currentIndex && target >= currentIndex {
+            currentIndex -= 1
+        } else if source > currentIndex && target <= currentIndex {
+            currentIndex += 1
+        }
+        postChange()
+    }
+
     /// Removing the playing row moves playback to whatever took its place.
     func removeFromQueue(at index: Int) {
         guard index >= 0, index < queue.count else { return }

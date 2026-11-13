@@ -989,6 +989,10 @@ enum ScreenshotHarness {
             capture.report.append("queue.afterAdd=\(added)")
             capture.report.append("queue.afterRemove=\(removed)")
             capture.report.append("queue.playNext=\(nextIsSecond)")
+            PlayerService.shared.moveInQueue(from: 0, to: 2)
+            let moved = PlayerService.shared.queue.map { $0.videoID }
+            capture.report.append("queue.afterMove=\(moved.count)")
+            capture.report.append("queue.moved=\(moved.count == 3 && moved[2] == first.videoID)")
             capture.checkpoint()
             let sheet = QueueViewController()
             sheet.modalPresentationStyle = .fullScreen
@@ -1017,9 +1021,24 @@ enum ScreenshotHarness {
                     }
                     after(1.2) {
                         capture.report.append("historyPage.restored=\(history.rowCount)")
-                        history.dismiss(animated: false) { songInfoProbe(capture) }
+                        history.dismiss(animated: false) { replayProbe(capture) }
                     }
                 }
+            }
+        }
+    }
+
+    private static func replayProbe(_ capture: DownloadCapture) {
+        let replay = ReplayViewController()
+        capture.root.present(chrome(replay), animated: false) {
+            after(1.0) {
+                let entries = ReplayViewController.entries()
+                capture.report.append("replay.entries=\(entries.count)")
+                capture.report.append("replay.plays=\(entries.reduce(0) { $0 + $1.plays })")
+                capture.report.append("replay.top=\(entries.first?.track.title ?? "")")
+                capture.shot("replay")
+                capture.checkpoint()
+                replay.dismiss(animated: false) { songInfoProbe(capture) }
             }
         }
     }

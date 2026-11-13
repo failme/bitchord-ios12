@@ -437,6 +437,8 @@ jobs:
           grep -q "queue.afterAdd=3" "$REPORT"
           grep -q "queue.afterRemove=2" "$REPORT"
           grep -q "queue.playNext=true" "$REPORT"
+          grep -q "queue.afterMove=3" "$REPORT"
+          grep -q "queue.moved=true" "$REPORT"
           HISTORY_PAGE=$(sed -n 's/^historyPage.rows=//p' "$REPORT" | head -1)
           test -n "$HISTORY_PAGE"
           test "$HISTORY_PAGE" -ge 2
@@ -444,6 +446,13 @@ jobs:
           HISTORY_RESTORED=$(sed -n 's/^historyPage.restored=//p' "$REPORT" | head -1)
           test -n "$HISTORY_RESTORED"
           test "$HISTORY_RESTORED" -ge 2
+          REPLAY=$(sed -n 's/^replay.entries=//p' "$REPORT" | head -1)
+          test -n "$REPLAY"
+          test "$REPLAY" -ge 1
+          REPLAY_PLAYS=$(sed -n 's/^replay.plays=//p' "$REPORT" | head -1)
+          test -n "$REPLAY_PLAYS"
+          test "$REPLAY_PLAYS" -ge 1
+          test -n "$(sed -n 's/^replay.top=//p' "$REPORT" | head -1)"
           grep -q "info.rows=7" "$REPORT"
           test -n "$(sed -n 's/^info.title=//p' "$REPORT" | head -1)"
           test -n "$(sed -n 's/^info.source=//p' "$REPORT" | head -1)"
@@ -458,7 +467,7 @@ jobs:
                       storage-cap settings-storage library-synced playlist-synced sync-failed \
                       downloads-addon local-music local-songs queue-history radio radio-failed \
                       lyrics-karaoke artist moods settings-cache song-actions add-to-playlist \
-                      queue-edit history history-empty song-info autoplay; do
+                      queue-edit history history-empty replay song-info autoplay; do
             test -s "shots/$shot.png" || { echo "::error ::missing $shot.png"; exit 1; }
           done
 

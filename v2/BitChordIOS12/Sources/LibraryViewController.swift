@@ -138,9 +138,7 @@ final class LibraryViewController: UIViewController {
         experience.addLine("BITCHORD LISTENER", size: 12, weight: .semibold)
         experience.addCaption("MEMBER SINCE 11/26", size: 10)
         experience.onTap = { [weak self] in
-            guard let self = self else { return }
-            self.push(LibraryStore.shared.recentTracks, title: "Recently played",
-                      empty: "Nothing played yet.")
+            self?.navigationController?.pushViewController(ReplayViewController(), animated: true)
         }
         statsRow.addArrangedSubview(experience)
 
@@ -151,9 +149,7 @@ final class LibraryViewController: UIViewController {
         top.bigNumber.tag = 9003
         top.addCaption("BITCHORD LISTENER", size: 10)
         top.onTap = { [weak self] in
-            guard let self = self else { return }
-            self.push(LibraryStore.shared.recentTracks, title: "Recently played",
-                      empty: "Nothing played yet.")
+            self?.navigationController?.pushViewController(ReplayViewController(), animated: true)
         }
         statsRow.addArrangedSubview(top)
         _ = innings
