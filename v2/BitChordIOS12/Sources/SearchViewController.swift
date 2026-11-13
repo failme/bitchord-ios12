@@ -281,9 +281,13 @@ final class SearchViewController: UIViewController {
             self.songs = rows
             self.landed(token: token)
         }
-        catalogue.artists(text) { [weak self] rows in
+        // Artists come from YouTube Music, which is where upstream's artist
+        // pages live; the catalogue's own artist call no longer returns songs.
+        InnerTube.shared.searchCollections(text, filter: .artists) { [weak self] rows in
             guard let self = self, token == self.requestToken else { return }
-            self.artists = rows
+            self.artists = rows.map { item in
+                CatalogueArtist(id: item.browseID, name: item.title, artwork: item.artworkURL)
+            }
             self.landed(token: token)
         }
         catalogue.albums(text) { [weak self] rows in
@@ -333,12 +337,7 @@ final class SearchViewController: UIViewController {
     }
 
     private func openArtist(_ artist: CatalogueArtist) {
-        let controller = CollectionViewController(title: artist.name,
-                                                  subtitle: "Artist",
-                                                  artwork: artist.artwork)
-        controller.loader = { completion in
-            CatalogueSearch.shared.songs(byArtist: artist.id) { tracks in completion(tracks) }
-        }
+        let controller = ArtistPage.make(artist: artist)
         navigationController?.pushViewController(controller, animated: true)
     }
 

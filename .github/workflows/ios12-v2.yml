@@ -418,6 +418,10 @@ jobs:
           echo "mood tracks: $MOODS"
           test -n "$MOODS"
           test "$MOODS" -ge 5
+          CACHE_FREED=$(sed -n 's/^cache.freed=//p' "$REPORT" | head -1)
+          echo "cache freed: $CACHE_FREED bytes"
+          test -n "$CACHE_FREED"
+          test "$CACHE_FREED" -ge 1048576
           grep -q "cache.cleared=true" "$REPORT"
           grep -q "cache.limit=" "$REPORT"
 

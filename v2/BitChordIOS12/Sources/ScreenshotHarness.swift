@@ -750,6 +750,7 @@ enum ScreenshotHarness {
             return
         }
         InnerTube.shared.radio(seedVideoID: seed.videoID) { tracks, error in
+            capture.report.append("radio.seed=\(RadioService.isYouTubeVideoID(seed.videoID) ? "youtube" : "catalogue-resolved")")
             capture.report.append("radio.tracks=\(tracks?.count ?? 0)")
             capture.report.append("radio.error=\(error ?? "")")
             guard let tracks = tracks, !tracks.isEmpty else {
@@ -828,23 +829,18 @@ enum ScreenshotHarness {
     }
 
     private static func artistProbe(_ capture: DownloadCapture) {
-        CatalogueSearch.shared.artists("The Weeknd") { artists in
-            guard let artist = artists.first else {
+        // The same row search produces: a YouTube Music artist browse id.
+        InnerTube.shared.searchCollections("The Weeknd", filter: .artists) { items in
+            guard let item = items.first else {
                 capture.report.append("artist.tracks=0")
                 capture.checkpoint()
                 moodsProbe(capture)
                 return
             }
-            capture.report.append("artist.name=\(artist.name)")
-            let page = CollectionViewController(title: artist.name,
-                                                subtitle: "Artist",
-                                                artwork: artist.artwork)
-            page.loader = { completion in
-                CatalogueSearch.shared.songs(byArtist: artist.id) { tracks in
-                    capture.report.append("artist.tracks=\(tracks.count)")
-                    completion(tracks)
-                }
-            }
+            capture.report.append("artist.name=\(item.title)")
+            let page = ArtistPage.make(artist: CatalogueArtist(id: item.browseID,
+                                                              name: item.title,
+                                                              artwork: item.artworkURL))
             page.modalPresentationStyle = .fullScreen
             capture.root.present(page, animated: false) {
                 waitUntil({ page.loadedTrackCount > 0 }, timeout: 25) { _ in
@@ -889,13 +885,19 @@ enum ScreenshotHarness {
     }
 
     private static func cacheProbe(_ capture: DownloadCapture) {
+        // A known megabyte in the cache directory, so "cleared" is a measured
+        // number rather than a code path that ran.
+        if let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first {
+            try? Data(repeating: 7, count: 1024 * 1024)
+                .write(to: caches.appendingPathComponent("bc-cache-probe.bin"))
+        }
         CacheStore.shared.configure()
         capture.report.append("cache.limit=\(CacheStore.shared.limitText)")
         let before = CacheStore.shared.sizeBytes
         let freed = CacheStore.shared.clearImageCache()
         capture.report.append("cache.size=\(before)")
         capture.report.append("cache.freed=\(freed)")
-        capture.report.append("cache.cleared=\(freed >= 0)")
+        capture.report.append("cache.cleared=\(freed >= 1024 * 1024)")
         let settings = SettingsViewController()
         settings.modalPresentationStyle = .fullScreen
         capture.root.present(settings, animated: false) {

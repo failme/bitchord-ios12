@@ -43,10 +43,17 @@ final class CacheStore {
         return total
     }
 
-    /// Artwork and API responses.
+    /// Artwork and API responses, plus whatever they left on disk.
     func clearImageCache() -> Int64 {
         let before = sizeBytes
         URLCache.shared.removeAllCachedResponses()
+        let manager = FileManager.default
+        let files = (try? manager.contentsOfDirectory(at: scratchDirectory,
+                                                      includingPropertiesForKeys: nil,
+                                                      options: [.skipsHiddenFiles])) ?? []
+        for file in files {
+            try? manager.removeItem(at: file)
+        }
         return max(0, before - sizeBytes)
     }
 
