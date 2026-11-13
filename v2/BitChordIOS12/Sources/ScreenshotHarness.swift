@@ -460,14 +460,31 @@ enum ScreenshotHarness {
 
     private static func playlistSyncProbe(_ capture: DownloadCapture, host: UIViewController) {
         InnerTube.shared.searchCollections("Top songs", filter: .playlists) { items in
-            guard let item = items.first else {
-                capture.report.append("sync.target=false")
-                capture.finish()
+            // A playlist search can answer with a channel as well; only ids that
+            // name a playlist are worth syncing, and one empty mix should not
+            // fail the run when the next one has songs.
+            let playlists = items.filter { $0.browseID.hasPrefix("VL") || $0.browseID.hasPrefix("MPRE") }
+            trySync(capture, host: host, candidates: playlists.isEmpty ? items : playlists, index: 0)
+        }
+    }
+
+    private static func trySync(_ capture: DownloadCapture,
+                                host: UIViewController,
+                                candidates: [CollectionItem],
+                                index: Int) {
+        guard index < candidates.count else {
+            capture.report.append("sync.target=false")
+            capture.finish()
+            return
+        }
+        let item = candidates[index]
+        LibraryStore.shared.syncPlaylist(remoteID: item.browseID) { ok, message in
+            guard ok else {
+                trySync(capture, host: host, candidates: candidates, index: index + 1)
                 return
             }
             capture.report.append("sync.target=\(item.browseID)")
-            LibraryStore.shared.syncPlaylist(remoteID: item.browseID) { ok, message in
-                capture.report.append("sync.ok=\(ok)")
+            capture.report.append("sync.ok=\(ok)")
                 capture.report.append("sync.message=\(message)")
                 capture.report.append("sync.playlists=\(LibraryStore.shared.playlists.count)")
                 if let playlist = LibraryStore.shared.playlists.first(where: { $0.id.hasPrefix("remote:") }) {
@@ -500,7 +517,6 @@ enum ScreenshotHarness {
                 }
             }
         }
-    }
 
     /// The remote side refusing: the UI shows the failure instead of pretending
     /// the playlist synced, and the saved set stays as it was.
