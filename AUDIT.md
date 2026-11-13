@@ -12,12 +12,12 @@ screenshot), **Ported** (implemented and reachable, exercised indirectly by the
 flows CI asserts), **iOS 12 block**, **Account/credential** (needs an account or
 third-party keys this build cannot ship), **Android-only**.
 
-Latest full run: commit `2b7fd9e`, all three jobs green (`43380104251`). Both
-root IPAs are that build: 16,947,648 bytes, sha256 `e6493578...`, bundle
+Latest full run: commit `ecc8839`, all three jobs green (`43390271498`). Both
+root IPAs are that build: 17,014,796 bytes, sha256 `e458d93a...`, bundle
 `com.bitchord.ios12v2` 2.0.0, `MinimumOSVersion 12.0`, `UIDeviceFamily [1,2]`,
-and a thin `arm64` executable (`cputype 0x100000c`) - verified inside CI by
-unzipping the packaged IPA and again on the committed file, with both copies
-byte-identical.
+a thin `arm64` executable (`cputype 0x100000c`) and a registered `bitchord`
+URL scheme - verified inside CI by unzipping the packaged IPA and again on the
+committed file, with both copies byte-identical.
 
 ## Shell and navigation
 
@@ -28,6 +28,8 @@ byte-identical.
 | `ui/player/AndroidPlayerHost.kt` | `NowPlayingViewController` | Asserted - `lyrics.png`, `lyrics-karaoke.png` |
 | `components/IosSwitch.kt`, `IosMenu.kt` | UIKit switches, action sheets | Ported - iOS 12 has no `UIMenu` |
 | `FrostedTopBar`, `GlassNavBar`, `LiquidGlass` | `MeshGradientView`, `Theme`, native bars | Ported as an approximation |
+| `OnboardingScreen.kt` | `OnboardingViewController` | Asserted - `onboarding-welcome/tour/library/ready.png`, `onboarding-report.txt`, 320x568 shots; re-runnable from Settings |
+| `MusicLink.kt`, `PlayerDeepLink.kt`, intent filters | `DeepLink`, `DeepLinkRouter`, `CFBundleURLTypes` | Asserted - six routes from `deeplinks.txt`, all `cold=1`; scheme shown registered by SpringBoard's prompt |
 
 ## Screens
 
@@ -47,7 +49,7 @@ byte-identical.
 | `ListenTogetherScreen.kt`, `PartySync.kt` | Absent | Account/credential - needs a party server |
 | `DiscordScreen.kt`, `data/discord` | Disabled row | Android-only - Discord RPC uses local Android IPC |
 | `SpotifyLibraryScreen.kt`, `SpotifyCanvasAuthScreen.kt` | Disabled row; sync by public YT Music link | Account/credential - Spotify OAuth client |
-| `SourcesScreen.kt`, `data/sources` | `AddonService` manifest/stream | Ported - asserted lossless tier; WebDAV/SMB/Jellyfin not shipped (see Remaining) |
+| `SourcesScreen.kt`, `data/sources`, `data/webdav` | `AddonService`, `WebDAVClient`, `WebDAVStore`, `SourcesViewController` | Asserted - `webdav-tree.png`, `webdav-playing.png`, `webdav-error.png`; PROPFIND list, folder browse, streamed `track.m4a`, bad-password message. SMB/Jellyfin not shipped (see Remaining) |
 | `WearOsSettings.kt`, `ui/widget`, `wearos/`, `tv/` | Absent | Android-only - separate apps/surfaces |
 
 ## Song menu and library actions
@@ -110,9 +112,8 @@ Named rather than hidden:
 
 | Item | Why it is not here | What exists instead |
 | --- | --- | --- |
-| Deep links / intent filters (`MusicLink.kt`, `PlayerDeepLink.kt`) | Needs a registered URL scheme and link resolution | Links shared from the menu open in the browser |
-| WebDAV / SMB / Jellyfin source modules (`data/webdav`, `data/smb`, `data/remote`) | Each needs its own client, auth and browser UI | Addon stream contract plus the local locker |
-| Onboarding screen (`OnboardingScreen.kt`) | The first-run explanation is not drawn | The sign-in banner on Home explains the guest state |
+| SMB and Jellyfin sources (`data/smb`, `data/remote`) | Each needs its own protocol client; only WebDAV was in this pass | WebDAV browser plus the addon stream and local locker |
+| Universal links (`applinks:`) | Associated-domains entitlement and iOS 13-era handling | The `bitchord://` scheme is the iOS 12 substitute; SpringBoard confirms it before opening |
 | Listen Together, Spotify import, scrobbling, Discord, Cast | Accounts, OAuth clients or servers this build does not ship | Disabled rows naming the missing piece |
 
 ## What CI measured, and what it did not
@@ -130,7 +131,20 @@ reports), with the run above:
 - Song info: `info.rows=7`, `info.title=Blinding Lights`, `info.source=Downloaded`.
 - Autoplay: `autoplay.started=true`, `autoplay.tracks=51` from a one-song queue.
 - A force-quit relaunch reads back `verify.localTracks=1` and
-  `verify.history=2` with `verify.historyTop=Blinding Lights`.
+  `verify.history=2` with `verify.historyTop=Blinding Lights`, and
+  `verify.onboardingCompleted=true`, `verify.onboardingPresented=false`.
+- Onboarding: `onboarding-report.txt` has `shown=true`, the four step titles,
+  `completed=true`, `dismissed=true`; `onboarding.rerun=true` from the Settings
+  row; the 320x568 run reports `onboarding.window=320x568` with
+  `primaryVisible=true` on all four steps.
+- Deep links: `route=track ... screen=NowPlaying`, `album ... Album`, `artist ...
+  Artist`, `playlist ... Playlist`, `radio ... Radio`, `home ... Home`, every
+  line `cold=1`; `deeplink-prompt.png` shows SpringBoard offering to open the
+  registered scheme.
+- WebDAV: `webdav.listed=true`, `root=Music|readme.txt`,
+  `folder=Nested|track.m4a`, `hasTrack=true`, `playing=true`,
+  `title=track.m4a`, `isPlaying=true`, and `authError=Wrong username or
+  password.` for the wrong-password request.
 
 Also measured in the same run: relaunch, offline playback, deletion, two quality renditions measured
 with `afinfo`, Wi-Fi HELD, storage cap, background resumed and force-quit, addon
@@ -138,7 +152,9 @@ versus standard, 100-song playlist sync read back by a fresh process, local
 locker, queue history, History screen, Replay, song menu and add-to-playlist,
 queue edits and reorder, autoplay past the queue end, radio and its failure,
 artist page, moods, song info, karaoke syllables, downloaded badges, cache
-freeing a created megabyte, and the packaged IPA's plist and architecture.
+freeing a created megabyte, the first-run flow at full size and at 320x568, six
+deep-link destinations from cold launches, a WebDAV listing/browse/stream with
+its auth failure, and the packaged IPA's plist, scheme and architecture.
 
 Not measured here: lock-screen controls, `SCNetworkReachability`, the real
 background transfer daemon, audio routing and DAC behaviour, and a real addon

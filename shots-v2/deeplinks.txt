@@ -1,0 +1,6 @@
+route=track id=J7p4bzqLvCw screen=NowPlaying cold=1
+route=album id=MPREb_0FfHz7TuLaf screen=Album cold=1
+route=artist id=UClmXPfaYhXOYsNn_QUyheWQ screen=Artist cold=1
+route=playlist id=PLPmdCGqzDq0Omc-BAk9lPEzhqeEdXfKVX screen=Playlist cold=1
+route=radio id=J7p4bzqLvCw screen=Radio cold=1
+route=home screen=Home cold=1

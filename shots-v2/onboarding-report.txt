@@ -1,0 +1,7 @@
+onboarding.shown=true
+onboarding.step1=Welcome to BitChord
+onboarding.step2=A quick tour
+onboarding.step3=Choose your library
+onboarding.step4=You're set
+onboarding.completed=true
+onboarding.dismissed=true

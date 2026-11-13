@@ -1,0 +1,12 @@
+onboarding.shown=true
+onboarding.window=320x568
+onboarding.primaryVisible=true
+onboarding.step1=Welcome to BitChord
+onboarding.step2=A quick tour
+onboarding.primaryVisible2=true
+onboarding.step3=Choose your library
+onboarding.primaryVisible3=true
+onboarding.step4=You're set
+onboarding.primaryVisible4=true
+onboarding.completed=true
+onboarding.dismissed=true
