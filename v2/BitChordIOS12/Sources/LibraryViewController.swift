@@ -121,13 +121,13 @@ final class LibraryViewController: UIViewController {
         let holder = UIView()
         holder.translatesAutoresizingMaskIntoConstraints = false
         stack.addArrangedSubview(holder)
+        holder.addSubview(statsRow)
         NSLayoutConstraint.activate([
             holder.heightAnchor.constraint(equalToConstant: 176),
             statsRow.leadingAnchor.constraint(equalTo: holder.leadingAnchor, constant: 16),
             statsRow.trailingAnchor.constraint(equalTo: holder.trailingAnchor, constant: -16),
             statsRow.topAnchor.constraint(equalTo: holder.topAnchor, constant: 8)
         ])
-        holder.addSubview(statsRow)
 
         // Card one: listening experience, as in the reference capture.
         let experience = LibraryStatCard(colors: [UIColor(red: 0.76, green: 0.33, blue: 0.14, alpha: 1),
