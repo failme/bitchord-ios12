@@ -118,6 +118,29 @@ Status: **implemented and exercised in the simulator**; not verified on an iOS 1
 Files live in `Application Support/BitChordDownloads/`, one `.m4a` per track plus
 `index.json`. The index is pruned on load of any entry whose file is gone.
 
+### Verified in CI (run 43351457240, simulator, all three jobs green)
+
+The screenshots job launches the app once with `-BCSeedDownload`, terminates it,
+then launches again with `-BCScreenshots`. From `download-report.txt` of that
+second launch: `saved=1`, `totalBytes=8197355`, `fileExists=true`,
+`localPlayback=true`, `source=Downloaded`, `position=6.5`, `deletedRows=0`,
+`fileRemoved=true`. So the index and the file survived a process restart, the
+player took the local branch (no resolve), and deleting removed both the row and
+the bytes. The job fails if any of those four assertions does not hold.
+
+Screens: `shots-v2/downloads.png` (saved row, cover, "JioSaavn 320kbps · 8.2 MB"),
+`shots-v2/offline.png` (that file playing, 0:10 of 3:20),
+`shots-v2/settings-downloads.png` (Download quality High, Wi-Fi-only on,
+"Storage used — 1 song · 8.2 MB"), `shots-v2/downloads-empty.png` (empty state
+after the delete), `shots-v2/library.png` (Downloads row with its glyph).
+
+Not photographed: the in-flight progress bar and percentage (the seed run is
+headless and the 8 MB file finished before any shot), and the long-press menu
+itself — both are exercised by the code path but only the outcomes above are
+visually confirmed.
+
 Not done in this feature: background/suspended downloads (foreground URLSession
-only), lossless or addon-source downloads, playlist sync, cache eviction and a
-storage cap, and a per-row downloaded badge outside the Downloads screen.
+only, so a download stops if the app is killed), lossless or addon-source
+downloads, playlist sync, cache eviction and a storage cap, and a per-row
+downloaded badge outside the Downloads screen. Nothing here is verified on an
+iOS 12 device — only the simulator, via CI.
