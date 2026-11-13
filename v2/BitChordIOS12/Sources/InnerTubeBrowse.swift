@@ -225,7 +225,10 @@ extension InnerTube {
             ],
             "videoId": seedVideoID,
             "playlistId": "RDAMVM\(seedVideoID)",
-            "isAudioOnly": true
+            "isAudioOnly": true,
+            // Without this the web client answers an ordinary watch-next page,
+            // whose rows are not in a playlist panel, so the mix looked empty.
+            "params": "wAEB"
         ]
         post(path: "next", body: body, userAgent: InnerTube.browserUserAgent) { json, error in
             guard let json = json else {
