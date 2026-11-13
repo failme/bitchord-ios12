@@ -109,7 +109,7 @@ Status: **implemented and exercised in the simulator**; not verified on an iOS 1
 | --- | --- | --- |
 | Download store | `v2/BitChordIOS12/Sources/DownloadStore.swift` | Queue, real progress, persisted index + files, delete, storage total, Wi-Fi-only and quality policy |
 | Downloads screen | `v2/BitChordIOS12/Sources/DownloadsViewController.swift` | Live rows with percentage and progress bar, saved rows with quality + size, swipe to delete, empty state |
-| Entry point | `v2/BitChordIOS12/Sources/TrackCell.swift` | Long-press a song → Download / Delete download (iOS 12 has no context-menu API) |
+| Entry point | `v2/BitChordIOS12/Sources/TrackCell.swift`, `TrackActions.swift` | Long-press a song → Download / Cancel download / Delete download, whichever the row is in (iOS 12 has no context-menu API) |
 | Library route | `v2/BitChordIOS12/Sources/LibraryViewController.swift` | The Downloads row pushes the new screen, with the download glyph |
 | Offline playback | `v2/BitChordIOS12/Sources/NativeAudioPlayer.swift`, `AudioEngine.swift` | A downloaded track plays through the same AVPlayer path, queue, now-playing and lock screen; no further request is made |
 | Settings | `SettingsStore.swift`, `SettingsViewController.swift` | Download quality (Lossless/High/Normal/Data saver), Download over Wi-Fi only, Storage used (live) |
@@ -118,29 +118,61 @@ Status: **implemented and exercised in the simulator**; not verified on an iOS 1
 Files live in `Application Support/BitChordDownloads/`, one `.m4a` per track plus
 `index.json`. The index is pruned on load of any entry whose file is gone.
 
-### Verified in CI (run 43351457240, simulator, all three jobs green)
+### Demonstrated in CI (commit `ce080cd`, simulator, all three jobs green)
 
-The screenshots job launches the app once with `-BCSeedDownload`, terminates it,
-then launches again with `-BCScreenshots`. From `download-report.txt` of that
-second launch: `saved=1`, `totalBytes=8197355`, `fileExists=true`,
-`localPlayback=true`, `source=Downloaded`, `position=6.5`, `deletedRows=0`,
-`fileRemoved=true`. So the index and the file survived a process restart, the
-player took the local branch (no resolve), and deleting removed both the row and
-the bytes. The job fails if any of those four assertions does not hold.
+The screenshots job launches once with `-BCSeedDownload` (a 320 kbps download),
+quits, then relaunches with `-BCScreenshots`, which reads the index back off disk
+and runs the whole feature. `download-report.txt` from the second process, with
+the job failing if any line is wrong:
 
-Screens: `shots-v2/downloads.png` (saved row, cover, "JioSaavn 320kbps · 8.2 MB"),
-`shots-v2/offline.png` (that file playing, 0:10 of 3:20),
-`shots-v2/settings-downloads.png` (Download quality High, Wi-Fi-only on,
-"Storage used — 1 song · 8.2 MB"), `shots-v2/downloads-empty.png` (empty state
-after the delete), `shots-v2/library.png` (Downloads row with its glyph).
+- **Relaunch**: `resume.saved=1`, `resume.totalBytes=8197355` — the index and the
+  file survived a process restart.
+- **Offline playback**: `localPlayback=true`, `source=Downloaded` — the player
+  took the local-file branch, with no resolve.
+- **Quality changes the rendition**: same track, two settings.
+  `quality.high.label=JioSaavn 320kbps`, `quality.high.bytes=8197355`;
+  `quality.setting=Data saver`, `quality.saver.label=JioSaavn 96kbps`,
+  `quality.saver.bytes=2489491`, `quality.saverSmaller=true`. The job measures
+  both stored files with `afinfo`: **326337 bps vs 98124 bps**, **8197355 B vs
+  2489491 B** — a 3.3x smaller file at the lower setting.
+- **Settings reflect it**: `settings.storage=1 song · 2.5 MB` while Download
+  quality reads "Data saver".
+- **Wi-Fi-only holds the download**: with the setting on and the connection
+  reported as metered, `wifi.blocked=true`, `wifi.failedRows=1`,
+  `wifi.message=Downloads are limited to Wi-Fi...`, and the row shows "HELD"
+  with that reason.
+- **Menus**: `sheet.delete.downloaded=true`, `sheet.cancel.downloading=true`,
+  `sheet.download.idle=true`, each opened from a real `TrackCell` in a real list.
+- **Delete**: `deletedRows=0`, `fileRemoved=true`.
+- **Progress**: `progress.captured=23` — the shot was taken with the transfer at
+  23% and the bar filled to match.
 
-Not photographed: the in-flight progress bar and percentage (the seed run is
-headless and the 8 MB file finished before any shot), and the long-press menu
-itself — both are exercised by the code path but only the outcomes above are
-visually confirmed.
+Screens in `shots-v2/`: `downloads.png` (saved row), `download-progress.png`
+(Downloading... 23% plus bar), `downloads-saver.png` (JioSaavn 96kbps · 2.5 MB),
+`settings-downloads.png` (Data saver, Wi-Fi-only on, Storage used 1 song ·
+2.5 MB), `wifi-blocked.png` (HELD row), `sheet-download.png`,
+`sheet-cancel.png`, `sheet-delete.png`, `offline.png`, `downloads-empty.png`,
+`library.png`.
 
-Not done in this feature: background/suspended downloads (foreground URLSession
-only, so a download stops if the app is killed), lossless or addon-source
-downloads, playlist sync, cache eviction and a storage cap, and a per-row
-downloaded badge outside the Downloads screen. Nothing here is verified on an
-iOS 12 device — only the simulator, via CI.
+Mechanism note: the mid-transfer frame exists because the harness sets
+`progressPace`, which switches the store to a data-task transport that consumes
+the body 32 KB at a time; the resolve, destination, index entry and completion
+are shared with the normal download-task path. The Wi-Fi decision is likewise the
+real branch with a harness-supplied connection answer
+(`connectivityOverride`), because CI has no metered link.
+
+The IPA is now inspected inside CI too: the packaged `.ipa` is unzipped,
+`MinimumOSVersion` read from its `Info.plist` (12.0), and `lipo -archs` run on
+its binary (arm64), so a green build cannot hide a wrong deployment target.
+
+### Not verified here
+- Anything on a real iOS 12 device: all of this is the simulator build of the
+  same source. AVPlayer local-file playback, the lock screen and
+  `SCNetworkReachability` are unexercised on device.
+- A physically metered connection: the block path runs, but the reachability
+  answer is injected by the harness.
+- The paced transport is capture-only; users get the download-task transport.
+  Everything after resolve is the same code.
+- Background downloads (app killed mid-transfer), lossless or addon-source
+  downloads, playlist sync, cache eviction and a storage cap, and a downloaded
+  badge outside the Downloads screen.
