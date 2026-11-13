@@ -132,8 +132,9 @@ final class LibraryViewController: UIViewController {
         // Card one: listening experience, as in the reference capture.
         let experience = LibraryStatCard(colors: [UIColor(red: 0.76, green: 0.33, blue: 0.14, alpha: 1),
                                                  UIColor(red: 0.45, green: 0.13, blue: 0.07, alpha: 1)])
-        experience.addCaption("YOUR LISTENING EXPERIENCE", size: 10)
+        experience.addTopCaption("YOUR LISTENING EXPERIENCE", size: 10)
         experience.bigNumber.tag = 9002
+        experience.addCaption("MINUTES LISTENED", size: 11)
         experience.addLine("BITCHORD LISTENER", size: 12, weight: .semibold)
         experience.addCaption("MEMBER SINCE 11/26", size: 10)
         experience.onTap = { [weak self] in
@@ -146,9 +147,9 @@ final class LibraryViewController: UIViewController {
         // Card two: the top song of the recent plays.
         let top = LibraryStatCard(colors: [UIColor(red: 0.45, green: 0.12, blue: 0.20, alpha: 1),
                                           UIColor(red: 0.28, green: 0.08, blue: 0.13, alpha: 1)])
-        top.addCaption("YOUR TOP SONG", size: 10)
+        top.addTopCaption("YOUR TOP SONG", size: 10)
         top.bigNumber.tag = 9003
-        top.addCaption("MEMBER SINCE 11/26", size: 10)
+        top.addCaption("BITCHORD LISTENER", size: 10)
         top.onTap = { [weak self] in
             guard let self = self else { return }
             self.push(LibraryStore.shared.recentTracks, title: "Recently played",
@@ -350,6 +351,14 @@ final class LibraryStatCard: UIControl {
     }
 
     func addCaption(_ text: String, size: CGFloat) {
+        inner.addArrangedSubview(captionLabel(text, size: size))
+    }
+
+    func addTopCaption(_ text: String, size: CGFloat) {
+        inner.insertArrangedSubview(captionLabel(text, size: size), at: 0)
+    }
+
+    private func captionLabel(_ text: String, size: CGFloat) -> UILabel {
         let label = UILabel()
         label.text = text
         label.font = Theme.font(size, weight: .semibold)
@@ -357,7 +366,7 @@ final class LibraryStatCard: UIControl {
         label.numberOfLines = 1
         label.adjustsFontSizeToFitWidth = true
         label.minimumScaleFactor = 0.7
-        inner.insertArrangedSubview(label, at: 0)
+        return label
     }
 
     func addLine(_ text: String, size: CGFloat, weight: UIFont.Weight) {

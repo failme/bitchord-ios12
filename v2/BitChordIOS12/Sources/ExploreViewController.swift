@@ -84,6 +84,13 @@ final class ExploreViewController: UIViewController {
             let tile = MoodTileView(mood: mood.title, top: mood.top, bottom: mood.bottom)
             tile.addTarget(self, action: #selector(tileTapped(_:)), for: .touchUpInside)
             row?.addArrangedSubview(tile)
+            // The real tiles are photo collages, so each one borrows the first
+            // cover the catalogue has for its mood.
+            CatalogueSearch.shared.albums(mood.title) { albums in
+                if let artwork = albums.first?.artwork {
+                    tile.setArtwork(artwork)
+                }
+            }
         }
 
         NSLayoutConstraint.activate([
@@ -124,6 +131,8 @@ final class ExploreViewController: UIViewController {
 final class MoodTileView: UIButton {
     let moodTitle: String
     private let gradient = CAGradientLayer()
+    private let photo = UIImageView()
+    private let shade = CAGradientLayer()
     private let label = UILabel()
 
     init(mood: String, top: UIColor, bottom: UIColor) {
@@ -136,6 +145,24 @@ final class MoodTileView: UIButton {
         gradient.startPoint = CGPoint(x: 0, y: 0)
         gradient.endPoint = CGPoint(x: 1, y: 1)
         layer.addSublayer(gradient)
+
+        photo.contentMode = .scaleAspectFill
+        photo.clipsToBounds = true
+        photo.alpha = 0.85
+        photo.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(photo)
+        NSLayoutConstraint.activate([
+            photo.topAnchor.constraint(equalTo: topAnchor),
+            photo.leadingAnchor.constraint(equalTo: leadingAnchor),
+            photo.trailingAnchor.constraint(equalTo: trailingAnchor),
+            photo.bottomAnchor.constraint(equalTo: bottomAnchor)
+        ])
+        // Darken the photo at the top-left so the mood name stays readable.
+        shade.colors = [UIColor(white: 0, alpha: 0.45).cgColor,
+                        UIColor(white: 0, alpha: 0.05).cgColor]
+        shade.startPoint = CGPoint(x: 0, y: 0)
+        shade.endPoint = CGPoint(x: 1, y: 1)
+        photo.layer.addSublayer(shade)
 
         label.text = mood
         label.font = Theme.font(15, weight: .semibold)
@@ -156,5 +183,12 @@ final class MoodTileView: UIButton {
     override func layoutSubviews() {
         super.layoutSubviews()
         gradient.frame = bounds
+        shade.frame = photo.bounds
+    }
+
+    func setArtwork(_ url: URL) {
+        ArtworkLoader.shared.load(url) { [weak self] image in
+            self?.photo.image = image
+        }
     }
 }
