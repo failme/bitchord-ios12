@@ -174,7 +174,10 @@ final class SettingsCell: UITableViewCell {
 
     private let titleLabel = UILabel()
     private let detailLabel = UILabel()
+    private let valueLabel = UILabel()
     private let separator = UIView()
+    private var titleTop: NSLayoutConstraint!
+    private var titleCentered: NSLayoutConstraint!
     private let chevron = UIImageView(image: Icons.image(.chevronRight, size: 15))
     private let cardView = UIView()
 
@@ -200,11 +203,21 @@ final class SettingsCell: UITableViewCell {
         detailLabel.numberOfLines = 1
         cardView.addSubview(detailLabel)
 
+        valueLabel.translatesAutoresizingMaskIntoConstraints = false
+        valueLabel.font = Theme.font(14)
+        valueLabel.textColor = Theme.secondaryText
+        valueLabel.textAlignment = .right
+        valueLabel.isHidden = true
+        cardView.addSubview(valueLabel)
+
         chevron.translatesAutoresizingMaskIntoConstraints = false
         chevron.tintColor = Theme.secondaryText
         chevron.contentMode = .scaleAspectFit
         cardView.addSubview(chevron)
 
+        titleTop = titleLabel.topAnchor.constraint(equalTo: cardView.topAnchor, constant: 14)
+        titleCentered = titleLabel.centerYAnchor.constraint(equalTo: cardView.centerYAnchor)
+        titleTop.isActive = true
         NSLayoutConstraint.activate([
             cardView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
             cardView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
@@ -212,7 +225,6 @@ final class SettingsCell: UITableViewCell {
             cardView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
 
             titleLabel.leadingAnchor.constraint(equalTo: cardView.leadingAnchor, constant: 20),
-            titleLabel.topAnchor.constraint(equalTo: cardView.topAnchor, constant: 14),
             titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: chevron.leadingAnchor, constant: -8),
 
             detailLabel.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
@@ -220,6 +232,9 @@ final class SettingsCell: UITableViewCell {
             detailLabel.trailingAnchor.constraint(equalTo: titleLabel.trailingAnchor),
 
             cardView.heightAnchor.constraint(greaterThanOrEqualToConstant: 64),
+
+            valueLabel.trailingAnchor.constraint(equalTo: chevron.leadingAnchor, constant: -8),
+            valueLabel.centerYAnchor.constraint(equalTo: cardView.centerYAnchor),
             chevron.trailingAnchor.constraint(equalTo: cardView.trailingAnchor, constant: -18),
             chevron.centerYAnchor.constraint(equalTo: cardView.centerYAnchor),
             chevron.widthAnchor.constraint(equalToConstant: 9),
@@ -259,17 +274,20 @@ final class SettingsCell: UITableViewCell {
         titleLabel.text = item.title
         detailLabel.text = item.detail
         var showsChevron = false
+        var trailingValue = false
         var available = true
         switch item.kind {
         case .choice(let fallback, _):
-            detailLabel.text = SettingsStore.shared.string(item.key, fallback)
+            valueLabel.text = SettingsStore.shared.string(item.key, fallback)
             showsChevron = true
+            trailingValue = true
         case .stepper(let fallback, _, _, _, let unit):
             let value = SettingsStore.shared.double(item.key, fallback)
-            detailLabel.text = unit == "\u{00D7}"
+            valueLabel.text = unit == "\u{00D7}"
                 ? String(format: "%.2g%@", value, unit)
                 : "\(Int(value))\(unit)"
             showsChevron = true
+            trailingValue = true
         case .unavailable:
             // The real app greys the row out; it does not explain the port.
             detailLabel.text = nil
@@ -277,6 +295,10 @@ final class SettingsCell: UITableViewCell {
         case .toggle:
             showsChevron = false
         }
+        valueLabel.isHidden = !trailingValue
+        if trailingValue { detailLabel.text = nil }
+        titleTop.isActive = !trailingValue
+        titleCentered.isActive = trailingValue
         chevron.isHidden = !showsChevron
         titleLabel.textColor = available ? Theme.primaryText : Theme.secondaryText
         cardView.backgroundColor = card
