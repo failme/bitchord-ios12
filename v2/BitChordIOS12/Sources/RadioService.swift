@@ -4,7 +4,9 @@ import UIKit
 /// which replaces the queue and starts playing. A failure is shown, never
 /// swallowed — a menu row that appears to do nothing is worse than an error.
 enum RadioService {
-    static func start(from track: Track, host: UIViewController?) {
+    static func start(from track: Track,
+                      host: UIViewController?,
+                      onReady: (([Track]) -> Void)? = nil) {
         let presenter = host ?? TrackActions.topController()
         resolveSeed(track) { seed in
             guard let seed = seed else {
@@ -19,6 +21,7 @@ enum RadioService {
                         presentFailure(error ?? "This track has no radio.", on: presenter)
                         return
                     }
+                    onReady?(tracks)
                     PlayerService.shared.play(tracks: tracks, startingAt: 0)
                     let player = NowPlayingViewController()
                     player.modalPresentationStyle = .fullScreen

@@ -765,12 +765,15 @@ enum ScreenshotHarness {
         // The menu's own path: resolve the seed on YouTube, ask for the mix,
         // replace the queue and open Now Playing.
         capture.report.append("radio.seed=\(RadioService.isYouTubeVideoID(seed.videoID) ? "youtube" : "catalogue-resolved")")
-        RadioService.start(from: seed, host: capture.root)
-        waitUntil({ PlayerService.shared.queue.count > 1 }, timeout: 45) { met in
-            let queue = PlayerService.shared.queue
-            capture.report.append("radio.tracks=\(met ? queue.count : 0)")
-            capture.report.append("radio.first=\(met ? (queue.first?.title ?? "") : "")")
+        var delivered: [Track] = []
+        RadioService.start(from: seed, host: capture.root) { tracks in
+            delivered = tracks
+        }
+        waitUntil({ !delivered.isEmpty }, timeout: 45) { met in
+            capture.report.append("radio.tracks=\(delivered.count)")
+            capture.report.append("radio.first=\(delivered.first?.title ?? "")")
             capture.report.append("radio.playing=\(met && PlayerService.shared.currentTrack != nil)")
+            capture.report.append("radio.queued=\(PlayerService.shared.queue.count)")
             capture.checkpoint()
             // RadioService leaves Now Playing up on success and an alert on
             // failure; clear either before the next screen.
