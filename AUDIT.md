@@ -1,12 +1,15 @@
 # Port audit — what is actually ported
 
-Verdict: **not a 1:1 recreation.** 4,568 lines exist against 23,705 upstream (19.3%).
-26 upstream files have **no counterpart at all** (6,048 lines).
+Verdict: **not a 1:1 recreation.** 12,120 lines exist against 23,705 upstream (51%).
+26 upstream files have no direct counterpart: their behaviour is either replaced by a smaller
+iOS-native implementation or listed under "Remaining gaps" at the end, with the API that rules
+it out where one does.
 
-The settings surface now exists: all 73 upstream keys are present with their key names and
-defaults. Two are wired to real behaviour (playback speed, sleep timer); the rest are rendered
-but disabled, each stating why the machinery behind it is missing. A switch that silently does
-nothing would be worse than an absent one.
+The settings surface exists: all 73 upstream keys are present with their key names and
+defaults. Playback speed, sleep timer, download quality, Wi-Fi-only, the download storage
+limit, the addon URL and the live storage figure are wired to real behaviour; the rest are
+rendered but disabled, each stating why the machinery behind it is missing. A switch that
+silently does nothing would be worse than an absent one.
 
 Measured by listing every upstream file and grepping this port for each subsystem symbol.
 
@@ -68,7 +71,7 @@ Measured by listing every upstream file and grepping this port for each subsyste
 | SettingsView | 3065 | 73 keys, sections, persistence, speed + sleep timer | every DSP, storage, integration and appearance row is disabled |
 | BitChordSettings | 1110 | SettingsStore keys/defaults | no quality policy, no addon model, no credential storage |
 
-## The 73 settings keys: 0 wired
+## The 73 settings keys: which are wired
 
 Audio (15): Automix, AutomixPerf, BitPerfect, CellularQuality, Crossfade, DirectSourceStream,
 DisableOnPhoneSpeaker, DolbyAtmos, Equalizer, LoudnessNormalization, OutputPrecision,
@@ -112,7 +115,7 @@ Status: **implemented and exercised in the simulator**; not verified on an iOS 1
 | Entry point | `v2/BitChordIOS12/Sources/TrackCell.swift`, `TrackActions.swift` | Long-press a song → Download / Cancel download / Delete download, whichever the row is in (iOS 12 has no context-menu API) |
 | Library route | `v2/BitChordIOS12/Sources/LibraryViewController.swift` | The Downloads row pushes the new screen, with the download glyph |
 | Offline playback | `v2/BitChordIOS12/Sources/NativeAudioPlayer.swift`, `AudioEngine.swift` | A downloaded track plays through the same AVPlayer path, queue, now-playing and lock screen; no further request is made |
-| Settings | `SettingsStore.swift`, `SettingsViewController.swift` | Download quality (Lossless/High/Normal/Data saver), Download over Wi-Fi only, Storage used (live) |
+| Settings | `SettingsStore.swift`, `SettingsViewController.swift` | Download quality (Lossless/High/Normal/Data saver), Download storage limit, Storage used (live, against the limit), Download over Wi-Fi only, Lossless addon URL |
 | Proof | `ScreenshotHarness.swift`, `.github/workflows/ios12-v2.yml` | First launch downloads a track and exits; second launch captures Downloads and offline playback and writes `download-report.txt`, which the job asserts |
 
 Files live in `Application Support/BitChordDownloads/`, one `.m4a` per track plus
@@ -165,14 +168,89 @@ The IPA is now inspected inside CI too: the packaged `.ipa` is unzipped,
 `MinimumOSVersion` read from its `Info.plist` (12.0), and `lipo -archs` run on
 its binary (arm64), so a green build cannot hide a wrong deployment target.
 
+## Storage cap, background transfers, addon tiers, playlist sync
+
+These four were the last items the audit listed as unbuilt. They are now real
+behaviour in the app, driven by the capture harness and asserted in CI (run
+`43365794289` on commit `add1ae1`, all three jobs green).
+
+| Piece | Files | What it does |
+| --- | --- | --- |
+| Storage cap | `DownloadStore.swift`, `SettingsStore.swift`, `SettingsViewController.swift` | `BitChord.Download.StorageLimit` (512 MB / 1 GB / 2 GB / 5 GB / Unlimited); a new download whose estimate would pass the cap is refused, the row shows "Storage limit reached." the same way a HELD row shows its reason, and the alert carries the fuller sentence with the current usage |
+| Background transfers | `DownloadStore.swift`, `AppDelegate.swift` | `URLSessionConfiguration.background(withIdentifier:)`, `sessionSendsLaunchEvents`, `application:handleEventsForBackgroundURLSession:`, a `pending.json` mirror with `taskDescription` as the join key, and a 12 s post-launch reconcile |
+| Addon tiers | `AddonService.swift`, `DownloadStore.swift`, Settings | `GET <base>/manifest` and `GET <base>/stream/<videoID>`; Lossless asks the addon first and falls through to the standard catalogue when it answers 404 or nothing usable |
+| Playlist sync | `PlaylistSync.swift`, `LibraryStore.swift`, `InnerTubeBrowse.swift`, `LibraryViewController.swift` | Sync button in the Library heading; a public YouTube Music playlist link or id is pulled through the same `browse` call, saved under a `remote:` id with its tracks in order, and re-syncing replaces it in place |
+
+Measured in that run (reports are committed under `shots-v2/`):
+
+- **Cap**: with `10 MB` set and one 2.5 MB song saved, the estimate
+  `9338304` bytes crossed the limit, so `cap.blocked=true`,
+  `cap.reason=Storage limit reached.`, `cap.savedUnchanged=true`. Lowering the
+  limit to `1 MB` left `cap.lowLimitCount=1` and `cap.lowLimitFiles=true`, and
+  Settings reads `1 song · 2.5 MB of 1 MB`.
+- **Background, resumed**: a download started, the app was sent to the
+  background, and on return `background.indexed=true`,
+  `background.pendingAfter=0`, `background.phantom=false` (no index entry
+  without a file).
+- **Background, force-quit**: `verify.pendingAtLaunch=1`, then
+  `background.indexed=false`, `background.reported=true`,
+  `background.reason=Download interrupted. Tap to try again.`,
+  `background.pendingAfter=0`, `background.phantom=false` — the index is
+  consistent either way.
+- **Addon vs standard**: `addon.label=Lossless · 1411 kbps` on the ALAC the
+  addon served, `775186 bps / 3883053 B` measured by `afinfo`, against
+  `addon.fallback.label=JioSaavn 320kbps`, `320353 bps / 8198941 B` for a track
+  the addon does not serve. Both files are fetched by the app in the same run.
+- **Playlist sync**: `sync.ok=true`, 100 songs, first `Die With A Smile`, last
+  `Another You (feat. Sadie Jean)`; a fresh process then read back
+  `verify.playlistTracks=100` with the same first and last titles. The failure
+  path (`sync.failure.ok=true`, message "This playlist has no playable songs.")
+  leaves `sync.playlists` unchanged and shows the alert captured in
+  `sync-failed.png`.
+
+Screens added: `storage-cap.png`, `settings-storage.png`, `library-synced.png`,
+`playlist-synced.png`, `sync-failed.png`, `downloads-addon.png`.
+
+Substitutions worth naming:
+
+- **Playlist sync** replaces upstream's signed-in account sync (`AccountManager`
+  is an Android/credential feature with no counterpart here) with a public
+  YouTube Music playlist by link. No account, no tokens, same browse call.
+- **Background transfers** use the real iOS 12 background session. On the
+  simulator that daemon refuses the transfer with `NSURLErrorUnknown (-1)`
+  before a byte arrives, so the store retries once in a foreground session and
+  records which session carried the file (`transport`). On a device the first
+  session is the one that runs. `simctl terminate` is a force-quit, which
+  cancels background transfers by design on any device — that is exactly why
+  the killed scenario asserts the *report* path rather than a completed file.
+- **The addon in CI** is `v2/tools/addon_server.py`, a local server speaking the
+  same two calls. It serves a generated 40 s ALAC file, so the two files differ
+  in duration as well as tier: the **bitrate** comparison (775 kbps against
+  320 kbps) is the tier proof, and the byte sizes differ measurably too.
+
 ### Not verified here
 - Anything on a real iOS 12 device: all of this is the simulator build of the
-  same source. AVPlayer local-file playback, the lock screen and
-  `SCNetworkReachability` are unexercised on device.
+  same source. AVPlayer local-file playback, the lock screen,
+  `SCNetworkReachability`, the background transfer daemon and tapping the real
+  addon are unexercised on device.
 - A physically metered connection: the block path runs, but the reachability
   answer is injected by the harness.
 - The paced transport is capture-only; users get the download-task transport.
   Everything after resolve is the same code.
-- Background downloads (app killed mid-transfer), lossless or addon-source
-  downloads, playlist sync, cache eviction and a storage cap, and a downloaded
-  badge outside the Downloads screen.
+
+## Remaining gaps
+
+Items iOS 12 itself rules out, with the API that does it and what ships instead:
+
+| Item | Ruled out by | Shipped instead |
+| --- | --- | --- |
+| Bit-perfect output, USB DAC preference, output precision | iOS 12 exposes no route-selection or exclusive-mode API for app audio; `AVAudioSession` offers only categories and ports | `AVPlayer` playback; the rows are disabled and say so |
+| Crossfade, gapless, equalizer, loudness normalisation, AudioProcessing tap | `AVPlayer` has no per-sample tap or second-player crossfade; doing it needs the whole pipeline rebuilt on `AVAudioEngine` with the streaming bridge removed | speed and sleep timer are wired; the DSP rows state the missing pipeline |
+| Account sign-in and cloud library sync | Upstream's `AccountManager` is Android-only; this port has no credentials or server | public playlist sync plus local storage |
+| Last.fm / ListenBrainz scrobbling | requires per-user API keys this port has no way to obtain | rows disabled with that reason |
+| Spotify import | needs a Spotify OAuth client and Web API credentials, neither shipped | playlist sync by public YouTube Music link |
+
+Still unported with no iOS 12 blocker (scope, not platform): local music scan
+(`MPMediaLibrary` exists on iOS 12), artist pages, radio and mood sections, the
+queue history sheet, syllable-level karaoke, a downloaded badge outside the
+Downloads screen, and cache eviction.
