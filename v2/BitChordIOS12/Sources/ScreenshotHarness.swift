@@ -1356,40 +1356,62 @@ enum ScreenshotHarness {
     /// while it was not frontmost. Without it the process exits at once, so CI
     /// can force-quit it mid-transfer and test the recovery path instead.
     private static func backgroundStart(directory: URL, keep: Bool) {
-        var report = ["background.started=true", "background.mode=\(keep ? "keep" : "quit")"]
+        let base = ["background.started=true", "background.mode=\(keep ? "keep" : "quit")"]
         SettingsStore.shared.set(DownloadQuality.high.rawValue, for: "BitChord.Download.Quality")
         SettingsStore.shared.set("Unlimited", for: DownloadStore.storageLimitKey)
         SettingsStore.shared.set(false, for: "BitChord.Download.WifiOnly")
         CatalogueSearch.shared.songs("Save Your Tears The Weeknd") { tracks in
             // Anything already on disk would short-circuit, so take a fresh one.
-            guard let track = tracks.first(where: { !DownloadStore.shared.isDownloaded($0.videoID) }) else {
-                report.append("background.track=false")
+            let fresh = tracks.filter { !DownloadStore.shared.isDownloaded($0.videoID) }
+            tryBackgroundStart(fresh, index: 0, base: base, directory: directory, keep: keep)
+        }
+    }
+
+    /// Starts a real background transfer. A resolver that hands back no URL
+    /// produces no task at all; that is retried with the next fresh result so
+    /// the scenario always begins from a transfer the system owns.
+    private static func tryBackgroundStart(_ tracks: [Track],
+                                           index: Int,
+                                           base: [String],
+                                           directory: URL,
+                                           keep: Bool) {
+        guard index < min(4, tracks.count) else {
+            var report = base
+            report.append("background.track=false")
+            writeText(report.joined(separator: "\n"), name: "background-report.txt", directory: directory)
+            exit(0)
+            return
+        }
+        let track = tracks[index]
+        var report = base
+        report.append("background.track=\(track.videoID)")
+        report.append("background.title=\(track.title)")
+        DownloadStore.shared.download(track) { _, _ in }
+        waitUntil({ DownloadStore.shared.isDownloading(track.videoID) }, timeout: 25) { started in
+            after(1.2) {
+                let live = started && DownloadStore.shared.pendingCount > 0
+                guard live else {
+                    report.append("background.retry=\(index) failure=\(DownloadStore.shared.failure(for: track.videoID) ?? "")")
+                    writeText(report.joined(separator: "\n"),
+                              name: "background-retry-\(index).txt", directory: directory)
+                    tryBackgroundStart(tracks, index: index + 1, base: base, directory: directory, keep: keep)
+                    return
+                }
+                report.append("background.live=\(started)")
+                report.append("background.transport=\(DownloadStore.shared.transport[track.videoID] ?? "") (start)")
+                report.append("background.pending=\(DownloadStore.shared.pendingCount)")
+                report.append("background.progress=\(DownloadStore.shared.progress(for: track.videoID) ?? 0)")
+                report.append("background.failure=\(DownloadStore.shared.failure(for: track.videoID) ?? "")")
+                report.append("background.saved=\(DownloadStore.shared.saved.count)")
+                report.append("background.limit=\(DownloadStore.shared.storageLimitBytes)")
+                report.append("background.wifiOnly=\(SettingsStore.shared.bool("BitChord.Download.WifiOnly", true))")
+                report.append("background.playing=\(PlayerService.shared.isPlaying)")
                 writeText(report.joined(separator: "\n"), name: "background-report.txt", directory: directory)
-                exit(0)
-            }
-            report.append("background.track=\(track.videoID)")
-            report.append("background.title=\(track.title)")
-            DownloadStore.shared.download(track) { ok, message in
-                report.append("background.download=\(ok) \(message)")
-            }
-            waitUntil({ DownloadStore.shared.isDownloading(track.videoID) }, timeout: 25) { started in
-                after(0.8) {
-                    report.append("background.live=\(started)")
-                    report.append("background.transport=\(DownloadStore.shared.transport[track.videoID] ?? "") (start)")
-                    report.append("background.pending=\(DownloadStore.shared.pendingCount)")
-                    report.append("background.progress=\(DownloadStore.shared.progress(for: track.videoID) ?? 0)")
-                    report.append("background.failure=\(DownloadStore.shared.failure(for: track.videoID) ?? "")")
-                    report.append("background.saved=\(DownloadStore.shared.saved.count)")
-                    report.append("background.limit=\(DownloadStore.shared.storageLimitBytes)")
-                    report.append("background.wifiOnly=\(SettingsStore.shared.bool("BitChord.Download.WifiOnly", true))")
-                    report.append("background.playing=\(PlayerService.shared.isPlaying)")
-                    writeText(report.joined(separator: "\n"), name: "background-report.txt", directory: directory)
-                    if keep {
-                        waitForReturn(directory: directory, videoID: track.videoID)
-                    } else {
-                        // Leave without finishing: the transfer belongs to the system now.
-                        exit(0)
-                    }
+                if keep {
+                    waitForReturn(directory: directory, videoID: track.videoID)
+                } else {
+                    // Leave without finishing: the transfer belongs to the system now.
+                    exit(0)
                 }
             }
         }
