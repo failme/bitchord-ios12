@@ -4,6 +4,7 @@ import UIKit
 /// through the same player as a downloaded or catalogue track.
 final class SourcesViewController: UIViewController, UITableViewDataSource, UITableViewDelegate, UITextFieldDelegate {
     private var server: WebDAVServer?
+    private var password: String = ""
     private var path: String = "/"
     private var entries: [WebDAVEntry] = []
 
@@ -92,16 +93,19 @@ final class SourcesViewController: UIViewController, UITableViewDataSource, UITa
         if let server = server {
             urlField.text = server.url
             userField.text = server.username
-            passField.text = WebDAVStore.shared.password(for: server)
+            password = WebDAVStore.shared.password(for: server)
+            passField.text = password
             load(path)
         } else if let first = WebDAVStore.shared.servers.first {
             urlField.text = first.url
             userField.text = first.username
-            passField.text = WebDAVStore.shared.password(for: first)
+            password = WebDAVStore.shared.password(for: first)
+            passField.text = password
         } else if let environment = ProcessInfo.processInfo.environment["BC_WEBDAV_URL"], !environment.isEmpty {
             urlField.text = environment
             userField.text = ProcessInfo.processInfo.environment["BC_WEBDAV_USER"] ?? ""
-            passField.text = ProcessInfo.processInfo.environment["BC_WEBDAV_PASS"] ?? ""
+            password = ProcessInfo.processInfo.environment["BC_WEBDAV_PASS"] ?? ""
+            passField.text = password
         }
         statusLabel.text = "PROPFIND a folder, then tap an audio file to stream it."
     }
@@ -130,7 +134,7 @@ final class SourcesViewController: UIViewController, UITableViewDataSource, UITa
             return
         }
         let username = userField.text ?? ""
-        let password = passField.text ?? ""
+        self.password = passField.text ?? ""
         WebDAVStore.shared.add(url: raw, username: username, password: password)
         server = WebDAVServer(url: raw, username: username)
         load("/", base: url)
@@ -147,9 +151,10 @@ final class SourcesViewController: UIViewController, UITableViewDataSource, UITa
         isBusy = true
         statusLabel.text = "Loading \(path)…"
         errorLabel.isHidden = true
+        let credentials = password.isEmpty ? WebDAVStore.shared.password(for: server) : password
         WebDAVClient.shared.list(target,
                                  username: server.username,
-                                 password: WebDAVStore.shared.password(for: server)) { [weak self] result in
+                                 password: credentials) { [weak self] result in
             guard let self = self else { return }
             self.isBusy = false
             switch result {
@@ -219,9 +224,8 @@ final class SourcesViewController: UIViewController, UITableViewDataSource, UITa
 
     private func play(_ entry: WebDAVEntry) {
         guard let server = server else { return }
-        WebDAVStore.shared.add(url: server.url,
-                               username: server.username,
-                               password: WebDAVStore.shared.password(for: server))
+        let credentials = password.isEmpty ? WebDAVStore.shared.password(for: server) : password
+        WebDAVStore.shared.add(url: server.url, username: server.username, password: credentials)
         let track = Track(videoID: "webdav:" + entry.url.absoluteString,
                           title: entry.name,
                           artist: server.url,
@@ -240,6 +244,7 @@ final class SourcesViewController: UIViewController, UITableViewDataSource, UITa
         urlField.text = url
         userField.text = username
         passField.text = password
+        self.password = password
         connectTapped()
     }
 

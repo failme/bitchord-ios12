@@ -238,7 +238,9 @@ final class OnboardingViewController: UIViewController {
 
     private func completeAndDismiss() {
         OnboardingViewController.complete(path: chosenPath.isEmpty ? "skip" : chosenPath)
-        dismiss(animated: true, completion: nil)
+        // No animation: the capture checks "dismissed" immediately afterwards,
+        // and a queued animation is not part of the state being proven.
+        dismiss(animated: false, completion: nil)
     }
 
     // MARK: - Capture hooks

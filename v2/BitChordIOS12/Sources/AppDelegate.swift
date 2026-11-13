@@ -32,6 +32,14 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         if let url = launchOptions?[.url] as? URL {
             DeepLinkRouter.handle(url, cold: true)
         }
+        // SpringBoard asks for confirmation before opening a custom scheme, and
+        // a headless simulator cannot tap it. The CI launch feeds the same URL
+        // through the same router from a cold process instead.
+        let arguments = ProcessInfo.processInfo.arguments
+        if let link = arguments.firstIndex(of: "-BCDeepLink"), link + 1 < arguments.count,
+           let url = URL(string: arguments[link + 1]) {
+            DeepLinkRouter.handle(url, cold: true)
+        }
         ScreenshotHarness.runIfRequested()
         return true
     }

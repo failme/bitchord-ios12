@@ -74,25 +74,35 @@ enum ScreenshotHarness {
     private static func captureOnboarding(_ onboarding: OnboardingViewController,
                                          capture: DownloadCapture,
                                          completion: @escaping () -> Void) {
-        capture.report.append("onboarding.shown=true")
-        capture.report.append("onboarding.step1=\(onboarding.stepTitle)")
+        // The tab capture below builds its own DownloadCapture and rewrites the
+        // main report, so the first-run proof goes to its own file.
+        var lines: [String] = ["onboarding.shown=true"]
+        func save() {
+            writeText(lines.joined(separator: "\n"), name: "onboarding-report.txt", directory: capture.directory)
+        }
+        lines.append("onboarding.step1=\(onboarding.stepTitle)")
+        save()
         capture.shot("onboarding-welcome")
         onboarding.advanceForCapture()
-        after(0.4) {
-            capture.report.append("onboarding.step2=\(onboarding.stepTitle)")
+        after(0.5) {
+            lines.append("onboarding.step2=\(onboarding.stepTitle)")
+            save()
             capture.shot("onboarding-tour")
             onboarding.advanceForCapture()
-            after(0.4) {
-                capture.report.append("onboarding.step3=\(onboarding.stepTitle)")
+            after(0.5) {
+                lines.append("onboarding.step3=\(onboarding.stepTitle)")
+                save()
                 capture.shot("onboarding-library")
                 onboarding.chooseLocalForCapture()
-                after(0.4) {
-                    capture.report.append("onboarding.step4=\(onboarding.stepTitle)")
+                after(0.5) {
+                    lines.append("onboarding.step4=\(onboarding.stepTitle)")
+                    save()
                     capture.shot("onboarding-ready")
                     onboarding.advanceForCapture()
                     after(0.8) {
-                        capture.report.append("onboarding.completed=\(OnboardingViewController.hasCompleted)")
-                        capture.report.append("onboarding.dismissed=\(capture.root.presentedViewController == nil)")
+                        lines.append("onboarding.completed=\(OnboardingViewController.hasCompleted)")
+                        lines.append("onboarding.dismissed=\(capture.root.presentedViewController == nil)")
+                        save()
                         capture.checkpoint()
                         completion()
                     }
@@ -1271,13 +1281,20 @@ enum ScreenshotHarness {
     /// once the capture has finished.
     private static func writeDeepLinkIDs(_ capture: DownloadCapture) {
         var lines: [String] = []
-        if let seed = capture.seedTrack { lines.append("track=\(seed.videoID)") }
-        if let playlist = LibraryStore.shared.playlists.first { lines.append("playlist=\(playlist.id)") }
-        InnerTube.shared.searchCollections("Ed Sheeran", filter: .artists) { artists in
-            if let id = artists.first?.browseID { lines.append("artist=\(id)") }
-            InnerTube.shared.searchCollections("Divide", filter: .albums) { albums in
-                if let id = albums.first?.browseID { lines.append("album=\(id)") }
-                writeText(lines.joined(separator: "\n"), name: "deeplink-ids.txt", directory: capture.directory)
+        if let playlist = LibraryStore.shared.playlists.first {
+            lines.append("playlist=\(playlist.id.replacingOccurrences(of: "remote:", with: ""))")
+        }
+        // A track link is a video id; the seed download's id is a JioSaavn one.
+        InnerTube.shared.search("Blinding Lights The Weeknd", filter: .songs) { songs, _ in
+            if let id = songs?.first?.videoID { lines.append("track=\(id)") }
+            InnerTube.shared.searchCollections("Ed Sheeran", filter: .artists) { artists in
+                if let id = artists.first?.browseID { lines.append("artist=\(id)") }
+                InnerTube.shared.searchCollections("Divide", filter: .albums) { albums in
+                    if let id = albums.first?.browseID { lines.append("album=\(id)") }
+                    writeText(lines.joined(separator: "\n") + "\n",
+                              name: "deeplink-ids.txt",
+                              directory: capture.directory)
+                }
             }
         }
     }

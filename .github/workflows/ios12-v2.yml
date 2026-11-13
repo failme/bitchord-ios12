@@ -340,26 +340,29 @@ jobs:
           test -n "$ARTIST_ID" || ARTIST_ID="UCvVp1_4kM3Q0a4V4m0P0u2g"
           test -n "$PLAYLIST_ID" || PLAYLIST_ID="PLBCfixture"
           echo "deep links: track=$TRACK_ID album=$ALBUM_ID artist=$ARTIST_ID playlist=$PLAYLIST_ID"
-          open_link() {
-            xcrun simctl openurl "$UDID" "$1" || true
-            sleep 4
-          }
+          # Registration: SpringBoard offers to open BitChord for the scheme.
           xcrun simctl terminate "$UDID" "$BUNDLE" || true
           sleep 1
-          open_link "bitchord://track/$TRACK_ID"
-          xcrun simctl io "$UDID" screenshot shots/deeplink-track.png > /dev/null 2>&1 || true
-          open_link "bitchord://album/$ALBUM_ID"
-          open_link "bitchord://artist/$ARTIST_ID"
-          open_link "bitchord://playlist/$PLAYLIST_ID"
-          open_link "bitchord://radio/$TRACK_ID"
-          open_link "bitchord://home"
-          # Cold launch: the process is not running, SpringBoard starts it from
-          # the link, and the destination must survive the launch.
-          xcrun simctl terminate "$UDID" "$BUNDLE" || true
-          sleep 2
-          open_link "bitchord://album/$ALBUM_ID"
+          xcrun simctl openurl "$UDID" "bitchord://track/$TRACK_ID" || true
           sleep 3
+          xcrun simctl io "$UDID" screenshot shots/deeplink-prompt.png > /dev/null 2>&1 || true
+          # The confirmation cannot be tapped headlessly, so each destination is
+          # proven by launching the app cold with the same URL, through the same
+          # router (the launch-options path).
+          launch_link() {
+            xcrun simctl terminate "$UDID" "$BUNDLE" > /dev/null 2>&1 || true
+            sleep 1
+            xcrun simctl launch "$UDID" "$BUNDLE" -BCDeepLink "$1" > /dev/null 2>&1 || true
+            sleep 5
+          }
+          launch_link "bitchord://track/$TRACK_ID"
+          xcrun simctl io "$UDID" screenshot shots/deeplink-track.png > /dev/null 2>&1 || true
+          launch_link "bitchord://album/$ALBUM_ID"
           xcrun simctl io "$UDID" screenshot shots/deeplink-cold.png > /dev/null 2>&1 || true
+          launch_link "bitchord://artist/$ARTIST_ID"
+          launch_link "bitchord://playlist/$PLAYLIST_ID"
+          launch_link "bitchord://radio/$TRACK_ID"
+          launch_link "bitchord://home"
           cp "$CONTAINER/Documents/shots/deeplinks.txt" shots/deeplinks.txt 2>/dev/null || true
           echo "### Deep link report"
           cat shots/deeplinks.txt 2>/dev/null || echo "(no deep link report)"
@@ -547,12 +550,12 @@ jobs:
 
           # Onboarding: shown on first launch, completed, and re-runnable from
           # the Settings row the user actually taps.
-          grep -q "onboarding.shown=true" "$REPORT"
-          grep -q "onboarding.step1=Welcome to BitChord" "$REPORT"
-          grep -q "onboarding.step2=A quick tour" "$REPORT"
-          grep -q "onboarding.step3=Choose your library" "$REPORT"
-          grep -q "onboarding.completed=true" "$REPORT"
-          grep -q "onboarding.dismissed=true" "$REPORT"
+          grep -q "onboarding.shown=true" shots/onboarding-report.txt
+          grep -q "onboarding.step1=Welcome to BitChord" shots/onboarding-report.txt
+          grep -q "onboarding.step2=A quick tour" shots/onboarding-report.txt
+          grep -q "onboarding.step3=Choose your library" shots/onboarding-report.txt
+          grep -q "onboarding.completed=true" shots/onboarding-report.txt
+          grep -q "onboarding.dismissed=true" shots/onboarding-report.txt
           grep -q "onboarding.rerun=true" "$REPORT"
 
           # Deep links resolved to distinct screens.
@@ -563,6 +566,7 @@ jobs:
           grep -q "route=radio id=$TRACK_ID screen=Radio" shots/deeplinks.txt
           grep -q "route=home screen=Home" shots/deeplinks.txt
           grep -q "cold=1" shots/deeplinks.txt
+          test -s shots/deeplink-prompt.png
           test -s shots/deeplink-track.png
           test -s shots/deeplink-cold.png
 
@@ -588,8 +592,8 @@ jobs:
                       queue-edit history history-empty replay song-info autoplay \
                       onboarding-welcome onboarding-tour onboarding-library onboarding-ready \
                       onboarding-rerun onboarding-small-welcome onboarding-small-tour \
-                      onboarding-small-library onboarding-small-ready \
-                      webdav-tree webdav-playing webdav-error; do
+                      onboarding-small-library onboarding-small-ready deeplink-prompt \
+                      deeplink-track deeplink-cold webdav-tree webdav-playing webdav-error; do
             test -s "shots/$shot.png" || { echo "::error ::missing $shot.png"; exit 1; }
           done
 

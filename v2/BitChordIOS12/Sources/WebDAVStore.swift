@@ -55,6 +55,10 @@ final class WebDAVStore {
     private let key = "BitChord.WebDAV.Servers"
 
     private(set) var servers: [WebDAVServer] = []
+    /// Passwords for this process. The keychain is the durable copy; an
+    /// unsigned simulator build can be refused keychain access, and a listing
+    /// must not fail because of that.
+    private var sessionPasswords: [String: String] = [:]
 
     private init() {
         if let data = SettingsStore.shared.data(key),
@@ -73,6 +77,7 @@ final class WebDAVStore {
         if let data = try? JSONEncoder().encode(servers) {
             SettingsStore.shared.set(data, for: key)
         }
+        sessionPasswords[account(server)] = password
         Keychain.set(password, for: account(server))
     }
 
@@ -81,11 +86,15 @@ final class WebDAVStore {
         if let data = try? JSONEncoder().encode(servers) {
             SettingsStore.shared.set(data, for: key)
         }
+        sessionPasswords.removeValue(forKey: account(server))
         Keychain.delete(account(server))
     }
 
     func password(for server: WebDAVServer) -> String {
-        return Keychain.get(account(server)) ?? ""
+        if let cached = sessionPasswords[account(server)] { return cached }
+        let stored = Keychain.get(account(server)) ?? ""
+        sessionPasswords[account(server)] = stored
+        return stored
     }
 
     /// The most specific server whose URL is a prefix of the track's URL.
