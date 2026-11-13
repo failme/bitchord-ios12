@@ -171,13 +171,19 @@ final class DownloadStore: NSObject {
                 completion?(false, reason)
                 return
             }
-            let task = self.session.downloadTask(with: url)
-            self.tasks[task.taskIdentifier] = track.videoID
-            self.completions[track.videoID] = completion
-            self.pendingTracks[track.videoID] = track
-            if !self.activeOrder.contains(track.videoID) { self.activeOrder.append(track.videoID) }
-            self.pendingQuality[track.videoID] = JioSaavnService.shared.lastQualityLabel
-            task.resume()
+            // Every mutation of the queue happens on the main queue, so the
+            // table can read it without racing the URLSession delegate queue.
+            DispatchQueue.main.async {
+                // Cancelled while the resolve was in flight.
+                guard self.active[track.videoID] != nil else { return }
+                let task = self.session.downloadTask(with: url)
+                self.tasks[task.taskIdentifier] = track.videoID
+                self.completions[track.videoID] = completion
+                self.pendingTracks[track.videoID] = track
+                if !self.activeOrder.contains(track.videoID) { self.activeOrder.append(track.videoID) }
+                self.pendingQuality[track.videoID] = JioSaavnService.shared.lastQualityLabel
+                task.resume()
+            }
         }
     }
 
@@ -311,10 +317,12 @@ extension DownloadStore: URLSessionDownloadDelegate {
         // Report in whole percent: the UI only ever prints an integer, and this
         // keeps the notification stream from waking every row on each packet.
         let rounded = (fraction * 100).rounded() / 100
-        guard rounded != lastReported[videoID] else { return }
-        lastReported[videoID] = rounded
-        active[videoID] = rounded
-        postChange()
+        DispatchQueue.main.async {
+            guard self.active[videoID] != nil, rounded != self.lastReported[videoID] else { return }
+            self.lastReported[videoID] = rounded
+            self.active[videoID] = rounded
+            self.postChange()
+        }
     }
 
     func urlSession(_ session: URLSession,
@@ -329,32 +337,34 @@ extension DownloadStore: URLSessionDownloadDelegate {
         do {
             try FileManager.default.moveItem(at: location, to: destination)
         } catch {
-            finish(track: track, error: "Could not save the file.")
+            DispatchQueue.main.async { self.finish(track: track, error: "Could not save the file.") }
             return
         }
         let size = (try? FileManager.default.attributesOfItem(atPath: destination.path)[.size] as? NSNumber)?.int64Value ?? 0
         guard size > 0 else {
             try? FileManager.default.removeItem(at: destination)
-            finish(track: track, error: "The download was empty.")
+            DispatchQueue.main.async { self.finish(track: track, error: "The download was empty.") }
             return
         }
-        let quality = pendingQuality[videoID] ?? ""
-        saved.removeAll(where: { $0.track.videoID == videoID })
-        saved.insert(DownloadedTrack(track: track,
-                                     fileName: fileName,
-                                     byteSize: size,
-                                     qualityLabel: quality,
-                                     downloadedAt: Date()), at: 0)
-        save()
-        active.removeValue(forKey: videoID)
-        failed.removeValue(forKey: videoID)
-        activeOrder.removeAll(where: { $0 == videoID })
-        pendingTracks.removeValue(forKey: videoID)
-        pendingQuality.removeValue(forKey: videoID)
-        tasks.removeValue(forKey: downloadTask.taskIdentifier)
-        let completion = completions.removeValue(forKey: videoID)
-        postChange()
-        completion?(true, "Downloaded")
+        DispatchQueue.main.async {
+            let quality = self.pendingQuality[videoID] ?? ""
+            self.saved.removeAll(where: { $0.track.videoID == videoID })
+            self.saved.insert(DownloadedTrack(track: track,
+                                              fileName: fileName,
+                                              byteSize: size,
+                                              qualityLabel: quality,
+                                              downloadedAt: Date()), at: 0)
+            self.save()
+            self.active.removeValue(forKey: videoID)
+            self.failed.removeValue(forKey: videoID)
+            self.activeOrder.removeAll(where: { $0 == videoID })
+            self.pendingTracks.removeValue(forKey: videoID)
+            self.pendingQuality.removeValue(forKey: videoID)
+            self.tasks.removeValue(forKey: downloadTask.taskIdentifier)
+            let completion = self.completions.removeValue(forKey: videoID)
+            self.postChange()
+            completion?(true, "Downloaded")
+        }
     }
 
     func urlSession(_ session: URLSession,
@@ -366,7 +376,9 @@ extension DownloadStore: URLSessionDownloadDelegate {
         let message = (error as NSError).code == NSURLErrorCancelled
             ? "Download cancelled."
             : error.localizedDescription
-        tasks.removeValue(forKey: task.taskIdentifier)
-        finish(track: track, error: message)
+        DispatchQueue.main.async {
+            self.tasks.removeValue(forKey: task.taskIdentifier)
+            self.finish(track: track, error: message)
+        }
     }
 }
