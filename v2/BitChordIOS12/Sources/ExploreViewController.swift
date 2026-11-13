@@ -104,11 +104,19 @@ final class ExploreViewController: UIViewController {
     }
 
     @objc private func tileTapped(_ sender: MoodTileView) {
-        let controller = CollectionViewController(title: sender.moodTitle,
-                                                  subtitle: "Made for you",
-                                                  query: sender.moodTitle,
-                                                  kind: .songs)
-        navigationController?.pushViewController(controller, animated: true)
+        let mood = sender.moodTitle
+        let list = TrackListViewController()
+        list.title = mood
+        list.emptyText = "Searching..."
+        navigationController?.pushViewController(list, animated: true)
+        InnerTube.shared.search(mood + " music", filter: .songs) { tracks, error in
+            if let tracks = tracks, !tracks.isEmpty {
+                list.setTracks(tracks)
+            } else {
+                list.emptyText = error ?? ("No results for " + mood + ".")
+                list.setTracks([])
+            }
+        }
     }
 }
 
