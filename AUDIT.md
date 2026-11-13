@@ -12,8 +12,8 @@ screenshot), **Ported** (implemented and reachable, exercised indirectly by the
 flows CI asserts), **iOS 12 block**, **Account/credential** (needs an account or
 third-party keys this build cannot ship), **Android-only**.
 
-Latest full run: commit `ecc8839`, all three jobs green (`43390271498`). Both
-root IPAs are that build: 17,014,796 bytes, sha256 `e458d93a...`, bundle
+Latest full run: commit `c36dede`, all three jobs green (`43447826276`). Both
+root IPAs are that build: 17,017,034 bytes, sha256 `178f8402...`, bundle
 `com.bitchord.ios12v2` 2.0.0, `MinimumOSVersion 12.0`, `UIDeviceFamily [1,2]`,
 a thin `arm64` executable (`cputype 0x100000c`) and a registered `bitchord`
 URL scheme - verified inside CI by unzipping the packaged IPA and again on the
