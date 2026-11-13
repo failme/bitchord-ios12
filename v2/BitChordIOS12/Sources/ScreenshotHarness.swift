@@ -123,6 +123,7 @@ enum ScreenshotHarness {
             }
             DownloadStore.shared.download(track) { ok, message in
                 report.append("seed: download ok=\(ok) message=\(message)")
+                report.append("seed: transport=\(DownloadStore.shared.transport[track.videoID] ?? "") (background session)")
                 report.append("seed: saved=\(DownloadStore.shared.saved.count)")
                 report.append("seed: bytes=\(DownloadStore.shared.totalBytes)")
                 if let url = DownloadStore.shared.localURL(for: track.videoID) {

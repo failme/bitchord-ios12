@@ -259,7 +259,8 @@ final class JioSaavnService {
         // Completions land on the main queue, matching `InnerTube.post`.
         session.dataTask(with: url) { data, response, error in
             if let error = error {
-                let message = error.localizedDescription
+                let ns = error as NSError
+                let message = "\(ns.localizedDescription) [\(ns.domain) \(ns.code)]"
                 DispatchQueue.main.async { completion(nil, message) }
                 return
             }

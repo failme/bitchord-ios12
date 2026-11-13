@@ -110,6 +110,11 @@ final class DownloadStore: NSObject {
     private var session: URLSession!       // background transfers
     private var pacedSession: URLSession!  // foreground, capture harness only
     private var tasks: [Int: String] = [:]
+    private var urls: [String: URL] = [:]
+    private var attempts: [String: Int] = [:]
+    /// Which session actually carried each track: "background", or
+    /// "foreground" when the background one was refused and retried.
+    private(set) var transport: [String: String] = [:]
     private var completions: [String: (Bool, String) -> Void] = [:]
     private var lastReported: [String: Double] = [:]
 
@@ -369,16 +374,34 @@ final class DownloadStore: NSObject {
         completions[track.videoID] = completion
         pendingTracks[track.videoID] = track
         pendingQuality[track.videoID] = qualityLabel
+        urls[track.videoID] = url
+        attempts[track.videoID] = 1
         if !activeOrder.contains(track.videoID) { activeOrder.append(track.videoID) }
         savePending()
         if progressPace > 0 {
+            transport[track.videoID] = "paced"
             startPacedTransfer(track: track, url: url)
         } else {
+            transport[track.videoID] = "background"
             let task = session.downloadTask(with: url)
             task.taskDescription = track.videoID
             tasks[task.taskIdentifier] = track.videoID
             task.resume()
         }
+    }
+
+    /// The simulator's background session occasionally reports an unclassified
+    /// failure (-1) before a single byte arrives, while the same URL works in a
+    /// foreground session. One retry keeps a download from dying for that, and
+    /// the transport is recorded so the capture can say which one carried it.
+    private func retryInForeground(videoID: String, track: Track) {
+        guard let url = urls[videoID], attempts[videoID] == 1 else { return }
+        attempts[videoID] = 2
+        transport[videoID] = "foreground"
+        let task = pacedSession.downloadTask(with: url)
+        task.taskDescription = videoID
+        tasks[task.taskIdentifier] = videoID
+        task.resume()
     }
 
     /// Data-task transport used only when the capture harness asks for a paced
@@ -720,9 +743,18 @@ extension DownloadStore: URLSessionDownloadDelegate {
         guard let error = error,
               let videoID = videoID(for: task),
               let track = pendingTracks[videoID] else { return }
-        let message = (error as NSError).code == NSURLErrorCancelled
+        let ns = error as NSError
+        if ns.domain == NSURLErrorDomain, ns.code == NSURLErrorUnknown,
+           transport[videoID] == "background" {
+            DispatchQueue.main.async {
+                self.tasks.removeValue(forKey: task.taskIdentifier)
+                self.retryInForeground(videoID: videoID, track: track)
+            }
+            return
+        }
+        let message = ns.code == NSURLErrorCancelled
             ? "Download cancelled."
-            : error.localizedDescription
+            : "\(ns.localizedDescription) [\(ns.domain) \(ns.code)]"
         DispatchQueue.main.async {
             self.tasks.removeValue(forKey: task.taskIdentifier)
             self.finish(track: track, error: message)
