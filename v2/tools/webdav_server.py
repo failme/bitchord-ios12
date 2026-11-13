@@ -48,6 +48,10 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(401)
         self.send_header("WWW-Authenticate", 'Basic realm="bitChord"')
         self.send_header("Content-Length", "0")
+        # The client keeps the connection alive and reuses it for the retry; a
+        # body left unread would be parsed as the next request line.
+        self.send_header("Connection", "close")
+        self.close_connection = True
         self.end_headers()
         return False
 
@@ -63,11 +67,12 @@ class Handler(BaseHTTPRequestHandler):
         return candidate
 
     def do_PROPFIND(self):
-        if not self._authorized():
-            return
+        # Drain the request body first, even on the auth-failure path.
         length = int(self.headers.get("Content-Length") or 0)
         if length:
             self.rfile.read(length)
+        if not self._authorized():
+            return
         target = self._local_path()
         if not target or not os.path.exists(target):
             self.send_error(404)
