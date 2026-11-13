@@ -394,7 +394,7 @@ jobs:
           grep -q "local.folders=1" "$REPORT"
           grep -q "local.tracks=1" "$REPORT"
           grep -q "local.playing=true" "$REPORT"
-          grep -q "local.engine=native: local file" "$REPORT"
+          grep -q "local.engine=native Local Music" "$REPORT"
           grep -q "badge.downloaded=true" "$REPORT"
           HISTORY=$(sed -n 's/^history.count=//p' "$REPORT" | head -1)
           echo "history entries: $HISTORY"
