@@ -219,6 +219,10 @@ final class SettingsCell: UITableViewCell {
         detailLabel.font = Theme.font(14)
         detailLabel.textColor = Theme.secondaryText
         detailLabel.numberOfLines = 1
+        // The real subtitles are set to fit the row rather than truncate, and
+        // the icon inset costs just enough width to clip them otherwise.
+        detailLabel.adjustsFontSizeToFitWidth = true
+        detailLabel.minimumScaleFactor = 0.8
         cardView.addSubview(detailLabel)
 
         iconView.translatesAutoresizingMaskIntoConstraints = false
