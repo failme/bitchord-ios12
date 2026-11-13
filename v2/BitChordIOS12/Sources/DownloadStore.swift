@@ -457,7 +457,8 @@ extension DownloadStore: URLSessionDownloadDelegate {
         // A paced transfer writes its own file, so it is finished here rather
         // than in the download-task callback.
         if let transfer = paced.removeValue(forKey: task.taskIdentifier) {
-            try? transfer.handle.close()
+            // closeFile(), not close(): the latter is iOS 13 and up.
+            transfer.handle.closeFile()
             if error == nil {
                 storeCompletedFile(videoID: transfer.videoID, track: transfer.track,
                                    from: transfer.partURL, clearing: task.taskIdentifier)
