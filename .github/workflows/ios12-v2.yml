@@ -313,7 +313,7 @@ jobs:
           # reads that index back off disk, so the capture proves persistence
           # across a relaunch rather than same-process memory.
           xcrun simctl launch "$UDID" "$BUNDLE" -BCSeedDownload "$CONTAINER/Documents/shots"
-          for i in $(seq 1 60); do
+          for i in $(seq 1 150); do
             [ -f "$CONTAINER/Documents/shots/download-report.txt" ] && break
             sleep 2
           done

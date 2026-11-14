@@ -305,7 +305,9 @@ enum ScreenshotHarness {
                 exit(0)
             }
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 120) {
+        // A 320kbps file over a cold CI runner can take a while; give the
+        // background session enough room to finish before calling it a miss.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 240) {
             report.append("seed: timed out")
             writeReport(report.joined(separator: "\n"), directory: directory)
             exit(0)
