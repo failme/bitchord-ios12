@@ -182,7 +182,8 @@ final class RootViewController: UIViewController {
         // The bar grows out of the tab bar instead of appearing whole.
         UIView.animate(withDuration: 0.30, delay: 0,
                        usingSpringWithDamping: 0.9, initialSpringVelocity: 0.2,
-                       options: [.beginFromCurrentState, .allowUserInteraction]) {
+                       options: [.beginFromCurrentState, .allowUserInteraction],
+                       animations: {
             self.miniBarHeight.constant = visible ? self.miniBarShownHeight : 0
             self.miniBar.alpha = visible ? 1 : 0
             self.view.layoutIfNeeded()
