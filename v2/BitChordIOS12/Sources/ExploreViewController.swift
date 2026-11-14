@@ -181,7 +181,7 @@ final class ExploreViewController: UIViewController {
     }
 
     func motionFirstTileFrame(in view: UIView) -> CGRect? {
-        layoutIfNeeded()
+        self.view.layoutIfNeeded()
         guard let tile = motionTile(in: view) else { return nil }
         return tile.convert(tile.bounds, to: view)
     }
