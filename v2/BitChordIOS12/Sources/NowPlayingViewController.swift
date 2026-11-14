@@ -5,6 +5,8 @@ import UIKit
 final class NowPlayingViewController: UIViewController {
     private let closeButton = UIButton(type: .system)
     private let artworkView = UIImageView()
+    private let artworkFadeView = UIView()
+    private let artworkFadeLayer = CAGradientLayer()
     private let backdropView = UIImageView()
     private let meshView = MeshGradientView()
     private let blurView = UIVisualEffectView(effect: UIBlurEffect(style: .dark))
@@ -13,6 +15,7 @@ final class NowPlayingViewController: UIViewController {
     private let glowView = UIView()
     private let glowLayer = CAGradientLayer()
     private let lyricsTable = UITableView(frame: .zero, style: .plain)
+    private let lyricsFade = CAGradientLayer()
     private let lyricsSourceLabel = UILabel()
     private let emptyLyricsLabel = UILabel()
     private let compactHeader = UIView()
@@ -22,7 +25,7 @@ final class NowPlayingViewController: UIViewController {
     private let handle = UIView()
     private let stationLabel = UILabel()
     private let peekLabel = UILabel()
-    private let volumeSlider = UISlider()
+    private let volumeSlider = ThinSliderView()
     private let volumeLow = UIImageView()
     private let volumeHigh = UIImageView()
     private let outputButton = UIButton(type: .system)
@@ -39,7 +42,7 @@ final class NowPlayingViewController: UIViewController {
     private let badgeLabel = UILabel()
     private let statusLabel = UILabel()
     private let diagnosticsLabel = UILabel()
-    private let slider = UISlider()
+    private let slider = ThinSliderView()
     private let elapsedLabel = UILabel()
     private let remainingLabel = UILabel()
 
@@ -69,6 +72,7 @@ final class NowPlayingViewController: UIViewController {
         super.viewDidLoad()
         view.backgroundColor = Theme.background
         buildLayout()
+        installLyricsFade()
         let drag = UISwipeGestureRecognizer(target: self, action: #selector(close))
         drag.direction = .down
         view.addGestureRecognizer(drag)
@@ -98,6 +102,21 @@ final class NowPlayingViewController: UIViewController {
         scrimLayer.frame = scrimView.bounds
         glowLayer.frame = glowView.bounds
         glowLayer.cornerRadius = 30
+        artworkFadeLayer.frame = artworkFadeView.bounds
+        lyricsFade.frame = lyricsTable.bounds
+    }
+
+    /// The reference panel lets lyrics run under the header and the controls,
+    /// fading at both ends rather than cutting them off on a hard table edge.
+    private func installLyricsFade() {
+        lyricsFade.colors = [UIColor.clear.cgColor,
+                             UIColor.black.cgColor,
+                             UIColor.black.cgColor,
+                             UIColor.clear.cgColor]
+        lyricsFade.locations = [0, 0.055, 0.93, 1]
+        lyricsFade.startPoint = CGPoint(x: 0.5, y: 0)
+        lyricsFade.endPoint = CGPoint(x: 0.5, y: 1)
+        lyricsTable.layer.mask = lyricsFade
     }
 
     override func viewDidAppear(_ animated: Bool) {
@@ -128,7 +147,7 @@ final class NowPlayingViewController: UIViewController {
         let squat = UIScreen.main.bounds.height < 700
         let headerGap: CGFloat = squat ? 8 : 12
         let headerHeight: CGFloat = squat ? 52 : 56
-        let lyricGap: CGFloat = squat ? 12 : 16
+        let lyricGap: CGFloat = squat ? 16 : 20
         let stackGap: CGFloat = squat ? 8 : 12
         let playSide: CGFloat = squat ? 56 : 64
         let footGap: CGFloat = squat ? 10 : 14
@@ -145,14 +164,19 @@ final class NowPlayingViewController: UIViewController {
         view.addSubview(meshView)
 
         blurView.translatesAutoresizingMaskIntoConstraints = false
+        // Upstream never lays a dark live blur over the cover: the backdrop is
+        // the artwork mesh plus one blurred still, so the cover's colours are
+        // still there at the bottom of the screen. Keeping the dark effect here
+        // was what turned every mesh into a nearly black rectangle.
+        blurView.isHidden = true
         view.addSubview(blurView)
 
         scrimView.translatesAutoresizingMaskIntoConstraints = false
         scrimView.isUserInteractionEnabled = false
         scrimView.layer.addSublayer(scrimLayer)
-        scrimLayer.colors = [UIColor.black.withAlphaComponent(0.10).cgColor,
-                             UIColor.black.withAlphaComponent(0.38).cgColor,
-                             UIColor.black.withAlphaComponent(0.72).cgColor]
+        scrimLayer.colors = [UIColor.black.withAlphaComponent(0.0).cgColor,
+                             UIColor.black.withAlphaComponent(0.14).cgColor,
+                             UIColor.black.withAlphaComponent(0.55).cgColor]
         scrimLayer.locations = [0, 0.45, 1]
         scrimView.isHidden = true
         view.addSubview(scrimView)
@@ -188,6 +212,16 @@ final class NowPlayingViewController: UIViewController {
         artworkView.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(toggleMode)))
         view.addSubview(artworkView)
 
+        // The banner doesn't stop on a hard seam: its last stretch dissolves
+        // into the mesh the way Apple Music's full-bleed artwork does.
+        artworkFadeView.translatesAutoresizingMaskIntoConstraints = false
+        artworkFadeView.isUserInteractionEnabled = false
+        artworkFadeLayer.colors = [UIColor.clear.cgColor,
+                                   UIColor.black.withAlphaComponent(0.30).cgColor]
+        artworkFadeLayer.locations = [0, 1]
+        artworkFadeView.layer.addSublayer(artworkFadeLayer)
+        view.addSubview(artworkFadeView)
+
         lyricsTable.translatesAutoresizingMaskIntoConstraints = false
         lyricsTable.dataSource = self
         lyricsTable.delegate = self
@@ -197,7 +231,7 @@ final class NowPlayingViewController: UIViewController {
         lyricsTable.estimatedRowHeight = 34
         lyricsTable.register(KaraokeLyricCell.self,
                              forCellReuseIdentifier: KaraokeLyricCell.reuseIdentifier)
-        lyricsTable.contentInset = UIEdgeInsets(top: 8, left: 0, bottom: 56, right: 0)
+                    lyricsTable.contentInset = UIEdgeInsets(top: 30, left: 0, bottom: 56, right: 0)
         view.addSubview(lyricsTable)
 
         // The real lyrics panel leads with a small cover, the track and its
@@ -215,8 +249,8 @@ final class NowPlayingViewController: UIViewController {
         view.addSubview(stationLabel)
 
         peekLabel.translatesAutoresizingMaskIntoConstraints = false
-        peekLabel.font = Theme.font(15)
-        peekLabel.textColor = Theme.secondaryText
+        peekLabel.font = Theme.font(16, weight: .medium)
+        peekLabel.textColor = UIColor(white: 1, alpha: 0.78)
         peekLabel.textAlignment = .left
         peekLabel.lineBreakMode = .byTruncatingTail
         peekLabel.isUserInteractionEnabled = true
@@ -236,28 +270,28 @@ final class NowPlayingViewController: UIViewController {
         headerArtwork.translatesAutoresizingMaskIntoConstraints = false
         headerArtwork.contentMode = .scaleAspectFill
         headerArtwork.clipsToBounds = true
-        headerArtwork.layer.cornerRadius = 4
+        headerArtwork.layer.cornerRadius = 8
         headerArtwork.backgroundColor = Theme.surfaceVariant
         compactHeader.addSubview(headerArtwork)
 
         headerTitle.translatesAutoresizingMaskIntoConstraints = false
-        headerTitle.font = Theme.font(20, weight: .bold)
+        headerTitle.font = Theme.font(16, weight: .semibold)
         headerTitle.textColor = Theme.primaryText
         headerTitle.lineBreakMode = .byTruncatingTail
         compactHeader.addSubview(headerTitle)
 
         headerArtist.translatesAutoresizingMaskIntoConstraints = false
-        headerArtist.font = Theme.font(16)
-        headerArtist.textColor = Theme.secondaryText
+        headerArtist.font = Theme.font(16, weight: .medium)
+        headerArtist.textColor = UIColor(white: 1, alpha: 0.55)
         headerArtist.lineBreakMode = .byTruncatingTail
         compactHeader.addSubview(headerArtist)
 
         NSLayoutConstraint.activate([
             headerArtwork.leadingAnchor.constraint(equalTo: compactHeader.leadingAnchor),
             headerArtwork.centerYAnchor.constraint(equalTo: compactHeader.centerYAnchor),
-            headerArtwork.widthAnchor.constraint(equalToConstant: 45),
-            headerArtwork.heightAnchor.constraint(equalToConstant: 45),
-            headerTitle.leadingAnchor.constraint(equalTo: headerArtwork.trailingAnchor, constant: 10),
+            headerArtwork.widthAnchor.constraint(equalToConstant: 54),
+            headerArtwork.heightAnchor.constraint(equalToConstant: 54),
+            headerTitle.leadingAnchor.constraint(equalTo: headerArtwork.trailingAnchor, constant: 12),
             headerTitle.trailingAnchor.constraint(equalTo: compactHeader.trailingAnchor, constant: -54),
             headerTitle.bottomAnchor.constraint(equalTo: compactHeader.centerYAnchor, constant: -1),
             headerArtist.leadingAnchor.constraint(equalTo: headerTitle.leadingAnchor),
@@ -279,14 +313,15 @@ final class NowPlayingViewController: UIViewController {
         translitButton.setTitleColor(UIColor(white: 1, alpha: 0.85), for: .normal)
 
         volumeSlider.translatesAutoresizingMaskIntoConstraints = false
-        volumeSlider.setMinimumTrackImage(Theme.trackImage(Theme.primaryText), for: .normal)
-        volumeSlider.setMaximumTrackImage(Theme.trackImage(Theme.outline), for: .normal)
-        volumeSlider.setThumbImage(Theme.thumbImage(), for: .normal)
+        volumeSlider.idleHeight = 6
+        volumeSlider.activeHeight = 10
         volumeSlider.value = 1
-        volumeSlider.addTarget(self, action: #selector(volumeChanged), for: .valueChanged)
+        volumeSlider.onValueChange = { value in
+            AudioEngine.shared.setVolume(value)
+        }
         for speaker in [volumeLow, volumeHigh] {
             speaker.translatesAutoresizingMaskIntoConstraints = false
-            speaker.image = Icons.image(.speaker, size: 14)
+            speaker.image = Icons.image(.speaker, size: 20)
             speaker.tintColor = UIColor(white: 1, alpha: 0.5)
             speaker.isHidden = true
             view.addSubview(speaker)
@@ -295,7 +330,8 @@ final class NowPlayingViewController: UIViewController {
 
         modeButton.translatesAutoresizingMaskIntoConstraints = false
         modeButton.tintColor = Theme.primaryText
-        modeButton.backgroundColor = .clear
+        modeButton.backgroundColor = UIColor(white: 1, alpha: 0.10)
+        modeButton.layer.cornerRadius = 8
         modeButton.setImage(Icons.image(.bubble, size: 24), for: .normal)
         modeButton.addTarget(self, action: #selector(toggleMode), for: .touchUpInside)
         modeButton.isHidden = true
@@ -303,21 +339,21 @@ final class NowPlayingViewController: UIViewController {
 
         outputButton.translatesAutoresizingMaskIntoConstraints = false
         outputButton.tintColor = Theme.primaryText
-        outputButton.setImage(Icons.image(.cast, size: 24), for: .normal)
+        outputButton.setImage(Icons.image(.cast, size: 26), for: .normal)
         outputButton.addTarget(self, action: #selector(showOutput), for: .touchUpInside)
         view.addSubview(outputButton)
 
         outputLabel.translatesAutoresizingMaskIntoConstraints = false
         outputLabel.text = "This phone"
-        outputLabel.font = Theme.font(11)
-        outputLabel.textColor = Theme.secondaryText
+        outputLabel.font = Theme.font(12, weight: .medium)
+        outputLabel.textColor = UIColor(white: 1, alpha: 0.55)
         outputLabel.textAlignment = .center
         view.addSubview(outputLabel)
 
         // The real panel credits the provider under the words.
         lyricsSourceLabel.translatesAutoresizingMaskIntoConstraints = false
         lyricsSourceLabel.font = Theme.font(13)
-        lyricsSourceLabel.textColor = Theme.secondaryText
+        lyricsSourceLabel.textColor = UIColor(white: 1, alpha: 0.55)
         lyricsSourceLabel.textAlignment = .left
         lyricsSourceLabel.isHidden = true
         view.addSubview(lyricsSourceLabel)
@@ -338,15 +374,15 @@ final class NowPlayingViewController: UIViewController {
         ])
 
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
-        titleLabel.font = Theme.font(20, weight: .bold)
+        titleLabel.font = Theme.font(20, weight: .medium)
         titleLabel.textColor = Theme.primaryText
         titleLabel.numberOfLines = 2
         titleLabel.textAlignment = .left
         view.addSubview(titleLabel)
 
         artistLabel.translatesAutoresizingMaskIntoConstraints = false
-        artistLabel.font = Theme.font(16)
-        artistLabel.textColor = Theme.secondaryText
+        artistLabel.font = Theme.font(20, weight: .medium)
+        artistLabel.textColor = UIColor(white: 1, alpha: 0.55)
         artistLabel.textAlignment = .left
         view.addSubview(artistLabel)
 
@@ -371,42 +407,43 @@ final class NowPlayingViewController: UIViewController {
         view.addSubview(diagnosticsLabel)
 
         slider.translatesAutoresizingMaskIntoConstraints = false
-        slider.setMinimumTrackImage(Theme.trackImage(Theme.accent), for: .normal)
-        slider.setMaximumTrackImage(Theme.trackImage(Theme.outline), for: .normal)
-        slider.setThumbImage(Theme.thumbImage(), for: .normal)
-        slider.addTarget(self, action: #selector(sliderDown), for: .touchDown)
-        slider.addTarget(self, action: #selector(sliderUp),
-                         for: [.touchUpInside, .touchUpOutside, .touchCancel])
+        slider.idleHeight = 7
+        slider.activeHeight = 12
+        slider.onTrackingBegan = {
+            PlayerService.shared.isScrubbing = true
+        }
+        slider.onValueChangeFinished = { value in
+            PlayerService.shared.isScrubbing = false
+            PlayerService.shared.seek(toFraction: Double(value))
+        }
         view.addSubview(slider)
 
         for label in [elapsedLabel, remainingLabel] {
             label.translatesAutoresizingMaskIntoConstraints = false
-            label.font = Theme.monoDigits(11)
-            label.textColor = Theme.secondaryText
+            label.font = Theme.font(12, weight: .medium)
+            label.textColor = UIColor(white: 1, alpha: 0.55)
             view.addSubview(label)
         }
 
         configureTransportButton(shuffleButton, icon: .shuffle, size: 20, action: #selector(goShuffle))
-        configureTransportButton(previousButton, icon: .previous, size: 52, action: #selector(goPrevious))
-        configureTransportButton(playButton, icon: .play, size: 26, action: #selector(togglePlay))
-        playButton.backgroundColor = .white
-        playButton.layer.cornerRadius = 32
-        playButton.tintColor = .black
-        playButton.layer.shadowColor = UIColor.black.cgColor
-        playButton.layer.shadowOpacity = 0.35
-        playButton.layer.shadowRadius = 12
-        playButton.layer.shadowOffset = CGSize(width: 0, height: 6)
-        configureTransportButton(nextButton, icon: .next, size: 52, action: #selector(goNext))
+        configureTransportButton(previousButton, icon: .previous, size: 53, action: #selector(goPrevious))
+        configureTransportButton(playButton, icon: .play, size: 74, action: #selector(togglePlay))
+        // Apple Music's transport is white ink on the backdrop, not a filled
+        // white disc; upstream `TransportRow` draws the glyph alone.
+        playButton.backgroundColor = .clear
+        playButton.layer.cornerRadius = 0
+        playButton.tintColor = Theme.primaryText
+        configureTransportButton(nextButton, icon: .next, size: 53, action: #selector(goNext))
         configureTransportButton(repeatButton, icon: .repeatAll, size: 20, action: #selector(goRepeat))
 
         configureTransportButton(likeButton, icon: .heart, size: 22, action: #selector(toggleLike))
-        configureTransportButton(queueButton, icon: .list, size: 24, action: #selector(showQueue))
+        configureTransportButton(queueButton, icon: .list, size: 26, action: #selector(showQueue))
 
         let safe = view.safeAreaLayoutGuide
         glowLayer.startPoint = CGPoint(x: 0.5, y: 0)
         glowLayer.endPoint = CGPoint(x: 0.5, y: 1)
-        titleUnderArtwork = titleLabel.topAnchor.constraint(equalTo: artworkView.bottomAnchor,
-                                                            constant: 16)
+                    titleUnderArtwork = titleLabel.topAnchor.constraint(equalTo: artworkView.bottomAnchor,
+                                                            constant: 20)
         lyricsTopDefault = lyricsTable.topAnchor.constraint(equalTo: stationLabel.bottomAnchor, constant: 8)
         lyricsTopCompact = lyricsTable.topAnchor.constraint(equalTo: compactHeader.bottomAnchor,
                                                             constant: lyricGap)
@@ -452,7 +489,12 @@ final class NowPlayingViewController: UIViewController {
             artworkView.topAnchor.constraint(equalTo: view.topAnchor),
             artworkView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             artworkView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            artworkView.heightAnchor.constraint(equalTo: view.heightAnchor, multiplier: 0.50),
+            artworkView.heightAnchor.constraint(equalTo: view.heightAnchor, multiplier: 0.55),
+
+            artworkFadeView.leadingAnchor.constraint(equalTo: artworkView.leadingAnchor),
+            artworkFadeView.trailingAnchor.constraint(equalTo: artworkView.trailingAnchor),
+            artworkFadeView.bottomAnchor.constraint(equalTo: artworkView.bottomAnchor),
+            artworkFadeView.heightAnchor.constraint(equalTo: artworkView.heightAnchor, multiplier: 0.18),
 
             emptyLyricsLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             emptyLyricsLabel.centerYAnchor.constraint(equalTo: lyricsTable.centerYAnchor),
@@ -468,27 +510,27 @@ final class NowPlayingViewController: UIViewController {
             handle.heightAnchor.constraint(equalToConstant: 5),
 
             compactHeader.topAnchor.constraint(equalTo: handle.bottomAnchor, constant: headerGap),
-            compactHeader.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
-            compactHeader.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
-            compactHeader.heightAnchor.constraint(equalToConstant: headerHeight),
+            compactHeader.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 30),
+            compactHeader.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -30),
+            compactHeader.heightAnchor.constraint(equalToConstant: 60),
 
-            lyricsSourceLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 32),
+            lyricsSourceLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 30),
             lyricsSourceLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
             lyricsSourceLabel.bottomAnchor.constraint(equalTo: slider.topAnchor, constant: -10),
 
-            titleUnderArtwork ?? titleLabel.topAnchor.constraint(equalTo: artworkView.bottomAnchor, constant: 26),
+            titleUnderArtwork ?? titleLabel.topAnchor.constraint(equalTo: artworkView.bottomAnchor, constant: 20),
             titleLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 30),
             titleLabel.trailingAnchor.constraint(equalTo: toggleButton.leadingAnchor, constant: -10),
 
-            toggleButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
-            toggleButton.widthAnchor.constraint(equalToConstant: 44),
-            toggleButton.heightAnchor.constraint(equalToConstant: 44),
+            toggleButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
+            toggleButton.widthAnchor.constraint(equalToConstant: 40),
+            toggleButton.heightAnchor.constraint(equalToConstant: 40),
 
-            peekLabel.topAnchor.constraint(equalTo: artistLabel.bottomAnchor, constant: 20),
+            peekLabel.topAnchor.constraint(equalTo: artistLabel.bottomAnchor, constant: 16),
             peekLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 30),
             peekLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -30),
 
-            artistLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 2),
+            artistLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 0),
             artistLabel.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
             artistLabel.trailingAnchor.constraint(equalTo: titleLabel.trailingAnchor),
 
@@ -505,14 +547,14 @@ final class NowPlayingViewController: UIViewController {
             diagnosticsLabel.trailingAnchor.constraint(equalTo: titleLabel.trailingAnchor),
 
             volumeSlider.bottomAnchor.constraint(equalTo: likeButton.topAnchor, constant: -footGap),
-            volumeSlider.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
-            volumeSlider.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
-            volumeSlider.heightAnchor.constraint(equalToConstant: 18),
+            volumeSlider.leadingAnchor.constraint(equalTo: volumeLow.trailingAnchor, constant: 10),
+            volumeSlider.trailingAnchor.constraint(equalTo: volumeHigh.leadingAnchor, constant: -10),
+            volumeSlider.heightAnchor.constraint(equalToConstant: 32),
 
             modeButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 56),
             modeButton.centerYAnchor.constraint(equalTo: likeButton.centerYAnchor),
-            modeButton.widthAnchor.constraint(equalToConstant: 32),
-            modeButton.heightAnchor.constraint(equalToConstant: 22),
+            modeButton.widthAnchor.constraint(equalToConstant: 35),
+            modeButton.heightAnchor.constraint(equalToConstant: 35),
 
             outputButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             outputButton.centerYAnchor.constraint(equalTo: likeButton.centerYAnchor),
@@ -523,48 +565,49 @@ final class NowPlayingViewController: UIViewController {
             outputLabel.centerXAnchor.constraint(equalTo: outputButton.centerXAnchor),
 
             volumeLow.centerYAnchor.constraint(equalTo: volumeSlider.centerYAnchor),
-            volumeLow.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
-            volumeLow.widthAnchor.constraint(equalToConstant: 14),
-            volumeLow.heightAnchor.constraint(equalToConstant: 14),
+            volumeLow.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 30),
+            volumeLow.widthAnchor.constraint(equalToConstant: 20),
+            volumeLow.heightAnchor.constraint(equalToConstant: 20),
 
             volumeHigh.centerYAnchor.constraint(equalTo: volumeSlider.centerYAnchor),
-            volumeHigh.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
-            volumeHigh.widthAnchor.constraint(equalToConstant: 14),
-            volumeHigh.heightAnchor.constraint(equalToConstant: 14),
+            volumeHigh.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -30),
+            volumeHigh.widthAnchor.constraint(equalToConstant: 20),
+            volumeHigh.heightAnchor.constraint(equalToConstant: 20),
 
-            globeButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
+            globeButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 30),
             globeButton.bottomAnchor.constraint(equalTo: lyricsSourceLabel.topAnchor, constant: -10),
             globeButton.widthAnchor.constraint(equalToConstant: 36),
             globeButton.heightAnchor.constraint(equalToConstant: 36),
 
-            translitButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
+            translitButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -30),
             translitButton.centerYAnchor.constraint(equalTo: globeButton.centerYAnchor),
             translitButton.widthAnchor.constraint(equalToConstant: 36),
             translitButton.heightAnchor.constraint(equalToConstant: 36),
-            slider.topAnchor.constraint(equalTo: peekLabel.bottomAnchor, constant: 12),
+            slider.topAnchor.constraint(equalTo: peekLabel.bottomAnchor, constant: 8),
             slider.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 30),
             slider.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -30),
+            slider.heightAnchor.constraint(equalToConstant: 34),
 
-            elapsedLabel.topAnchor.constraint(equalTo: slider.bottomAnchor, constant: 2),
+            elapsedLabel.topAnchor.constraint(equalTo: slider.bottomAnchor, constant: -4),
             elapsedLabel.leadingAnchor.constraint(equalTo: slider.leadingAnchor),
 
             remainingLabel.topAnchor.constraint(equalTo: elapsedLabel.topAnchor),
             remainingLabel.trailingAnchor.constraint(equalTo: slider.trailingAnchor),
 
-            playButton.topAnchor.constraint(equalTo: elapsedLabel.bottomAnchor, constant: squat ? 16 : 24),
+            playButton.topAnchor.constraint(equalTo: elapsedLabel.bottomAnchor, constant: squat ? 10 : 18),
             playButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            playButton.heightAnchor.constraint(equalToConstant: 64),
-            playButton.widthAnchor.constraint(equalToConstant: 64),
+            playButton.heightAnchor.constraint(equalToConstant: 74),
+            playButton.widthAnchor.constraint(equalToConstant: 74),
 
             previousButton.centerYAnchor.constraint(equalTo: playButton.centerYAnchor),
-            previousButton.trailingAnchor.constraint(equalTo: playButton.leadingAnchor, constant: -20),
-            previousButton.widthAnchor.constraint(equalToConstant: 54),
-            previousButton.heightAnchor.constraint(equalToConstant: 54),
+            previousButton.trailingAnchor.constraint(equalTo: playButton.leadingAnchor, constant: -36),
+            previousButton.widthAnchor.constraint(equalToConstant: 53),
+            previousButton.heightAnchor.constraint(equalToConstant: 53),
 
             nextButton.centerYAnchor.constraint(equalTo: playButton.centerYAnchor),
-            nextButton.leadingAnchor.constraint(equalTo: playButton.trailingAnchor, constant: 20),
-            nextButton.widthAnchor.constraint(equalToConstant: 54),
-            nextButton.heightAnchor.constraint(equalToConstant: 54),
+            nextButton.leadingAnchor.constraint(equalTo: playButton.trailingAnchor, constant: 36),
+            nextButton.widthAnchor.constraint(equalToConstant: 53),
+            nextButton.heightAnchor.constraint(equalToConstant: 53),
 
             shuffleButton.centerYAnchor.constraint(equalTo: playButton.centerYAnchor),
             shuffleButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
@@ -600,6 +643,7 @@ final class NowPlayingViewController: UIViewController {
     private func applyMode(lyrics: Bool) {
         showingLyrics = lyrics
         artworkView.isHidden = lyrics
+        artworkFadeView.isHidden = lyrics
         // In lyrics mode the words take the screen: the big title and the
         // small print fold away and a compact header takes their place.
         compactHeader.isHidden = !lyrics
@@ -611,16 +655,16 @@ final class NowPlayingViewController: UIViewController {
         // The real panel draws the transport straight on the background, with
         // no white disc behind the pause.
         playButton.backgroundColor = .clear
+        playButton.layer.cornerRadius = 0
         playButton.layer.shadowOpacity = 0
         playButton.tintColor = Theme.primaryText
         playButton.imageEdgeInsets = .zero
-        playButton.setImage(Icons.image(PlayerService.shared.isPlaying ? .pause : .play, size: 56), for: .normal)
-        // In lyrics mode the cover itself is the backdrop: the dark blur
-        // effect above it softens it exactly the way the real panel does.
-        backdropView.alpha = lyrics ? 0.9 : 0
-        // The mesh is opaque; in lyrics mode it has to blend with the cover
-        // underneath instead of hiding it.
-        meshView.alpha = lyrics ? 0.55 : 1
+        playButton.setImage(Icons.image(PlayerService.shared.isPlaying ? .pause : .play, size: 74), for: .normal)
+        // In lyrics mode the cover itself is the backdrop: one blurred still
+        // with the mesh over it, exactly the pair upstream draws. The old dark
+        // blur effect is gone so the artwork's colour survives.
+        backdropView.alpha = lyrics ? 0.82 : 0
+        meshView.alpha = lyrics ? 0.45 : 1
         scrimView.isHidden = !lyrics
         handle.isHidden = false
         stationLabel.isHidden = lyrics
@@ -642,8 +686,7 @@ final class NowPlayingViewController: UIViewController {
         closeButton.isHidden = true
         toggleButton.setTitle(nil, for: .normal)
         toggleButton.backgroundColor = UIColor(white: 1, alpha: 0.10)
-        toggleButton.layer.cornerRadius = 22
-        slider.setThumbImage(lyrics ? UIImage() : Theme.thumbImage(), for: .normal)
+        toggleButton.layer.cornerRadius = 20
         toggleButton.setImage(Icons.image(.ellipsis, size: 20), for: .normal)
         lyricsTopCompact?.isActive = lyrics
         lyricsTopDefault?.isActive = !lyrics
@@ -711,11 +754,10 @@ final class NowPlayingViewController: UIViewController {
             badgeLabel.text = nil
         }
         statusLabel.text = service.statusText.isEmpty ? nil : service.statusText
-        let glyph = Icons.image(service.isPlaying ? .pause : .play, size: 56)
-        UIView.transition(with: playButton, duration: 0.18,
-                          options: [.transitionCrossDissolve, .allowUserInteraction]) {
-            self.playButton.setImage(glyph, for: .normal)
-        }
+        // Upstream's `TransportRow` swaps the two vectors outright; the
+        // enlargement is what makes the glyph read at Apple Music's size.
+        playButton.setImage(Icons.image(service.isPlaying ? .pause : .play, size: 74),
+                            for: .normal)
         nextButton.isEnabled = service.currentIndex + 1 < service.queue.count
         likeButton.setImage(Icons.image(LibraryStore.shared.isLiked(track) ? .heartFilled : .heart, size: 20), for: .normal)
         likeButton.tintColor = LibraryStore.shared.isLiked(track) ? Theme.accent : Theme.primaryText
@@ -739,7 +781,7 @@ final class NowPlayingViewController: UIViewController {
             lyricsSourceLabel.attributedText = NSAttributedString(
                 string: caption,
                 attributes: [.font: Theme.font(13),
-                             .foregroundColor: Theme.secondaryText,
+                             .foregroundColor: UIColor(white: 1, alpha: 0.55),
                              .underlineStyle: NSUnderlineStyle.single.rawValue])
             emptyLyricsLabel.isHidden = !currentLyrics.isEmpty
             lyricsTable.reloadData()
@@ -771,7 +813,9 @@ final class NowPlayingViewController: UIViewController {
         // normally load while it is open, so swapping the image outright reads
         // as a flash.
         if artworkView.image != nil, let image = image {
-            UIView.transition(with: artworkView, duration: 0.25,
+            // Coil's 200ms crossfade: covers arrive with a short dissolve
+            // rather than a hard cut.
+            UIView.transition(with: artworkView, duration: 0.20,
                               options: [.transitionCrossDissolve, .allowUserInteraction]) {
                 self.artworkView.image = image
             }
@@ -780,8 +824,11 @@ final class NowPlayingViewController: UIViewController {
         }
         headerArtwork.image = image
         meshView.palette = Theme.meshPalette(of: image)
-        UIView.transition(with: backdropView, duration: 0.4, options: .transitionCrossDissolve, animations: {
-            self.backdropView.image = image
+        // One blurred still per song, not a live dark blur: this is what keeps
+        // the lyrics backdrop in the artwork's colours.
+        let blurred = Theme.blurredImage(image, radius: 42)
+        UIView.transition(with: backdropView, duration: 0.36, options: .transitionCrossDissolve, animations: {
+            self.backdropView.image = blurred
         }, completion: nil)
         if let image = image, let edge = Theme.edgeColor(of: image) {
             glowLayer.colors = [edge.withAlphaComponent(0.5).cgColor, UIColor.clear.cgColor]
@@ -963,17 +1010,11 @@ final class NowPlayingViewController: UIViewController {
 }
 
 extension NowPlayingViewController {
-    /// The active line is large and bold, everything else steps down a size and
-    /// a weight — the proportions the real lyrics panel uses.
-    static func lyricFont(active: Bool) -> UIFont {
-        let height = UIScreen.main.bounds.height
-        if height < 600 {
-            return active ? Theme.font(27, weight: .bold) : Theme.font(20, weight: .semibold)
-        }
-        if height < 750 {
-            return active ? Theme.font(29, weight: .bold) : Theme.font(21, weight: .semibold)
-        }
-        return active ? Theme.font(31, weight: .bold) : Theme.font(22, weight: .semibold)
+    /// Upstream's lyrics are one size for every line: 34sp/41sp extra-bold for
+    /// synced words, 30sp/38sp for plain text. Only the colour changes as the
+    /// sung line moves, never the size or weight.
+    static func lyricFont(synced: Bool) -> UIFont {
+        return Theme.font(synced ? 34 : 30, weight: .heavy)
     }
 }
 
@@ -989,12 +1030,12 @@ extension NowPlayingViewController: UITableViewDataSource, UITableViewDelegate {
             let row = indexPath.row
             let cellPosition = row == lyricHighlight ? PlayerService.shared.currentTime : -1
             lyricCell.configure(line: currentLyrics[row],
-                                font: NowPlayingViewController.lyricFont(active: row == lyricHighlight),
+                                font: NowPlayingViewController.lyricFont(synced: lyricsSynced),
                                 position: cellPosition)
-            // Every row waits in grey; the karaoke overlay turns the words
-            // white as they are sung. Painting the active row white up front
-            // would hide the sweep entirely.
-            lyricCell.dimmed = Theme.secondaryText
+            // Every row waits in dimmed white; the karaoke overlay turns the
+            // words white as they are sung. Painting the active row white up
+            // front would hide the sweep entirely.
+            lyricCell.dimmed = UIColor(white: 1, alpha: 0.42)
         }
         return cell
     }
@@ -1002,10 +1043,10 @@ extension NowPlayingViewController: UITableViewDataSource, UITableViewDelegate {
     func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
         if let cached = lyricHeights[indexPath.row] { return cached }
         guard indexPath.row < currentLyrics.count else { return 34 }
-        let width = max(1, tableView.bounds.width - 64)
+        let width = max(1, tableView.bounds.width - 60)
         let height = KaraokeLineView.height(
             text: currentLyrics[indexPath.row].text,
-            font: NowPlayingViewController.lyricFont(active: indexPath.row == lyricHighlight),
+            font: NowPlayingViewController.lyricFont(synced: lyricsSynced),
             width: width)
         lyricHeights[indexPath.row] = height
         return height

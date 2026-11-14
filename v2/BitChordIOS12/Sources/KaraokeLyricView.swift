@@ -17,11 +17,11 @@ final class KaraokeLineView: UIView {
     private var container: NSTextContainer?
     private var builtWidth: CGFloat = 0
 
-    private let verticalPadding: CGFloat = 12
+    private let verticalPadding: CGFloat = 10
 
     /// Unsung text stays white and dimmed rather than turning grey; over the
     /// blurred cover that is what the real panel looks like.
-    var dimmed: UIColor = UIColor(white: 1, alpha: 0.45)
+    var dimmed: UIColor = UIColor(white: 1, alpha: 0.42)
 
     /// Playback position this line is drawn at. Setting it repaints only when
     /// the revealed characters actually change, which is most ticks apart.
@@ -40,6 +40,11 @@ final class KaraokeLineView: UIView {
         let style = NSMutableParagraphStyle()
         style.alignment = .left
         style.lineBreakMode = .byWordWrapping
+        // Compose's synced style is 41sp on 34sp type (38sp on 30); the line
+        // height is what holds the large lines apart in the reference panel.
+        let lineHeight: CGFloat = font.pointSize >= 34 ? 41 : 38
+        style.minimumLineHeight = lineHeight
+        style.maximumLineHeight = lineHeight
         self.paragraph = style
         super.init(frame: .zero)
         backgroundColor = .clear
@@ -55,12 +60,15 @@ final class KaraokeLineView: UIView {
         let style = NSMutableParagraphStyle()
         style.alignment = .left
         style.lineBreakMode = .byWordWrapping
+        let lineHeight: CGFloat = font.pointSize >= 34 ? 41 : 38
+        style.minimumLineHeight = lineHeight
+        style.maximumLineHeight = lineHeight
         let bounds = (text as NSString).boundingRect(
             with: CGSize(width: width, height: .greatestFiniteMagnitude),
             options: [.usesLineFragmentOrigin, .usesFontLeading],
             attributes: [.font: font, .paragraphStyle: style],
             context: nil)
-        return ceil(bounds.height) + 24
+        return max(lineHeight, ceil(bounds.height)) + 20
     }
 
     override func layoutSubviews() {
@@ -171,7 +179,7 @@ final class KaraokeLyricCell: UITableViewCell {
     private var lineView: KaraokeLineView?
 
     /// How the unsung part of the line is coloured for this row.
-    var dimmed: UIColor = UIColor(white: 1, alpha: 0.45) {
+    var dimmed: UIColor = UIColor(white: 1, alpha: 0.42) {
         didSet { lineView?.dimmed = dimmed }
     }
 
@@ -195,8 +203,8 @@ final class KaraokeLyricCell: UITableViewCell {
         contentView.addSubview(view)
         NSLayoutConstraint.activate([
             view.topAnchor.constraint(equalTo: contentView.topAnchor),
-            view.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 32),
-            view.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -32),
+            view.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 30),
+            view.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -30),
             view.bottomAnchor.constraint(equalTo: contentView.bottomAnchor)
         ])
         lineView = view

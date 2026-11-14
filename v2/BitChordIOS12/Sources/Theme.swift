@@ -100,6 +100,22 @@ enum Theme {
         return String(format: "%d:%02d", total / 60, total % 60)
     }
 
+    /// The soft cover behind the lyrics panel. Upstream runs one blurred still
+    /// per song off the main thread rather than stacking a live blur over the
+    /// covers, and the still is what lets the artwork's own colours survive
+    /// instead of being flattened to grey by a dark `UIVisualEffectView`.
+    static func blurredImage(_ image: UIImage?, radius: CGFloat = 42) -> UIImage? {
+        guard let image = image, let source = image.cgImage else { return nil }
+        let input = CIImage(cgImage: source)
+        guard let filter = CIFilter(name: "CIGaussianBlur") else { return image }
+        filter.setValue(input, forKey: kCIInputImageKey)
+        filter.setValue(radius, forKey: kCIInputRadiusKey)
+        guard let output = filter.outputImage,
+              let cg = CIContext(options: [.useSoftwareRenderer: false])
+                .createCGImage(output, from: input.extent) else { return image }
+        return UIImage(cgImage: cg, scale: image.scale, orientation: image.imageOrientation)
+    }
+
     // MARK: - Scrubber
 
     /// A 3pt track image: the thin-slider look in `UISlider` form (iOS 12-safe).

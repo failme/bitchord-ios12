@@ -46,35 +46,29 @@ enum Icons {
         }
         switch kind {
         case .play:
-            let p = UIBezierPath()
-            p.move(to: pt(0.34, 0.25))
-            p.addLine(to: pt(0.34, 0.75))
-            p.addLine(to: pt(0.74, 0.50))
-            p.close()
-            p.fill()
+            // Upstream's `ic_player_play`: one rounded triangle, not a sharp
+            // Material play arrow.
+            roundedTriangle(pt(0.333, 0.252), pt(0.729, 0.500), pt(0.333, 0.748),
+                            radius: 0.058 * s).fill()
         case .pause:
-            UIBezierPath(roundedRect: CGRect(x: 0.27 * s, y: 0.25 * s, width: 0.18 * s, height: 0.50 * s),
-                         cornerRadius: 0.05 * s).fill()
-            UIBezierPath(roundedRect: CGRect(x: 0.55 * s, y: 0.25 * s, width: 0.18 * s, height: 0.50 * s),
-                         cornerRadius: 0.05 * s).fill()
+            UIBezierPath(roundedRect: CGRect(x: 0.297 * s, y: 0.250 * s,
+                                             width: 0.167 * s, height: 0.500 * s),
+                         cornerRadius: 0.0417 * s).fill()
+            UIBezierPath(roundedRect: CGRect(x: 0.536 * s, y: 0.250 * s,
+                                             width: 0.167 * s, height: 0.500 * s),
+                         cornerRadius: 0.0417 * s).fill()
         case .previous:
-            UIBezierPath(roundedRect: CGRect(x: 0.22 * s, y: 0.26 * s, width: 0.10 * s, height: 0.48 * s),
-                         cornerRadius: 0.03 * s).fill()
-            let p = UIBezierPath()
-            p.move(to: pt(0.74, 0.26))
-            p.addLine(to: pt(0.74, 0.74))
-            p.addLine(to: pt(0.38, 0.50))
-            p.close()
-            p.fill()
+            // `ic_player_previous`: two rounded wedges, no centre bar. The bar
+            // was the single most obvious glyph mismatch in the transport.
+            roundedTriangle(pt(0.942, 0.217), pt(0.519, 0.501), pt(0.942, 0.783),
+                            radius: 0.058 * s).fill()
+            roundedTriangle(pt(0.505, 0.217), pt(0.082, 0.501), pt(0.505, 0.783),
+                            radius: 0.058 * s).fill()
         case .next:
-            let p = UIBezierPath()
-            p.move(to: pt(0.26, 0.26))
-            p.addLine(to: pt(0.26, 0.74))
-            p.addLine(to: pt(0.62, 0.50))
-            p.close()
-            p.fill()
-            UIBezierPath(roundedRect: CGRect(x: 0.68 * s, y: 0.26 * s, width: 0.10 * s, height: 0.48 * s),
-                         cornerRadius: 0.03 * s).fill()
+            roundedTriangle(pt(0.058, 0.217), pt(0.481, 0.501), pt(0.058, 0.783),
+                            radius: 0.058 * s).fill()
+            roundedTriangle(pt(0.495, 0.217), pt(0.918, 0.501), pt(0.495, 0.783),
+                            radius: 0.058 * s).fill()
         case .shuffle:
             let top = UIBezierPath()
             top.move(to: pt(0.16, 0.34))
@@ -229,19 +223,20 @@ enum Icons {
             stroke(arc2, width: w * 0.85)
             UIBezierPath(ovalIn: CGRect(x: 0.22 * s, y: 0.70 * s, width: 0.09 * s, height: 0.09 * s)).fill()
         case .bubble:
-            // Solid bubble with the dots cut out via even-odd filling, the way
-            // the real footer draws its selected comment icon.
-            let bubble = UIBezierPath(roundedRect: CGRect(x: 0.13 * s, y: 0.15 * s, width: 0.74 * s, height: 0.62 * s),
+            // The footer's lyrics tile is an outlined speech bubble with three
+            // dots, not a solid blob: it sits on a lifted grey tile and has to
+            // read as a glyph.
+            let bubble = UIBezierPath(roundedRect: CGRect(x: 0.15 * s, y: 0.16 * s, width: 0.70 * s, height: 0.58 * s),
                                       cornerRadius: 0.18 * s)
-            for dx in [-0.16, 0.0, 0.16] {
-                bubble.append(UIBezierPath(ovalIn: CGRect(x: (0.5 + CGFloat(dx) - 0.045) * s, y: 0.41 * s,
-                                                          width: 0.09 * s, height: 0.09 * s)))
-            }
-            bubble.usesEvenOddFillRule = true
-            bubble.fill()
+            stroke(bubble, width: w * 0.95)
+            let tail = UIBezierPath()
+            tail.move(to: pt(0.34, 0.72))
+            tail.addLine(to: pt(0.30, 0.83))
+            tail.addLine(to: pt(0.46, 0.74))
+            stroke(tail, width: w * 0.9)
             for dx in [-0.14, 0.0, 0.14] {
-                UIBezierPath(ovalIn: CGRect(x: (0.5 + CGFloat(dx) - 0.035) * s, y: 0.44 * s,
-                                            width: 0.07 * s, height: 0.07 * s)).fill()
+                UIBezierPath(ovalIn: CGRect(x: (0.5 + CGFloat(dx) - 0.038) * s, y: 0.445 * s,
+                                            width: 0.076 * s, height: 0.076 * s)).fill()
             }
         case .speaker:
             let body = UIBezierPath()
@@ -409,6 +404,26 @@ enum Icons {
             ring.lineWidth = 0.085 * s
             ring.stroke()
         }
+    }
+
+    /// A triangle whose corners have upstream's 56/960 radius. The arcs are
+    /// tangent to the two edges at each vertex, which is how the Compose vector
+    /// rounds the play and skip wedges.
+    private static func roundedTriangle(_ a: CGPoint, _ b: CGPoint, _ c: CGPoint,
+                                        radius r: CGFloat) -> UIBezierPath {
+        func pointTowards(_ from: CGPoint, _ to: CGPoint, _ distance: CGFloat) -> CGPoint {
+            let dx = to.x - from.x, dy = to.y - from.y
+            let length = max(0.0001, sqrt(dx * dx + dy * dy))
+            return CGPoint(x: from.x + dx / length * distance,
+                           y: from.y + dy / length * distance)
+        }
+        let path = CGMutablePath()
+        path.move(to: pointTowards(a, b, r))
+        path.addArc(tangent1End: b, tangent2End: c, radius: r)
+        path.addArc(tangent1End: c, tangent2End: a, radius: r)
+        path.addArc(tangent1End: a, tangent2End: b, radius: r)
+        path.closeSubpath()
+        return UIBezierPath(cgPath: path)
     }
 
     private static func heartPath(s: CGFloat) -> UIBezierPath {

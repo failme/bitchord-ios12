@@ -76,7 +76,7 @@ final class MeshGradientView: UIView {
         format.scale = 1
         let drawn = UIGraphicsImageRenderer(size: canvas, format: format).image { rendererContext in
             let cg = rendererContext.cgContext
-            colors[0].dimmed(to: 0.20).setFill()
+            colors[0].dimmed(to: 0.28).setFill()
             UIRectFill(CGRect(origin: .zero, size: canvas))
 
             let radius = max(canvas.width, canvas.height) * 0.62
@@ -105,9 +105,9 @@ final class MeshGradientView: UIView {
             }
 
             // Scrim: white text has to stay readable over bright art.
-            UIColor.black.withAlphaComponent(0.04).setFill()
+            UIColor.black.withAlphaComponent(0.02).setFill()
             UIRectFill(CGRect(x: 0, y: 0, width: canvas.width, height: canvas.height * 0.45))
-            UIColor.black.withAlphaComponent(0.20).setFill()
+            UIColor.black.withAlphaComponent(0.12).setFill()
             UIRectFill(CGRect(x: 0, y: canvas.height * 0.45,
                               width: canvas.width, height: canvas.height * 0.55))
         }
@@ -239,10 +239,10 @@ extension UIColor {
     func tuned() -> UIColor {
         var hue: CGFloat = 0, saturation: CGFloat = 0, brightness: CGFloat = 0, alpha: CGFloat = 0
         getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha)
-        let boosted = min(saturation * 1.35, 1)
-        let lightness = min(max(brightness * (1 - saturation / 2), 0.28), 0.58)
+        let boosted = min(saturation * 1.45, 1)
+        let lightness = min(max(brightness * (1 - saturation / 2), 0.30), 0.62)
         return UIColor(hue: hue, saturation: boosted,
-                       brightness: min(1, lightness * 1.55), alpha: 1)
+                       brightness: min(1, lightness * 1.62), alpha: 1)
     }
 
     func dimmed(to lightness: CGFloat) -> UIColor {
