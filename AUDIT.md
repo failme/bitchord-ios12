@@ -12,13 +12,14 @@ screenshot), **Ported** (implemented and reachable, exercised indirectly by the
 flows CI asserts), **iOS 12 block**, **Account/credential** (needs an account or
 third-party keys this build cannot ship), **Android-only**.
 
-Latest full run: commit `8dc3a17` (`43643240525`). The build, simulator and
-screenshots jobs are all green. The screenshots job captured 59 settled
-screenshots plus 46 origin/mid/settled motion frames, and passed every screen,
-motion, geometry and background-transfer assertion. Its 105-PNG artifact is
-the capture set in `_ci_tmp/run-8dc3a17/shots/`. Both root IPAs are that build:
-17,184,226 bytes, sha256
-`82ba3965cc392d62ad84fc11ccff28311be2b14bad36189c49ecc7c34af99bef`, bundle
+Latest full run: commit `60d569d` (`43649376117`). The build, simulator and
+screenshots jobs are green; the screenshots job was rerun once after its
+background-transfer fixture found no fresh transfer, and the rerun passed every
+screen, motion, geometry, compact-layout and background assertion. It captured
+59 settled screenshots, 46 origin/mid/settled motion frames and 8 screens at
+320x568, plus their reports, in `_ci_tmp/run-60d569d/green/shots/`. Both root
+IPAs are that build: 17,244,148 bytes, sha256
+`7cfb58587243fbc18f1bf896212ad37ce5d53039a875ed9e4e788391c23e6c3a`, bundle
 `com.bitchord.ios12v2` 2.0.0, `MinimumOSVersion 12.0`, `UIDeviceFamily [1,2]`,
 a thin `arm64` executable (Mach-O) and a registered `bitchord` URL scheme -
 verified on the committed file, with both copies byte-identical.
@@ -28,16 +29,25 @@ verified on the committed file, with both copies byte-identical.
 The screens were measured against the running Android app in the emulator
 (1080x2400, mapped to 402x874) rather than compared by eye alone. Header
 heights, banner and card origins, list rows, settings rows, player transport
-and footer were moved onto the reference bounds; `home.png`, `library.png`,
-`explore.png`, `search.png`, `settings.png`, `downloads-empty.png`,
-`local-music.png` and `now-playing.png` in `_ci_tmp/run-8dc3a17/shots/` are
-the resulting captures. Home's account button is 36pt, the Top Picks card is
+and footer were moved onto the reference bounds; `home.png`, `library.png`, `explore.png`, `search.png`,
+`settings.png`, `downloads-empty.png`, `local-music.png` and `now-playing.png`
+in `_ci_tmp/run-60d569d/green/shots/` are the resulting captures. Home's account button is 36pt, the Top Picks card is
 240x320pt (upstream's `min(width * 0.60, 280)` at 402pt by its 0.75 aspect),
 and the album shelf follows the card row at 16pt rather than the feed's 28pt
 rhythm. Explore keeps the 1.72:1 mood card and 18pt radius from
 `MOOD_CARD_ASPECT` / `MOOD_CARD_SHAPE`. The song menu now names **Open album**
 and **Open artist**, with the album sleeve glyph; the Song Info dialog waits
 for its live payload (or its five-second cap) before the screenshot is taken.
+Those measurements only held at the 402pt reference width. On a 320x568
+launch the Explore grid kept a fixed 104pt row, which turned the 1.72:1 sleeve
+into a squat 0.58 tile, and Now Playing's fixed artwork and footer stack pushed
+the transport into the volume and output rows. Explore now derives the row
+height from the measured width (138x80.3 at 320), and Now Playing reads the
+actual view height before choosing compact metrics: 0.47 artwork, 18/16pt
+title/artist, a 64pt transport, a tighter footer and the output label above the
+safe-area edge. The compact report asserts the tile ratio and checks that the
+transport, volume and footer do not overlap.
+
 The Now Playing and lyrics surfaces were then rebuilt from the
 Compose constants: 20pt medium artist over a 20pt semibold title, the 20dp
 artwork-to-title gap, the 54dp collapsed header, a 7pt/12pt thumbless scrubber,
@@ -51,12 +61,27 @@ crossfade, the mini player expands and collapses, Now Playing rises and slides
 away with the play/pause glyph crossfading, artwork fades between tracks, cards
 scale on press, the stats carousel snaps and onboarding steps fade.
 
+## Google account
+
+The account surface follows the Android app rather than inventing an OAuth
+client. **Sign in with Google** opens `accounts.google.com/ServiceLogin` in a
+`WKWebView` with a Safari user agent, continues to `music.youtube.com`, and
+captures the resulting YouTube/Google cookies. The app validates an API SID
+(`SAPISID`, `__Secure-3PAPISID` or `__Secure-1PAPISID`), stores the session in
+the keychain, and signs InnerTube browsing requests with `SAPISIDHASH` plus the
+captured auth user. Playback stays on the anonymous clients. The banner, all
+five header avatars, Settings' **Account & integrations** row and History's
+sign-in prompt share one `GoogleAccountStore`; the account page can sign out
+and clears the browser cookies. No client ID or secret is committed, and CI
+only exercises the signed-out state, so the first real login still needs the
+listener to enter their own Google password/2FA on the device.
+
 ## Motion evidence
 
 A separate `-BCMotion` launch drives every transition through the real control
 (`MotionHarness`). It writes an origin frame, at least one mid frame and the
 settled frame, and records presentation-layer values in
-`_ci_tmp/run-8dc3a17/shots/shots/motion-report.txt`. CI fails if any flag is
+`_ci_tmp/run-60d569d/green/shots/motion-report.txt`. CI fails if any flag is
 false or any of the 46
 frames is missing, so a transition that snapped cannot pass as animated. The
 tab pill's 0.42s spring was checked against an emulator screen recording of the
@@ -104,12 +129,12 @@ window, rather than leaving a failed `test` as the last command in a chain.
 | `sharedUi/SearchScreen.kt` | `SearchViewController`, `InnerTube`, `CatalogueSearch` | Asserted - `search.png` |
 | `sharedUi/LibraryScreen.kt`, `LibraryPhoneParts.kt` | `LibraryViewController`, `LibraryStore` | Asserted - `library.png`, `library-synced.png` |
 | `ui/screens/HistoryScreen.kt` | `HistoryViewController` | Asserted - `history.png`, `history-empty.png`, `historyPage.*` |
+| `AccountAndScrobblingScreen.kt` | `AccountViewController`, `GoogleAccountStore`, `GoogleSignInViewController` | Asserted signed out - `small-account.png`, `auth.accountSheet=true`. A real Google login needs the listener's password/2FA on the device |
 | `ui/screens/LocalFolder.kt` | `LocalMusicViewController`, `LocalMusicStore` | Asserted - `local-music.png`, `local-songs.png`, `local.playing=true` |
 | `ui/screens/DetailScreen.kt` | `CollectionViewController`, `ArtistPage` | Asserted - `artist.png`, `artist.loaded=5` |
 | `ui/replay/*` | `ReplayViewController` | Asserted - `replay.png`, `replay.entries`, `replay.plays` |
 | `SettingsSheet.kt`, `SettingsView` | `SettingsViewController`, `SettingsStore` | Asserted - `settings*.png`; 82 rows, all 73 keys |
 | `ui/screens/EqualizerScreen.kt` | Disabled row with reason | iOS 12 block - `AVPlayer` has no EQ tap |
-| `AccountAndScrobblingScreen.kt` | Disabled rows | Account/credential - needs the user's Last.fm/ListenBrainz keys |
 | `ListenTogetherScreen.kt`, `PartySync.kt` | Absent | Account/credential - needs a party server |
 | `DiscordScreen.kt`, `data/discord` | Disabled row | Android-only - Discord RPC uses local Android IPC |
 | `SpotifyLibraryScreen.kt`, `SpotifyCanvasAuthScreen.kt` | Disabled row; sync by public YT Music link | Account/credential - Spotify OAuth client |
@@ -167,8 +192,9 @@ window, rather than leaving a failed `test` as the last command in a chain.
 
 All 73 upstream keys, 82 rows. Wired: playback speed, sleep timer, download
 quality, storage limit, Wi-Fi-only, autoplay, show queue history, addon URL,
-cache limit, storage used, local-music filter. Disabled rows state what is
-missing: DSP, DAC, accounts, scrobbling, Spotify, Cast, Discord.
+cache limit, storage used, local-music filter, and the Google account row.
+Disabled rows state what is missing: DSP, DAC, Last.fm/ListenBrainz keys,
+Spotify, Cast, Discord.
 
 ## Remaining differences (iOS permits them; not built in this pass)
 
@@ -182,7 +208,7 @@ Named rather than hidden:
 
 ## What CI measured, and what it did not
 
-Measured in the simulator (`_ci_tmp/run-8dc3a17/shots/shots/download-report.txt`
+Measured in the simulator (`_ci_tmp/run-60d569d/green/shots/download-report.txt`
 and the background reports), with the run above:
 
 - Song menu: `menu.items=Play next|Add to queue|Add to playlist|Like|Open
@@ -193,9 +219,9 @@ and the background reports), with the run above:
   `afterMove=3`, `moved=true`.
 - History screen: `historyPage.rows=4`, `afterClear=0`, `restored=1`; Replay:
   `replay.entries=6`, `replay.plays=6`.
-- Song info: `info.rows=5`, `info.title=Blinding Lights`, `info.album=Blinding
-  Lights` (the single's own album name); the four live counts remain em dashes
-  when YouTube's watch page cannot be reached from the simulator.
+- Song info: `info.rows=5`, `info.title=Blinding Lights`, `info.album=After
+  Hours`; the four live counts remain em dashes when YouTube's watch page
+  cannot be reached from the simulator.
 - Autoplay: `autoplay.started=true`, `autoplay.tracks=51` from a one-song queue.
 - A force-quit relaunch reads back `verify.localTracks=1` and
   `verify.history=2` with `verify.historyTop=Blinding Lights`, and
@@ -232,7 +258,17 @@ deep-link destinations from cold launches, a WebDAV listing/browse/stream with
 its auth failure, the same browse/stream flow over Jellyfin's own API with its
 three failure messages, and the packaged IPA's plist, scheme and architecture.
 
-Not measured here: lock-screen controls, `SCNetworkReachability`, the real
-background transfer daemon, audio routing and DAC behaviour, and a real addon
-server over a network - all physical-device checks. The metered-link decision
-and the download pacing are the real code paths with their inputs injected.
+Also measured: the 320x568 pass reports `small.window=320x568`,
+`explore.ratioOk=true`, `player.noOverlap=true`, `player.outputFits=true`,
+`auth.accountSheet=true`, `small.done=true`, and writes the seven tab/player/
+account/settings captures. The account page is the signed-out state;
+`auth.browserFlow=google-web-session` and `auth.hasCookie=false` show CI did
+not inject or fabricate a session.
+
+Not measured here: a real Google sign-in (CI has no Google account and cannot
+type a password or 2FA code), lock-screen controls, `SCNetworkReachability`,
+the real background transfer daemon, audio routing and DAC behaviour, and a
+real addon server over a network - all physical-device checks. The web view,
+cookie extraction, keychain write, SAPISIDHASH headers and account parsing are
+compiled and exercised up to the signed-out boundary; the first real login and
+profile fetch need the listener's device.
