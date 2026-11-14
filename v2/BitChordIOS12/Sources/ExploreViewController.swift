@@ -92,7 +92,7 @@ final class ExploreViewController: UIViewController {
                 newRow.spacing = 12
                 newRow.distribution = .fillEqually
                 grid.addArrangedSubview(newRow)
-                newRow.heightAnchor.constraint(equalToConstant: 98).isActive = true
+                newRow.heightAnchor.constraint(equalToConstant: 104).isActive = true
                 row = newRow
             }
             let tile = MoodTileView(mood: mood.title, top: mood.top, bottom: mood.bottom)
@@ -235,7 +235,7 @@ final class MoodTileView: UIButton {
         highlightColor = highlight
         super.init(frame: .zero)
 
-        layer.cornerRadius = 16
+        layer.cornerRadius = 18
         layer.masksToBounds = true
         backgroundColor = MoodTileView.lerp(top, .black, 0.08)
 
