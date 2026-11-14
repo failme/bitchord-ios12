@@ -94,6 +94,12 @@ enum Theme {
         return UIFont.monospacedDigitSystemFont(ofSize: size, weight: weight)
     }
 
+    /// Menlo is on every iOS 12 install; `monospacedSystemFont` arrived in 13.
+    static func mono(_ size: CGFloat) -> UIFont {
+        return UIFont(name: "Menlo-Bold", size: size)
+            ?? UIFont.systemFont(ofSize: size, weight: .semibold)
+    }
+
     static func format(_ seconds: Double) -> String {
         guard seconds.isFinite, seconds >= 0 else { return "0:00" }
         let total = Int(seconds.rounded())

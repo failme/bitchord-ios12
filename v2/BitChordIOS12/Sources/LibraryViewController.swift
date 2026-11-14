@@ -472,11 +472,11 @@ final class LibraryStatCard: UIControl {
         addSubview(valueCaption)
 
         nameLabel.translatesAutoresizingMaskIntoConstraints = false
-        nameLabel.font = UIFont.monospacedSystemFont(ofSize: 11, weight: .semibold)
+        nameLabel.font = Theme.mono(11)
         nameLabel.textColor = UIColor(white: 1, alpha: 0.94)
         nameLabel.attributedText = NSAttributedString(
             string: "BITCHORD LISTENER",
-            attributes: [.font: UIFont.monospacedSystemFont(ofSize: 11, weight: .semibold),
+            attributes: [.font: Theme.mono(11),
                          .foregroundColor: UIColor(white: 1, alpha: 0.94),
                          .kern: 1.3])
         addSubview(nameLabel)
@@ -494,7 +494,7 @@ final class LibraryStatCard: UIControl {
         addSubview(memberCaption)
 
         memberValue.translatesAutoresizingMaskIntoConstraints = false
-        memberValue.font = UIFont.monospacedSystemFont(ofSize: 11, weight: .semibold)
+        memberValue.font = Theme.mono(11)
         memberValue.textColor = .white
         memberValue.textAlignment = .right
         addSubview(memberValue)
@@ -574,14 +574,14 @@ final class LibraryStatCard: UIControl {
                          .kern: 1.5])
         nameLabel.attributedText = NSAttributedString(
             string: line,
-            attributes: [.font: UIFont.monospacedSystemFont(ofSize: 11, weight: .semibold),
+            attributes: [.font: Theme.mono(11),
                          .foregroundColor: UIColor(white: 1, alpha: 0.94),
                          .kern: 1.3])
         detailLabel.text = detail
         self.memberCaption.text = memberCaption
-        memberValue.attributedText = NSAttributedString(
+        self.memberValue.attributedText = NSAttributedString(
             string: memberValue,
-            attributes: [.font: UIFont.monospacedSystemFont(ofSize: 11, weight: .semibold),
+            attributes: [.font: Theme.mono(11),
                          .foregroundColor: UIColor.white,
                          .kern: 0.8])
     }
