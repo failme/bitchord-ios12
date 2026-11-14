@@ -504,10 +504,26 @@ final class LibraryStatCard: UIControl {
         ])
 
         addTarget(self, action: #selector(tapped), for: .touchUpInside)
+        addTarget(self, action: #selector(pressIn), for: [.touchDown, .touchDragEnter])
+        addTarget(self, action: #selector(pressOut),
+                  for: [.touchUpInside, .touchUpOutside, .touchCancel, .touchDragExit])
     }
 
     required init?(coder: NSCoder) {
         return nil
+    }
+
+    @objc private func pressIn() {
+        UIView.animate(withDuration: 0.16, delay: 0, options: [.allowUserInteraction]) {
+            self.transform = CGAffineTransform(scaleX: 0.96, y: 0.96)
+        }
+    }
+
+    @objc private func pressOut() {
+        UIView.animate(withDuration: 0.24, delay: 0, usingSpringWithDamping: 0.7,
+                       initialSpringVelocity: 0.4, options: [.allowUserInteraction]) {
+            self.transform = .identity
+        }
     }
 
     override func layoutSubviews() {
