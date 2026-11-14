@@ -6,6 +6,9 @@ final class JellyfinViewController: UIViewController, UITableViewDataSource, UIT
     private var session: JellyfinSession?
     private var items: [JellyfinItem] = []
     private var currentParent = ""
+    /// Bumped for every load. A response from an older request is dropped, so a
+    /// folder's background library load can't overwrite the folder it opened.
+    private var loadGeneration = 0
 
     private let urlField = UITextField()
     private let userField = UITextField()
@@ -91,7 +94,11 @@ final class JellyfinViewController: UIViewController, UITableViewDataSource, UIT
         statusLabel.text = "Sign in, then pick a library."
         if let stored = JellyfinStore.shared.session() {
             session = stored
-            loadViews()
+            // A controller opened for a folder loads that folder; only the
+            // library root asks for the library list.
+            if currentParent.isEmpty {
+                loadViews()
+            }
         }
     }
 
@@ -120,6 +127,8 @@ final class JellyfinViewController: UIViewController, UITableViewDataSource, UIT
         }
         let username = userField.text ?? ""
         let password = passField.text ?? ""
+        // Any listing already in flight is stale now; signing in starts over.
+        loadGeneration += 1
         isBusy = true
         statusLabel.text = "Signing in…"
         errorLabel.isHidden = true
@@ -146,10 +155,12 @@ final class JellyfinViewController: UIViewController, UITableViewDataSource, UIT
             show(error: "Sign in first.")
             return
         }
+        loadGeneration += 1
+        let generation = loadGeneration
         isBusy = true
         statusLabel.text = "Loading libraries…"
         JellyfinClient.shared.views(session: session) { [weak self] result in
-            guard let self = self else { return }
+            guard let self = self, generation == self.loadGeneration else { return }
             self.isBusy = false
             switch result {
             case .success(let items):
@@ -169,10 +180,12 @@ final class JellyfinViewController: UIViewController, UITableViewDataSource, UIT
 
     private func loadItems(parentID: String) {
         guard let session = session else { return }
+        loadGeneration += 1
+        let generation = loadGeneration
         isBusy = true
         errorLabel.isHidden = true
         JellyfinClient.shared.items(session: session, parentID: parentID) { [weak self] result in
-            guard let self = self else { return }
+            guard let self = self, generation == self.loadGeneration else { return }
             self.isBusy = false
             switch result {
             case .success(let items):
