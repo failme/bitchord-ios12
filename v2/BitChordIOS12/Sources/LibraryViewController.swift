@@ -362,6 +362,43 @@ final class LibraryViewController: UIViewController {
         list.emptyText = empty
         navigationController?.pushViewController(list, animated: true)
     }
+
+    // MARK: - Motion capture hooks
+
+    private var motionCard: LibraryStatCard? {
+        return statsRow.arrangedSubviews.compactMap { $0 as? LibraryStatCard }.first
+    }
+
+    func motionPressCard() -> Bool {
+        guard let card = motionCard else { return false }
+        card.motionPressForCapture()
+        return true
+    }
+
+    func motionReleaseCard() {
+        motionCard?.motionReleaseForCapture()
+    }
+
+    func motionCardScale() -> CGFloat {
+        guard let layer = motionCard?.layer.presentation() else { return 1 }
+        return layer.transform.m11
+    }
+
+    /// Runs a drag-end through the real snapping delegate, then performs the
+    /// deceleration scroll so the mid-frame shows the paging motion.
+    func motionSnapStats(proposed: CGFloat = 200) -> (proposed: CGFloat, target: CGFloat) {
+        guard let scroller = statsScroller else { return (proposed, proposed) }
+        var target = CGPoint(x: proposed, y: 0)
+        scrollViewWillEndDragging(scroller, withVelocity: CGPoint(x: 1.2, y: 0),
+                                  targetContentOffset: &target)
+        scroller.setContentOffset(target, animated: true)
+        return (proposed, target.x)
+    }
+
+    func motionStatsOffset() -> CGFloat {
+        guard let scroller = statsScroller else { return 0 }
+        return scroller.layer.presentation()?.bounds.origin.x ?? scroller.contentOffset.x
+    }
 }
 
 /// A large listening-stat card with a gradient fill.
@@ -628,6 +665,14 @@ class PlaylistCard: UIControl {
 
     @objc private func tapped() {
         onTap?()
+    }
+
+    func motionPressForCapture() {
+        pressIn()
+    }
+
+    func motionReleaseForCapture() {
+        pressOut()
     }
 }
 

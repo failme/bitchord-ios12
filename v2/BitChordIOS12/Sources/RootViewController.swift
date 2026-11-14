@@ -197,6 +197,51 @@ final class RootViewController: UIViewController {
         install(index)
     }
 
+    // MARK: - Motion capture hooks
+
+    /// Everything the motion report needs, read from the presentation layers so
+    /// a value sampled mid-animation is the value actually on screen.
+    func motionSnapshot() -> String {
+        let pill = tabBar.motionPillFrame()
+        var parts = [String(format: "tab=%d pill=%.1f,%.1f,%.1f,%.1f",
+                            selectedIndex, pill.origin.x, pill.origin.y,
+                            pill.width, pill.height)]
+        for (index, navigation) in navigations.enumerated() {
+            let alpha = navigation.view.layer.presentation()?.opacity ?? Float(navigation.view.alpha)
+            parts.append(String(format: "tab%d.alpha=%.2f", index, alpha))
+        }
+        let mini = miniBar.layer.presentation()
+        parts.append(String(format: "mini.h=%.1f mini.a=%.2f",
+                            mini?.bounds.height ?? miniBar.bounds.height,
+                            mini?.opacity ?? Float(miniBar.alpha)))
+        if let player = presentedViewController as? NowPlayingViewController {
+            parts.append(player.motionSnapshot())
+        }
+        return parts.joined(separator: " ")
+    }
+
+    func motionTabAlpha(_ index: Int) -> CGFloat {
+        guard navigations.indices.contains(index) else { return 0 }
+        let view = navigations[index].view!
+        return CGFloat(view.layer.presentation()?.opacity ?? Float(view.alpha))
+    }
+
+    func motionMiniHeight() -> CGFloat {
+        return miniBar.layer.presentation()?.bounds.height ?? miniBar.bounds.height
+    }
+
+    func motionPillFrame() -> CGRect {
+        return tabBar.motionPillFrame()
+    }
+
+    var motionPresentedPlayer: NowPlayingViewController? {
+        return presentedViewController as? NowPlayingViewController
+    }
+
+    func motionDismissPlayer() {
+        (presentedViewController as? NowPlayingViewController)?.motionCloseForCapture()
+    }
+
     func navigationForTab(_ index: Int) -> UINavigationController? {
         guard index >= 0, index < navigations.count else { return nil }
         return navigations[index]

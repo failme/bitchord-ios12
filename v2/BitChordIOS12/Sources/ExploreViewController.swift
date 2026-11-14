@@ -122,7 +122,7 @@ final class ExploreViewController: UIViewController {
             titleLabel.topAnchor.constraint(equalTo: avatar.bottomAnchor, constant: 30),
             titleLabel.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor, constant: 16),
 
-            grid.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 16),
+            grid.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 22),
             grid.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor, constant: 16),
             grid.trailingAnchor.constraint(equalTo: scrollView.trailingAnchor, constant: -16),
             grid.bottomAnchor.constraint(equalTo: scrollView.bottomAnchor, constant: -110),
@@ -152,6 +152,32 @@ final class ExploreViewController: UIViewController {
                        initialSpringVelocity: 0.4, options: [.allowUserInteraction]) {
             sender.transform = .identity
         }
+    }
+
+    // MARK: - Motion capture hooks
+
+    private func motionTile(in node: UIView) -> MoodTileView? {
+        if let tile = node as? MoodTileView { return tile }
+        for child in node.subviews {
+            if let found = motionTile(in: child) { return found }
+        }
+        return nil
+    }
+
+    func motionPressTile() -> Bool {
+        guard let tile = motionTile(in: view) else { return false }
+        tilePressIn(tile)
+        return true
+    }
+
+    func motionReleaseTile() {
+        guard let tile = motionTile(in: view) else { return }
+        tilePressOut(tile)
+    }
+
+    func motionTileScale() -> CGFloat {
+        guard let layer = motionTile(in: view)?.layer.presentation() else { return 1 }
+        return layer.transform.m11
     }
 
     @objc private func tileTapped(_ sender: MoodTileView) {

@@ -767,7 +767,17 @@ final class NowPlayingViewController: UIViewController {
     /// Sets the cover and repaints everything derived from it: the blurred
     /// backdrop and the edge-color glow the cover fades into.
     private func applyArtwork(_ image: UIImage?) {
-        artworkView.image = image
+        // Crossfade a new cover over the old one; the tracks behind the player
+        // normally load while it is open, so swapping the image outright reads
+        // as a flash.
+        if artworkView.image != nil, let image = image {
+            UIView.transition(with: artworkView, duration: 0.25,
+                              options: [.transitionCrossDissolve, .allowUserInteraction]) {
+                self.artworkView.image = image
+            }
+        } else {
+            artworkView.image = image
+        }
         headerArtwork.image = image
         meshView.palette = Theme.meshPalette(of: image)
         UIView.transition(with: backdropView, duration: 0.4, options: .transitionCrossDissolve, animations: {
@@ -844,6 +854,42 @@ final class NowPlayingViewController: UIViewController {
         }, completion: { _ in
             self.dismiss(animated: false, completion: nil)
         })
+    }
+
+    /// Collapses the panel for the motion capture, through the same path the
+    /// close button uses.
+    func motionCloseForCapture() {
+        close()
+    }
+
+    func motionArtworkAlpha() -> CGFloat {
+        return CGFloat(artworkView.layer.presentation()?.opacity ?? Float(artworkView.alpha))
+    }
+
+    func motionArtworkScale() -> CGFloat {
+        return artworkView.layer.presentation()?.transform.m11 ?? 1
+    }
+
+    func motionPanelTranslateY() -> CGFloat {
+        return view.layer.presentation()?.transform.m42 ?? 0
+    }
+
+    /// Presentation values for the entrance/collapse and artwork crossfade.
+    func motionSnapshot() -> String {
+        let panel = view.layer.presentation()
+        let artwork = artworkView.layer.presentation()
+        let title = titleLabel.layer.presentation()
+        let header = compactHeader.layer.presentation()
+        return String(format: "player.alpha=%.2f player.ty=%.1f player.scale=%.3f "
+                      + "art.alpha=%.2f art.scale=%.3f title.alpha=%.2f header.alpha=%.2f track=%@",
+                      panel?.opacity ?? Float(view.alpha),
+                      panel?.transform.m42 ?? 0,
+                      artwork?.transform.m11 ?? 1,
+                      artwork?.opacity ?? 1,
+                      artwork?.transform.m11 ?? 1,
+                      title?.opacity ?? Float(titleLabel.alpha),
+                      header?.opacity ?? Float(compactHeader.alpha),
+                      PlayerService.shared.currentTrack?.videoID ?? "none")
     }
 
     /// Opens the lyrics panel for the screenshot harness.

@@ -49,7 +49,7 @@ final class TopPicksShelfView: UIView {
             titleLabel.topAnchor.constraint(equalTo: topAnchor),
             titleLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 16),
 
-            collectionView.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 30),
+            collectionView.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 27),
             collectionView.leadingAnchor.constraint(equalTo: leadingAnchor),
             collectionView.trailingAnchor.constraint(equalTo: trailingAnchor),
             collectionView.bottomAnchor.constraint(equalTo: bottomAnchor)

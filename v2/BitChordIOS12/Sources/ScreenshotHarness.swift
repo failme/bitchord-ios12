@@ -8,6 +8,7 @@ import UIKit
 /// way to judge the interface without a device.
 enum ScreenshotHarness {
     static func runIfRequested() {
+        MotionHarness.runIfRequested()
         let arguments = ProcessInfo.processInfo.arguments
         // A first launch downloads one track and exits; CI then relaunches with
         // -BCScreenshots, so the capture proves the index survived a restart

@@ -309,6 +309,24 @@ final class OnboardingViewController: UIViewController {
 
     var stepTitle: String { return titleLabel.text ?? "" }
 
+    func motionTitleAlpha() -> CGFloat {
+        return CGFloat(titleLabel.layer.presentation()?.opacity ?? Float(titleLabel.alpha))
+    }
+
+    /// Presentation values for the step fade, sampled while it runs.
+    func motionSnapshot() -> String {
+        let title = titleLabel.layer.presentation()
+        let body = bodyLabel.layer.presentation()
+        let stack = features.layer.presentation()
+        return String(format: "onboarding.step=%d title.alpha=%.2f title.ty=%.1f "
+                      + "body.alpha=%.2f features.alpha=%.2f",
+                      step,
+                      title?.opacity ?? Float(titleLabel.alpha),
+                      title?.transform.m42 ?? 0,
+                      body?.opacity ?? Float(bodyLabel.alpha),
+                      stack?.opacity ?? Float(features.alpha))
+    }
+
     /// Where the primary button lands, in window coordinates, for the small
     /// screen check.
     var primaryFrameInWindow: CGRect {

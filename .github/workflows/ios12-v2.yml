@@ -344,6 +344,19 @@ jobs:
             | grep -aiE "fatal|exception|assert|crash|error" | tail -30 || true
           find ~/Library/Logs/DiagnosticReports -name '*BitChord*' -mmin -10 \
             -exec sh -c 'echo "== $1"; head -60 "$1"' _ {} \; 2>/dev/null || true
+
+          # Middle-of-transition frames. The harness drives every motion from
+          # the real controls, writes origin/mid/settled PNGs and records the
+          # presentation-layer values so a snap cannot pass as an animation.
+          xcrun simctl terminate "$UDID" "$BUNDLE" || true
+          sleep 1
+          xcrun simctl launch "$UDID" "$BUNDLE" -BCMotion "$CONTAINER/Documents/shots"
+          for i in $(seq 1 120); do
+            [ -f "$CONTAINER/Documents/shots/motion-done.txt" ] && break
+            sleep 1
+          done
+          echo "### Motion report"
+          cat "$CONTAINER/Documents/shots/motion-report.txt" 2>/dev/null || echo "(no motion report)"
           rm -rf shots && mkdir -p shots
           cp -R "$CONTAINER/Documents/shots/." shots/ || true
           ls -l shots
@@ -736,6 +749,39 @@ jobs:
           grep -q "jellyfin.listed=true" shots/jellyfin-small-report.txt
           grep -q "jellyfin.items=Music" shots/jellyfin-small-report.txt
           test -s shots/jellyfin-small.png
+
+          # Motion evidence: 44 origin/mid/settled frames plus the numeric
+          # presentation values proving each captured middle is partial. A
+          # transition that snapped would write false and fail the job.
+          MOTION=shots/motion-report.txt
+          test -s "$MOTION" || { echo "::error ::no motion report written"; exit 1; }
+          grep -q "motion.done=true" "$MOTION"
+          grep -q "motion.tracks=true" "$MOTION"
+          grep -q "motion.frames=44" "$MOTION"
+          for FLAG in tab.pillMoved tab.crossfade tab.settled mini.expanded mini.settled \
+                      player.slide player.entrance play.changed artwork.changed artwork.fade \
+                      close.moved close.dismissed card.scaled stats.moving stats.snapped \
+                      tile.scaled onboarding.faded; do
+            grep -q "motion.$FLAG=true" "$MOTION" || {
+              echo "::error ::motion $FLAG did not animate"
+              exit 1
+            }
+          done
+          grep -q "motion.stats.target=312" "$MOTION"
+          for FRAME in motion-tab-0 motion-tab-1 motion-tab-2 motion-tab-3 \
+                       motion-mini-0 motion-mini-1 motion-mini-2 motion-mini-3 \
+                       motion-player-open-0 motion-player-open-1 motion-player-open-2 \
+                       motion-player-open-3 motion-player-open-4 motion-player-open-5 \
+                       motion-play-0 motion-play-1 motion-play-2 motion-play-3 \
+                       motion-artwork-0 motion-artwork-1 motion-artwork-2 motion-artwork-3 \
+                       motion-close-0 motion-close-1 motion-close-2 motion-close-3 \
+                       motion-card-0 motion-card-1 motion-card-2 motion-card-3 motion-card-4 \
+                       motion-stats-0 motion-stats-1 motion-stats-2 motion-stats-3 \
+                       motion-tile-0 motion-tile-1 motion-tile-2 motion-tile-3 motion-tile-4 \
+                       motion-onboarding-0 motion-onboarding-1 motion-onboarding-2 \
+                       motion-onboarding-3; do
+            test -s "shots/$FRAME.png" || { echo "::error ::missing $FRAME"; exit 1; }
+          done
 
           kill "$ADDON_PID" 2>/dev/null || true
           kill "$WEBDAV_PID" 2>/dev/null || true

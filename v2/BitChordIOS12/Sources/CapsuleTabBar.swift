@@ -98,6 +98,14 @@ final class CapsuleTabBar: UIView {
         setSelectedIndex(0)
     }
 
+    /// The pill's on-screen frame during a spring, for the motion capture.
+    func motionPillFrame() -> CGRect {
+        if let presented = selectionPill.layer.presentation() {
+            return presented.frame
+        }
+        return selectionPill.frame
+    }
+
     @objc private func tapped(_ sender: UIControl) {
         setSelectedIndex(sender.tag)
         onSelect?(sender.tag)
