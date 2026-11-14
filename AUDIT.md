@@ -12,10 +12,15 @@ screenshot), **Ported** (implemented and reachable, exercised indirectly by the
 flows CI asserts), **iOS 12 block**, **Account/credential** (needs an account or
 third-party keys this build cannot ship), **Android-only**.
 
-Latest full run: commit `492c5c5`, all three jobs green (`43569045866`). It
-produced the 59 settled screenshots plus 46 origin/mid/settled motion frames in
-`shots-v2/`, and CI asserts every motion's partial state. Both root IPAs are
-that build: 17,114,890 bytes, sha256 `3ff9bd75...`, bundle
+Latest full run: commit `8fbf9b9` (`43574547581`). The build and simulator jobs
+are green. The screenshots job captured the 59 settled screenshots plus 46
+origin/mid/settled motion frames and passed every screen and motion assertion,
+then exited red in its unrelated background-download fixture: the live
+catalogue returned no fresh track (`background.track=false`), so the job has no
+failure in the player, lyrics, geometry or motion checks. Its 108-file artifact
+is the capture set copied into `shots-v2/`. Both root IPAs are that build:
+17,122,983 bytes, sha256
+`f99d703aee8e84b9c05451c19ab01252ab4f1a0695be79d50f05cdc7f93fbf5d`, bundle
 `com.bitchord.ios12v2` 2.0.0, `MinimumOSVersion 12.0`, `UIDeviceFamily [1,2]`,
 a thin `arm64` executable (`cputype 0x100000c`) and a registered `bitchord`
 URL scheme - verified inside CI by unzipping the packaged IPA and again on the
@@ -29,7 +34,15 @@ heights, banner and card origins, list rows, settings rows, player transport
 and footer were moved onto the reference bounds; `home.png`, `library.png`,
 `explore.png`, `search.png`, `settings.png`, `downloads-empty.png`,
 `local-music.png` and `now-playing.png` in `shots-v2/` are the resulting
-captures. Motion is ported as well: the tab pill springs while the pages
+captures. The Now Playing and lyrics surfaces were then rebuilt from the
+Compose constants: 20pt medium artist over a 20pt semibold title, the 20dp
+artwork-to-title gap, the 54dp collapsed header, a 7pt/12pt thumbless scrubber,
+74dp transport glyphs at upstream's centres, and 34sp/41sp extra-bold lyrics
+(30sp/38sp unsynced) at the 0.45 unsung alpha inside 30pt gutters. The backdrop
+is the sleeve itself, pre-blurred with a saturation lift and drawn under
+`FullArtworkScrim`; the old dark live blur that flattened it has been removed.
+The panel's quote-mark, dotted queue and rounded transport vectors come from
+`BitChordIcons`/`ic_player_*`, not generic placeholders. Motion is ported as well: the tab pill springs while the pages
 crossfade, the mini player expands and collapses, Now Playing rises and slides
 away with the play/pause glyph crossfading, artwork fades between tracks, cards
 scale on press, the stats carousel snaps and onboarding steps fade.
