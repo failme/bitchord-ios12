@@ -276,4 +276,8 @@ final class HomeViewController: UIViewController {
 
         scrollView.isHidden = shelves.isEmpty && topPicks.isHidden
     }
+
+    func motionTopPickArtworkFrame(in view: UIView) -> CGRect? {
+        return topPicks.motionFirstArtworkFrame(in: view)
+    }
 }

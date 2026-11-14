@@ -180,6 +180,12 @@ final class ExploreViewController: UIViewController {
         return layer.transform.m11
     }
 
+    func motionFirstTileFrame(in view: UIView) -> CGRect? {
+        layoutIfNeeded()
+        guard let tile = motionTile(in: view) else { return nil }
+        return tile.convert(tile.bounds, to: view)
+    }
+
     @objc private func tileTapped(_ sender: MoodTileView) {
         let mood = sender.moodTitle
         let list = TrackListViewController()

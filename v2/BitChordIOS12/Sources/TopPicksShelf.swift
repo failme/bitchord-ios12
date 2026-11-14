@@ -60,6 +60,14 @@ final class TopPicksShelfView: UIView {
         self.tracks = tracks
         collectionView.reloadData()
     }
+
+    func motionFirstArtworkFrame(in view: UIView) -> CGRect? {
+        layoutIfNeeded()
+        guard let cell = collectionView.cellForItem(at: IndexPath(item: 0, section: 0)) as? TopPickCell else {
+            return nil
+        }
+        return cell.motionArtworkFrame(in: view)
+    }
 }
 
 extension TopPicksShelfView: UICollectionViewDataSource, UICollectionViewDelegate {
@@ -155,5 +163,9 @@ final class TopPickCell: UICollectionViewCell {
                 self.artwork.image = image
             }
         }
+    }
+
+    func motionArtworkFrame(in view: UIView) -> CGRect {
+        return artwork.convert(artwork.bounds, to: view)
     }
 }

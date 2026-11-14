@@ -137,6 +137,11 @@ private final class MotionRun {
         add(0.8, "tab-origin") {
             self.snap("motion-tab-0")
             self.tabStartPill = self.root.motionPillFrame()
+            if let home = self.root.navigationForTab(0)?.topViewController as? HomeViewController,
+               let frame = home.motionTopPickArtworkFrame(in: self.root.view) {
+                self.report.append("motion.geometry.homeArt=\(Int(frame.origin.x)),"
+                    + "\(Int(frame.origin.y)),\(Int(frame.width)),\(Int(frame.height))")
+            }
         }
         add(0.05, "tab-trigger") { self.root.showTab(1) }
         add(0.05, "tab-mid-1") {
@@ -331,6 +336,10 @@ private final class MotionRun {
         add(0.2, "explore") { self.root.showTab(1) }
         add(0.8, "tile-origin") {
             self.snap("motion-tile-0")
+            if let frame = self.explore?.motionFirstTileFrame(in: self.root.view) {
+                self.report.append("motion.geometry.exploreTile=\(Int(frame.origin.x)),"
+                    + "\(Int(frame.origin.y)),\(Int(frame.width)),\(Int(frame.height))")
+            }
             self.explore?.motionPressTile()
         }
         add(0.05, "tile-mid-1") {
