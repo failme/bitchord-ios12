@@ -1094,6 +1094,7 @@ enum ScreenshotHarness {
         capture.report.append("menu.hasSongInfo=\(titles.contains("Song info"))")
         capture.report.append("menu.hasShare=\(titles.contains("Share"))")
         capture.report.append("menu.hasArtist=\(titles.contains("Go to artist"))")
+        capture.report.append("menu.hasAlbum=\(titles.contains("Open album"))")
         capture.report.append("menu.hasLike=\(titles.contains("Like") || titles.contains("Unlike"))")
 
         let list = TrackListViewController()
@@ -1234,11 +1235,19 @@ enum ScreenshotHarness {
         let info = SongInfoViewController(track: track)
         info.modalPresentationStyle = .fullScreen
         capture.root.present(info, animated: false) {
-            after(1.0) {
-                capture.shot("song-info")
-                capture.checkpoint()
-                info.dismiss(animated: false) { autoplayProbe(capture) }
+            // The watch page answers a second or two after the card appears.
+            // Wait for that answer instead of photographing placeholders, but
+            // stop waiting if the network refuses so the run still finishes.
+            func captureWhenSettled(_ remaining: Int) {
+                if info.isLoaded || remaining <= 0 {
+                    capture.shot("song-info")
+                    capture.checkpoint()
+                    info.dismiss(animated: false) { autoplayProbe(capture) }
+                } else {
+                    after(0.5) { captureWhenSettled(remaining - 1) }
+                }
             }
+            after(0.5) { captureWhenSettled(10) }
         }
     }
 

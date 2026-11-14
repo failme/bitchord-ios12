@@ -10,6 +10,10 @@ final class SongInfoViewController: UIViewController {
     private let scrim = UIView()
     private var rowViews: [String: SongInfoRow] = [:]
 
+    /// The capture harness waits on this so its screenshot is not taken while
+    /// the five live counts are still placeholders.
+    private(set) var isLoaded = false
+
     init(track: Track) {
         self.track = track
         super.init(nibName: nil, bundle: nil)
@@ -170,6 +174,7 @@ final class SongInfoViewController: UIViewController {
             self.rowViews["Views"]?.set(info.views ?? "—")
             self.rowViews["Likes"]?.set(info.likes ?? "—")
             self.rowViews["Comments"]?.set(info.comments ?? "—")
+            self.isLoaded = true
         }
     }
 

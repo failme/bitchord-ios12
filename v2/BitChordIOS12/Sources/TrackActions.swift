@@ -12,6 +12,9 @@ enum TrackActions {
     static func titles(for track: Track) -> [String] {
         var titles = ["Play next", "Add to queue", "Add to playlist",
                       LibraryStore.shared.isLiked(track) ? "Unlike" : "Like"]
+        if canOpenAlbum(track) {
+            titles.append("Open album")
+        }
         if canOpenArtist(track) {
             titles.append("Go to artist")
         }
@@ -88,6 +91,12 @@ enum TrackActions {
         }
 
         var infoRows = [TrackMenuAction]()
+        if canOpenAlbum(track) {
+            infoRows.append(TrackMenuAction(title: "Open album", icon: .list,
+                                            subtitle: track.album) {
+                openAlbum(for: track, from: host)
+            })
+        }
         if canOpenArtist(track) {
             infoRows.append(TrackMenuAction(title: "Go to artist", icon: .personOutline,
                                             subtitle: track.artist) {
@@ -128,10 +137,32 @@ enum TrackActions {
         host.present(sheet, animated: true, completion: nil)
     }
 
-    // MARK: - Go to artist
+    // MARK: - Go to album / artist
+
+    static func canOpenAlbum(_ track: Track) -> Bool {
+        return !track.album.isEmpty && !track.videoID.hasPrefix(LocalMusicStore.idPrefix)
+    }
 
     static func canOpenArtist(_ track: Track) -> Bool {
         return !track.artist.isEmpty && !track.videoID.hasPrefix(LocalMusicStore.idPrefix)
+    }
+
+    /// The menu has no album id to open directly, so the album named by the
+    /// row is found through the same catalogue search the search screen uses.
+    static func openAlbum(for track: Track, from host: UIViewController) {
+        let query = "\(track.artist) \(track.album)"
+        InnerTube.shared.searchCollections(query, filter: .albums) { items in
+            guard let item = items.first,
+                  let navigation = (host.navigationController ?? host as? UINavigationController)
+            else { return }
+            let page = CollectionViewController(title: item.title,
+                                                subtitle: item.subtitle.isEmpty ? track.artist : item.subtitle,
+                                                artwork: item.artworkURL)
+            page.loader = { completion in
+                CatalogueSearch.shared.songs(inAlbum: item.browseID) { completion($0) }
+            }
+            navigation.pushViewController(page, animated: true)
+        }
     }
 
     /// Upstream opens the artist from the song; this does the same through the

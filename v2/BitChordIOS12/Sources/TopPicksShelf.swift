@@ -1,12 +1,12 @@
 import UIKit
 
-/// Home's "Top Picks for You" row as the real app draws it: 248pt-wide 3:4
+/// Home's "Top Picks for You" row as the real app draws it: 240pt-wide 3:4
 /// portrait cards, a small grey source line below the artwork, then the title
 /// and its "Single · 2026" style detail.
 final class TopPicksShelfView: UIView {
-    static let cardWidth: CGFloat = 248
+    static let cardWidth: CGFloat = 240
     // Section height: title, 6pt gap, the 3:4 card, then bottom padding.
-    static let rowHeight: CGFloat = 393
+    static let rowHeight: CGFloat = 365
 
     private let titleLabel = UILabel()
     private let collectionView: UICollectionView

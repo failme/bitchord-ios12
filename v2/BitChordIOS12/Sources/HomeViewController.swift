@@ -46,9 +46,9 @@ final class HomeViewController: UIViewController {
 
         let avatar = UIButton(type: .system)
         avatar.backgroundColor = Theme.surfaceVariant
-        avatar.layer.cornerRadius = 22
+        avatar.layer.cornerRadius = 18
         avatar.tintColor = Theme.secondaryText
-        avatar.setImage(Icons.image(.personOutline, size: 20), for: .normal)
+        avatar.setImage(Icons.image(.personOutline, size: 17), for: .normal)
         avatar.addTarget(self, action: #selector(openSettings), for: .touchUpInside)
         avatar.translatesAutoresizingMaskIntoConstraints = false
         header.addSubview(avatar)
@@ -65,8 +65,8 @@ final class HomeViewController: UIViewController {
             // The stack starts 18pt above the scroll view's top edge, so an
             // avatar pinned to the header's top was half clipped away.
             avatar.topAnchor.constraint(equalTo: header.topAnchor, constant: 18),
-            avatar.widthAnchor.constraint(equalToConstant: 44),
-            avatar.heightAnchor.constraint(equalToConstant: 44)
+            avatar.widthAnchor.constraint(equalToConstant: 36),
+            avatar.heightAnchor.constraint(equalToConstant: 36)
         ])
         stack.addArrangedSubview(header)
 
