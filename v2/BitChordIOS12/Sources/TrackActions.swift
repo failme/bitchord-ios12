@@ -16,7 +16,7 @@ enum TrackActions {
             titles.append("Open album")
         }
         if canOpenArtist(track) {
-            titles.append("Go to artist")
+            titles.append("Open artist")
         }
         let store = DownloadStore.shared
         if store.isDownloaded(track.videoID) {
@@ -98,7 +98,7 @@ enum TrackActions {
             })
         }
         if canOpenArtist(track) {
-            infoRows.append(TrackMenuAction(title: "Go to artist", icon: .personOutline,
+            infoRows.append(TrackMenuAction(title: "Open artist", icon: .personOutline,
                                             subtitle: track.artist) {
                 openArtist(for: track, from: host)
             })

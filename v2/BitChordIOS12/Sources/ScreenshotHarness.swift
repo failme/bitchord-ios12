@@ -1093,7 +1093,7 @@ enum ScreenshotHarness {
         capture.report.append("menu.hasPlaylist=\(titles.contains("Add to playlist"))")
         capture.report.append("menu.hasSongInfo=\(titles.contains("Song info"))")
         capture.report.append("menu.hasShare=\(titles.contains("Share"))")
-        capture.report.append("menu.hasArtist=\(titles.contains("Go to artist"))")
+        capture.report.append("menu.hasArtist=\(titles.contains("Open artist"))")
         capture.report.append("menu.hasAlbum=\(titles.contains("Open album"))")
         capture.report.append("menu.hasLike=\(titles.contains("Like") || titles.contains("Unlike"))")
 

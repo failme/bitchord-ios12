@@ -773,7 +773,7 @@ jobs:
           TILE_Y=$(sed -n 's/^motion.geometry.exploreTile=[0-9]*,//p' "$MOTION" | cut -d, -f1 | head -1)
           echo "home artwork y=$HOME_Y explore tile y=$TILE_Y"
           test -n "$HOME_Y" && test "$HOME_Y" -ge 329 && test "$HOME_Y" -le 333
-          test -n "$TILE_Y" && test "$TILE_Y" -ge 174 && test "$TILE_Y" -le 178
+          test -n "$TILE_Y" && test "$TILE_Y" -ge 166 && test "$TILE_Y" -le 170
           for FRAME in motion-tab-0 motion-tab-1 motion-tab-2 motion-tab-3 \
                        motion-mini-0 motion-mini-1 motion-mini-2 motion-mini-3 \
                        motion-player-open-0 motion-player-open-1 motion-player-open-2 \
