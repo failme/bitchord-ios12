@@ -121,31 +121,34 @@ final class RootViewController: UIViewController {
         let outgoing = navigations[previous]
         let incoming = navigations[index]
         incoming.view.isHidden = false
-        incoming.view.alpha = 0
-        view.layoutIfNeeded()
-        // A hidden view unhidden and faded in the same transaction jumps
-        // straight to its final alpha. One runloop spent at zero gives Core
-        // Animation a real start value, so the page actually dissolves in.
-        DispatchQueue.main.async {
-            guard self.selectedIndex == index else {
-                incoming.view.isHidden = true
-                incoming.view.alpha = 1
-                return
+        incoming.view.alpha = 1
+        outgoing.view.alpha = 1
+        // Animating a hidden view's alpha with UIView.animate can start from
+        // its final value, which made the page swap snap. Explicit layer
+        // opacity animations always carry a real from-value, so the dissolve
+        // is visible and the motion harness can sample it.
+        let fade = CAMediaTimingFunction(name: .easeOut)
+        let fadeIn = CABasicAnimation(keyPath: "opacity")
+        fadeIn.fromValue = 0
+        fadeIn.toValue = 1
+        fadeIn.duration = 0.22
+        fadeIn.timingFunction = fade
+        incoming.view.layer.add(fadeIn, forKey: "tabFade")
+        let fadeOut = CABasicAnimation(keyPath: "opacity")
+        fadeOut.fromValue = 1
+        fadeOut.toValue = 0
+        fadeOut.duration = 0.22
+        fadeOut.timingFunction = fade
+        outgoing.view.layer.add(fadeOut, forKey: "tabFade")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
+            incoming.view.layer.removeAnimation(forKey: "tabFade")
+            outgoing.view.layer.removeAnimation(forKey: "tabFade")
+            outgoing.view.alpha = 1
+            // A second tab tap can land before this fade ends; only hide the
+            // page we actually left if the fade still owns the screen.
+            if self.selectedIndex == index {
+                outgoing.view.isHidden = true
             }
-            // A short crossfade, the way the real tab host swaps pages; sliding
-            // the whole page would fight the floating bar's own motion.
-            UIView.animate(withDuration: 0.22, delay: 0, options: [.beginFromCurrentState, .curveEaseOut],
-                           animations: {
-                outgoing.view.alpha = 0
-                incoming.view.alpha = 1
-            }, completion: { _ in
-                // A second tab tap can land before this fade ends; only hide the
-                // page we actually left if the fade still owns the screen.
-                if self.selectedIndex == index {
-                    outgoing.view.isHidden = true
-                }
-                outgoing.view.alpha = 1
-            })
         }
     }
 

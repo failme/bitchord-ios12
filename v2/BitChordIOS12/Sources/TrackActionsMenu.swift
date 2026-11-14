@@ -5,14 +5,17 @@ struct TrackMenuAction {
     let title: String
     let icon: Icons.Kind?
     let value: String?
+    let subtitle: String?
     let destructive: Bool
     let handler: () -> Void
 
     init(title: String, icon: Icons.Kind?, value: String? = nil,
-         destructive: Bool = false, handler: @escaping () -> Void) {
+         subtitle: String? = nil, destructive: Bool = false,
+         handler: @escaping () -> Void) {
         self.title = title
         self.icon = icon
         self.value = value
+        self.subtitle = subtitle
         self.destructive = destructive
         self.handler = handler
     }
@@ -320,6 +323,19 @@ private final class TrackMenuRow: UIControl {
         addSubview(icon)
         addSubview(label)
 
+        var subtitle: UILabel?
+        if let detail = action.subtitle, !detail.isEmpty {
+            let second = UILabel()
+            second.text = detail
+            second.font = Theme.font(14)
+            second.textColor = secondaryColor
+            second.numberOfLines = 1
+            second.lineBreakMode = .byTruncatingTail
+            second.translatesAutoresizingMaskIntoConstraints = false
+            addSubview(second)
+            subtitle = second
+        }
+
         var trailing = trailingAnchor
         if let value = action.value {
             let valueLabel = UILabel()
@@ -338,17 +354,30 @@ private final class TrackMenuRow: UIControl {
             trailing = valueLabel.leadingAnchor
         }
 
-        NSLayoutConstraint.activate([
+        var labelConstraints: [NSLayoutConstraint] = [
             heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
             icon.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
             icon.centerYAnchor.constraint(equalTo: centerYAnchor),
             icon.widthAnchor.constraint(equalToConstant: 21),
             icon.heightAnchor.constraint(equalToConstant: 21),
             label.leadingAnchor.constraint(equalTo: icon.trailingAnchor, constant: 10),
-            label.topAnchor.constraint(equalTo: topAnchor, constant: 11),
-            label.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -11),
-            label.trailingAnchor.constraint(lessThanOrEqualTo: trailing, constant: -10),
-        ])
+            label.trailingAnchor.constraint(lessThanOrEqualTo: trailing, constant: -10)
+        ]
+        if let subtitle = subtitle {
+            labelConstraints += [
+                label.topAnchor.constraint(equalTo: topAnchor, constant: 9),
+                subtitle.topAnchor.constraint(equalTo: label.bottomAnchor, constant: 1),
+                subtitle.leadingAnchor.constraint(equalTo: label.leadingAnchor),
+                subtitle.trailingAnchor.constraint(lessThanOrEqualTo: trailing, constant: -10),
+                subtitle.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -9)
+            ]
+        } else {
+            labelConstraints += [
+                label.topAnchor.constraint(equalTo: topAnchor, constant: 11),
+                label.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -11)
+            ]
+        }
+        NSLayoutConstraint.activate(labelConstraints)
 
         addTarget(self, action: #selector(tapped), for: .touchUpInside)
         addTarget(self, action: #selector(pressed), for: [.touchDown, .touchDragEnter])

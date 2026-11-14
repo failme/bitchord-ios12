@@ -17,7 +17,7 @@ enum TrackActions {
         }
         let store = DownloadStore.shared
         if store.isDownloaded(track.videoID) {
-            titles.append("Delete download")
+            titles.append("Saved to downloads")
         } else if store.isDownloading(track.videoID) {
             titles.append("Cancel download")
         } else {
@@ -67,8 +67,8 @@ enum TrackActions {
             PlayerService.shared.addToQueue(track)
         })
         if store.isDownloaded(track.videoID) {
-            transportRows.append(TrackMenuAction(title: "Delete download", icon: .trash,
-                                                 destructive: true) {
+            transportRows.append(TrackMenuAction(title: "Saved to downloads", icon: .download,
+                                                 value: "Delete") {
                 store.remove(track.videoID)
             })
         } else if store.isDownloading(track.videoID) {
@@ -89,7 +89,8 @@ enum TrackActions {
 
         var infoRows = [TrackMenuAction]()
         if canOpenArtist(track) {
-            infoRows.append(TrackMenuAction(title: "Go to artist", icon: .personOutline) {
+            infoRows.append(TrackMenuAction(title: "Go to artist", icon: .personOutline,
+                                            subtitle: track.artist) {
                 openArtist(for: track, from: host)
             })
         }
