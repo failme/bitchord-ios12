@@ -11,7 +11,7 @@ final class GoogleSignInViewController: UIViewController {
     private let webView = WKWebView(frame: .zero, configuration: WKWebViewConfiguration())
     private let progress = UIProgressView(progressViewStyle: .bar)
     private let statusLabel = UILabel()
-    private let spinner = UIActivityIndicatorView(activityIndicatorStyle: .white)
+    private let spinner = UIActivityIndicatorView(style: .white)
     private var doneButton: UIBarButtonItem!
     private var progressObservation: NSKeyValueObservation?
     private var reachedMusic = false
