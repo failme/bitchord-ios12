@@ -17,7 +17,6 @@ final class JellyfinViewController: UIViewController, UITableViewDataSource, UIT
     private let errorLabel = UILabel()
     private let statusLabel = UILabel()
     private let table = UITableView(frame: .zero, style: .plain)
-    private let header = UILabel()
 
     private(set) var errorText = ""
     private(set) var isBusy = false
@@ -27,10 +26,6 @@ final class JellyfinViewController: UIViewController, UITableViewDataSource, UIT
         super.viewDidLoad()
         view.backgroundColor = Theme.background
         title = "Jellyfin"
-
-        header.font = Theme.font(20, weight: .bold)
-        header.textColor = Theme.primaryText
-        header.text = "Jellyfin"
 
         configure(urlField, placeholder: "http://server:8096/", keyboard: .URL)
         configure(userField, placeholder: "Username", keyboard: .default)
@@ -53,7 +48,7 @@ final class JellyfinViewController: UIViewController, UITableViewDataSource, UIT
         statusLabel.textColor = Theme.secondaryText
         statusLabel.numberOfLines = 0
 
-        let form = UIStackView(arrangedSubviews: [header, urlField, userField, passField, signIn, errorLabel, statusLabel])
+        let form = UIStackView(arrangedSubviews: [urlField, userField, passField, signIn, errorLabel, statusLabel])
         form.axis = .vertical
         form.spacing = 8
         form.translatesAutoresizingMaskIntoConstraints = false
@@ -145,6 +140,9 @@ final class JellyfinViewController: UIViewController, UITableViewDataSource, UIT
                 self.loadViews()
             case .failure(let error):
                 self.isBusy = false
+                // Don't leave a library from an earlier session under a failed sign-in.
+                self.items = []
+                self.table.reloadData()
                 self.show(error: error.message)
             }
         }
@@ -168,7 +166,8 @@ final class JellyfinViewController: UIViewController, UITableViewDataSource, UIT
                 self.items = items
                 self.errorText = ""
                 self.errorLabel.isHidden = true
-                self.statusLabel.text = "\(items.count) libraries · \(session.userName)"
+                let noun = items.count == 1 ? "library" : "libraries"
+                self.statusLabel.text = "\(items.count) \(noun) · \(session.userName)"
                 self.table.reloadData()
             case .failure(let error):
                 self.items = []

@@ -183,8 +183,9 @@ enum ScreenshotHarness {
             return
         }
         let controller = JellyfinViewController()
-        controller.modalPresentationStyle = .fullScreen
-        root.present(controller, animated: false) {
+        // Same chrome as the main capture, so the small screen shows the nav
+        // title instead of the removed in-form header.
+        root.present(chrome(controller), animated: false) {
             after(0.5) {
                 controller.signInForCapture(url: base,
                                             username: environment["BC_JELLYFIN_USER"] ?? "",
