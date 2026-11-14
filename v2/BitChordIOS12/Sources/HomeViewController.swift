@@ -90,7 +90,7 @@ final class HomeViewController: UIViewController {
             self?.present(alert, animated: true)
         }
         stack.setCustomSpacing(8, after: header)
-        stack.setCustomSpacing(24, after: bannerHolder)
+        stack.setCustomSpacing(3, after: bannerHolder)
         stack.addArrangedSubview(bannerHolder)
 
         // The real feed opens with the large Top Picks cards, not a small shelf.

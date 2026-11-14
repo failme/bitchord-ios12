@@ -6,6 +6,7 @@ final class SignInBannerView: UIView {
     static let bannerHeight: CGFloat = 119
 
     private let gradient = CAGradientLayer()
+    private let shade = CAGradientLayer()
     var onSignIn: (() -> Void)?
 
     override init(frame: CGRect) {
@@ -20,6 +21,7 @@ final class SignInBannerView: UIView {
     override func layoutSubviews() {
         super.layoutSubviews()
         gradient.frame = bounds
+        shade.frame = bounds
     }
 
     private func build() {
@@ -30,11 +32,16 @@ final class SignInBannerView: UIView {
         // Sampled from the running app: deep violet on the left, bright
         // crimson at the top right, then darker toward the bottom edge.
         gradient.colors = [UIColor(red: 0.45, green: 0.04, blue: 0.44, alpha: 1).cgColor,
-                           UIColor(red: 0.66, green: 0.09, blue: 0.35, alpha: 1).cgColor,
                            UIColor(red: 0.80, green: 0.11, blue: 0.23, alpha: 1).cgColor]
-        gradient.startPoint = CGPoint(x: 0, y: 0)
-        gradient.endPoint = CGPoint(x: 1, y: 0.25)
+        gradient.startPoint = CGPoint(x: 0, y: 0.2)
+        gradient.endPoint = CGPoint(x: 1, y: 0.2)
         layer.addSublayer(gradient)
+
+        shade.colors = [UIColor.clear.cgColor,
+                        UIColor(white: 0, alpha: 0.28).cgColor]
+        shade.startPoint = CGPoint(x: 0.5, y: 0)
+        shade.endPoint = CGPoint(x: 0.5, y: 1)
+        layer.addSublayer(shade)
 
         let title = UILabel()
         title.text = "Sign in to YouTube Music"

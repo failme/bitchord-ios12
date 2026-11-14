@@ -114,7 +114,7 @@ final class ExploreViewController: UIViewController {
             scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
 
-            avatar.topAnchor.constraint(equalTo: scrollView.topAnchor, constant: -10),
+            avatar.topAnchor.constraint(equalTo: scrollView.topAnchor, constant: -19),
             avatar.trailingAnchor.constraint(equalTo: scrollView.trailingAnchor, constant: -16),
             avatar.widthAnchor.constraint(equalToConstant: 40),
             avatar.heightAnchor.constraint(equalToConstant: 40),
@@ -209,7 +209,7 @@ final class MoodTileView: UIButton {
         photo.layer.addSublayer(shade)
 
         label.text = mood
-        label.font = Theme.font(15, weight: .semibold)
+        label.font = Theme.font(16, weight: .semibold)
         label.textColor = .white
         label.translatesAutoresizingMaskIntoConstraints = false
         addSubview(label)

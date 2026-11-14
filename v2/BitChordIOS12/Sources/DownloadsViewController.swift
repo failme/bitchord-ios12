@@ -153,7 +153,7 @@ final class DownloadsViewController: UIViewController {
             heroBar.widthAnchor.constraint(equalToConstant: 56),
             heroBar.heightAnchor.constraint(equalToConstant: 8),
 
-            titleLabel.topAnchor.constraint(equalTo: hero.bottomAnchor, constant: 10),
+            titleLabel.topAnchor.constraint(equalTo: hero.bottomAnchor, constant: 25),
             titleLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
 
             subtitleLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 4),
@@ -199,7 +199,7 @@ final class DownloadsViewController: UIViewController {
 
         NSLayoutConstraint.activate([
             emptyTitle.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            emptyTitle.topAnchor.constraint(equalTo: subtitleLabel.bottomAnchor, constant: 64),
+            emptyTitle.topAnchor.constraint(equalTo: subtitleLabel.bottomAnchor, constant: 71),
             emptyTitle.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 32),
             emptyTitle.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -32),
 

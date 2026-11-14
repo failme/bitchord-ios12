@@ -61,7 +61,7 @@ final class LibraryViewController: UIViewController {
         // Real order: the history/account capsule sits high on the right, then
         // the 34pt Library title drops below it on the next line.
         let header = UIView()
-        header.heightAnchor.constraint(equalToConstant: 122).isActive = true
+        header.heightAnchor.constraint(equalToConstant: 106).isActive = true
 
         titleLabel.text = "Library"
         titleLabel.font = Theme.font(34, weight: .bold)
@@ -183,7 +183,7 @@ final class LibraryViewController: UIViewController {
             rowsHolder.addArrangedSubview(row)
             index += 1
         }
-        stack.setCustomSpacing(14, after: stack.arrangedSubviews.last!)
+        stack.setCustomSpacing(8, after: stack.arrangedSubviews.last!)
         stack.addArrangedSubview(rowsHolder)
         stack.setCustomSpacing(10, after: rowsHolder)
     }
@@ -200,7 +200,7 @@ final class LibraryViewController: UIViewController {
         heading.translatesAutoresizingMaskIntoConstraints = false
 
         NSLayoutConstraint.activate([
-            holder.heightAnchor.constraint(equalToConstant: 60),
+            holder.heightAnchor.constraint(equalToConstant: 52),
             heading.leadingAnchor.constraint(equalTo: holder.leadingAnchor, constant: 16),
             heading.bottomAnchor.constraint(equalTo: holder.bottomAnchor, constant: -8)
         ])

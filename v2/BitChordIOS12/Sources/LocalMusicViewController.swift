@@ -6,12 +6,17 @@ import UIKit
 final class LocalMusicViewController: UIViewController {
     private let tableView = UITableView(frame: .zero, style: .plain)
     private let emptyLabel = UILabel()
+    private let titleLabel = UILabel()
+    private let subtitleLabel = UILabel()
+    private let backButton = UIButton(type: .system)
+    private let hero = UIView()
     private var folders: [(name: String, songs: [LocalSong])] = []
 
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = Theme.background
         title = "Local Music"
+        buildHeader()
 
         tableView.translatesAutoresizingMaskIntoConstraints = false
         tableView.backgroundColor = Theme.background
@@ -27,25 +32,138 @@ final class LocalMusicViewController: UIViewController {
         emptyLabel.textColor = Theme.secondaryText
         emptyLabel.textAlignment = .center
         emptyLabel.numberOfLines = 0
-        emptyLabel.text = "No folders with music in them"
+        emptyLabel.text = "No audio files found on this device"
+        emptyLabel.font = Theme.font(15)
         view.addSubview(emptyLabel)
 
         NSLayoutConstraint.activate([
-            tableView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            tableView.topAnchor.constraint(equalTo: subtitleLabel.bottomAnchor, constant: 12),
             tableView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             tableView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             tableView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
 
             emptyLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            emptyLabel.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+            emptyLabel.topAnchor.constraint(equalTo: subtitleLabel.bottomAnchor, constant: 71),
             emptyLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 32),
             emptyLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -32)
         ])
     }
 
+    private func buildHeader() {
+        let safe = view.safeAreaLayoutGuide
+
+        backButton.translatesAutoresizingMaskIntoConstraints = false
+        backButton.backgroundColor = UIColor(white: 1, alpha: 0.06)
+        backButton.layer.cornerRadius = 22
+        backButton.tintColor = Theme.primaryText
+        backButton.setImage(Icons.image(.chevronLeft, size: 20), for: .normal)
+        backButton.addTarget(self, action: #selector(close), for: .touchUpInside)
+        view.addSubview(backButton)
+
+        hero.translatesAutoresizingMaskIntoConstraints = false
+        hero.backgroundColor = Theme.surfaceVariant
+        hero.layer.cornerRadius = 24
+        view.addSubview(hero)
+
+        let folder = UIImageView(image: Icons.image(.folder, size: 120))
+        folder.tintColor = UIColor(white: 0.62, alpha: 1)
+        folder.translatesAutoresizingMaskIntoConstraints = false
+        hero.addSubview(folder)
+
+        let pill = UIView()
+        pill.translatesAutoresizingMaskIntoConstraints = false
+        pill.backgroundColor = Theme.surfaceVariant
+        pill.layer.cornerRadius = 22
+        view.addSubview(pill)
+
+        let filter = UIImageView(image: Icons.image(.list, size: 20))
+        filter.tintColor = Theme.secondaryText
+        filter.translatesAutoresizingMaskIntoConstraints = false
+        pill.addSubview(filter)
+
+        let account = UIButton(type: .system)
+        account.backgroundColor = Theme.outline
+        account.layer.cornerRadius = 15
+        account.tintColor = Theme.secondaryText
+        account.setImage(Icons.image(.person, size: 16), for: .normal)
+        account.addTarget(self, action: #selector(openSettings), for: .touchUpInside)
+        account.translatesAutoresizingMaskIntoConstraints = false
+        pill.addSubview(account)
+
+        titleLabel.translatesAutoresizingMaskIntoConstraints = false
+        titleLabel.text = "Local Music"
+        titleLabel.font = Theme.font(20, weight: .bold)
+        titleLabel.textColor = Theme.primaryText
+        view.addSubview(titleLabel)
+
+        subtitleLabel.translatesAutoresizingMaskIntoConstraints = false
+        subtitleLabel.text = "Audio files on device"
+        subtitleLabel.font = Theme.font(15)
+        subtitleLabel.textColor = Theme.secondaryText
+        view.addSubview(subtitleLabel)
+
+        NSLayoutConstraint.activate([
+            backButton.topAnchor.constraint(equalTo: safe.topAnchor, constant: -10),
+            backButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
+            backButton.widthAnchor.constraint(equalToConstant: 44),
+            backButton.heightAnchor.constraint(equalToConstant: 44),
+
+            pill.topAnchor.constraint(equalTo: backButton.topAnchor),
+            pill.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
+            pill.widthAnchor.constraint(equalToConstant: 100),
+            pill.heightAnchor.constraint(equalToConstant: 44),
+
+            filter.leadingAnchor.constraint(equalTo: pill.leadingAnchor, constant: 18),
+            filter.centerYAnchor.constraint(equalTo: pill.centerYAnchor),
+            filter.widthAnchor.constraint(equalToConstant: 20),
+            filter.heightAnchor.constraint(equalToConstant: 20),
+
+            account.trailingAnchor.constraint(equalTo: pill.trailingAnchor, constant: -7),
+            account.centerYAnchor.constraint(equalTo: pill.centerYAnchor),
+            account.widthAnchor.constraint(equalToConstant: 30),
+            account.heightAnchor.constraint(equalToConstant: 30),
+
+            hero.topAnchor.constraint(equalTo: backButton.bottomAnchor, constant: 15),
+            hero.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            hero.widthAnchor.constraint(equalTo: view.widthAnchor, multiplier: 0.76),
+            hero.heightAnchor.constraint(equalTo: hero.widthAnchor),
+
+            folder.centerXAnchor.constraint(equalTo: hero.centerXAnchor),
+            folder.centerYAnchor.constraint(equalTo: hero.centerYAnchor),
+            folder.widthAnchor.constraint(equalToConstant: 120),
+            folder.heightAnchor.constraint(equalToConstant: 120),
+
+            titleLabel.topAnchor.constraint(equalTo: hero.bottomAnchor, constant: 25),
+            titleLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+
+            subtitleLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 4),
+            subtitleLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor)
+        ])
+    }
+
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
+        navigationController?.setNavigationBarHidden(true, animated: false)
         reload()
+    }
+
+    @objc private func close() {
+        if let nav = navigationController, nav.viewControllers.count > 1 {
+            nav.popViewController(animated: true)
+        } else {
+            dismiss(animated: true, completion: nil)
+        }
+    }
+
+    @objc private func openSettings() {
+        let settings = SettingsViewController()
+        let navigation = UINavigationController(rootViewController: settings)
+        navigation.navigationBar.barTintColor = Theme.background
+        navigation.navigationBar.tintColor = Theme.accent
+        navigation.navigationBar.isTranslucent = false
+        navigation.navigationBar.titleTextAttributes = [.foregroundColor: UIColor.white]
+        settings.modalPresentationStyle = .fullScreen
+        present(navigation, animated: true, completion: nil)
     }
 
     /// Opens the first folder through the same selection path a tap takes.
@@ -60,6 +178,7 @@ final class LocalMusicViewController: UIViewController {
             self.folders = LocalMusicStore.shared.folders
             self.tableView.reloadData()
             self.emptyLabel.isHidden = !self.folders.isEmpty
+            self.tableView.isHidden = self.folders.isEmpty
         }
     }
 }
