@@ -12,19 +12,16 @@ screenshot), **Ported** (implemented and reachable, exercised indirectly by the
 flows CI asserts), **iOS 12 block**, **Account/credential** (needs an account or
 third-party keys this build cannot ship), **Android-only**.
 
-Latest full run: commit `8fbf9b9` (`43574547581`). The build and simulator jobs
-are green. The screenshots job captured the 59 settled screenshots plus 46
-origin/mid/settled motion frames and passed every screen and motion assertion,
-then exited red in its unrelated background-download fixture: the live
-catalogue returned no fresh track (`background.track=false`), so the job has no
-failure in the player, lyrics, geometry or motion checks. Its 108-file artifact
-is the capture set copied into `shots-v2/`. Both root IPAs are that build:
-17,122,983 bytes, sha256
-`f99d703aee8e84b9c05451c19ab01252ab4f1a0695be79d50f05cdc7f93fbf5d`, bundle
+Latest full run: commit `8dc3a17` (`43643240525`). The build, simulator and
+screenshots jobs are all green. The screenshots job captured 59 settled
+screenshots plus 46 origin/mid/settled motion frames, and passed every screen,
+motion, geometry and background-transfer assertion. Its 105-PNG artifact is
+the capture set in `_ci_tmp/run-8dc3a17/shots/`. Both root IPAs are that build:
+17,184,226 bytes, sha256
+`82ba3965cc392d62ad84fc11ccff28311be2b14bad36189c49ecc7c34af99bef`, bundle
 `com.bitchord.ios12v2` 2.0.0, `MinimumOSVersion 12.0`, `UIDeviceFamily [1,2]`,
-a thin `arm64` executable (`cputype 0x100000c`) and a registered `bitchord`
-URL scheme - verified inside CI by unzipping the packaged IPA and again on the
-committed file, with both copies byte-identical.
+a thin `arm64` executable (Mach-O) and a registered `bitchord` URL scheme -
+verified on the committed file, with both copies byte-identical.
 
 ## UI parity pass
 
@@ -33,8 +30,15 @@ The screens were measured against the running Android app in the emulator
 heights, banner and card origins, list rows, settings rows, player transport
 and footer were moved onto the reference bounds; `home.png`, `library.png`,
 `explore.png`, `search.png`, `settings.png`, `downloads-empty.png`,
-`local-music.png` and `now-playing.png` in `shots-v2/` are the resulting
-captures. The Now Playing and lyrics surfaces were then rebuilt from the
+`local-music.png` and `now-playing.png` in `_ci_tmp/run-8dc3a17/shots/` are
+the resulting captures. Home's account button is 36pt, the Top Picks card is
+240x320pt (upstream's `min(width * 0.60, 280)` at 402pt by its 0.75 aspect),
+and the album shelf follows the card row at 16pt rather than the feed's 28pt
+rhythm. Explore keeps the 1.72:1 mood card and 18pt radius from
+`MOOD_CARD_ASPECT` / `MOOD_CARD_SHAPE`. The song menu now names **Open album**
+and **Open artist**, with the album sleeve glyph; the Song Info dialog waits
+for its live payload (or its five-second cap) before the screenshot is taken.
+The Now Playing and lyrics surfaces were then rebuilt from the
 Compose constants: 20pt medium artist over a 20pt semibold title, the 20dp
 artwork-to-title gap, the 54dp collapsed header, a 7pt/12pt thumbless scrubber,
 74dp transport glyphs at upstream's centres, and 34sp/41sp extra-bold lyrics
@@ -52,7 +56,8 @@ scale on press, the stats carousel snaps and onboarding steps fade.
 A separate `-BCMotion` launch drives every transition through the real control
 (`MotionHarness`). It writes an origin frame, at least one mid frame and the
 settled frame, and records presentation-layer values in
-`shots-v2/motion-report.txt`. CI fails if any flag is false or any of the 46
+`_ci_tmp/run-8dc3a17/shots/shots/motion-report.txt`. CI fails if any flag is
+false or any of the 46
 frames is missing, so a transition that snapped cannot pass as animated. The
 tab pill's 0.42s spring was checked against an emulator screen recording of the
 Android bar, which settles in roughly 0.4s; the remaining durations follow the
@@ -61,7 +66,7 @@ same Android motion vocabulary at 60fps.
 | Transition | Timing | Frames | Mid-state captured |
 | --- | --- | --- | --- |
 | Tab pill slide | 0.42s spring, damping 0.82 | `motion-tab-0..3` | pill x 4.0 -> 34.5 -> 93.1 -> 94.7pt |
-| Tab page crossfade | 0.22s ease-out | same frames | outgoing page alpha 1.00 -> 0.64 -> 0.03 -> 1.00 |
+| Tab page crossfade | 0.22s ease-out | same frames | outgoing page alpha 1.00 -> 0.66 -> 1.00; incoming 0.34 at the same mid-frame |
 | Mini-player expand | 0.30s spring, damping 0.90 | `motion-mini-0..3` | bar height 0 -> 25.3 -> 55.1 -> 56pt, alpha 0 -> 0.45 -> 0.98 -> 1; clipped while growing |
 | Mini-player to Now Playing | standard modal + 0.46s spring, damping 0.86, 0.02s delay | `motion-player-open-0..5`, `-4a`, `-4b` | `open-2` shows the panel partway over Home; cover scale 0.941 -> 0.969 -> 0.991 -> 1.000 |
 | Now Playing dismiss | 0.26s ease-in | `motion-close-0..3` | panel alpha 1.00 -> 0.94 -> 0.54 -> 0; translation 0 -> 52.4 -> 405.9 -> 874pt |
@@ -72,8 +77,10 @@ same Android motion vocabulary at 60fps.
 | Onboarding step fade | 0.22s ease-out | `motion-onboarding-0..3` | title/body/features alpha partway between 0 and 1 at frame 1/2 |
 
 The live-frame report also sets the two residual geometries: Home's first
-artwork is at y331 against the reference y331, and Explore's first tile is at
-y175 against the reference y176 (one point, below the rasterization tolerance).
+artwork is at y320 against the reference y320 (height-mapped), and Explore's
+first tile is at y167 against the reference y167.5 (below the rasterization
+tolerance). CI now fails explicitly when either falls outside a four-point
+window, rather than leaving a failed `test` as the last command in a chain.
 `home.png` and `explore.png` carry the same measurements in the settled set.
 
 ## Shell and navigation
@@ -113,9 +120,9 @@ y175 against the reference y176 (one point, below the rasterization tolerance).
 
 | Upstream | Port | State |
 | --- | --- | --- |
-| `SongActionsMenu.kt` | `TrackActions` | Asserted - `song-actions.png`; play next, add to queue, add to playlist, like, artist, download, radio, share, info |
+| `SongActionsMenu.kt` | `TrackActions` | Asserted - `song-actions.png`; quick Like/Share, add to playlist, radio, play next, queue, saved-to-downloads, open album, open artist, info |
 | `PlaylistPickerSheet.kt` | `PlaylistPicker`, `LibraryStore` | Asserted - `add-to-playlist.png`, `menu.playlistGrew=true` |
-| `SongInfoDialog.kt` | `SongInfoViewController` | Asserted - `song-info.png`, `info.rows=7` |
+| `SongInfoDialog.kt` | `SongInfoViewController` | Asserted - `song-info.png`, `info.rows=5` |
 | `LyricsShareCard.kt`, `AndroidLyricsShareSheet.kt` | `TrackActions.share` -> `UIActivityViewController` | Ported - title, artist and a playable link; the rendered card image is not drawn |
 | `ReorderPlaylistPage.kt`, `BoundedQueueEdits.kt` | Queue edit mode, `moveInQueue` | Asserted - `queue-edit.png`, `queue.moved=true` |
 | `QueueActionNotice.kt` | Queue sheet header | Ported |
@@ -175,17 +182,20 @@ Named rather than hidden:
 
 ## What CI measured, and what it did not
 
-Measured in the simulator (`shots-v2/download-report.txt` and the background
-reports), with the run above:
+Measured in the simulator (`_ci_tmp/run-8dc3a17/shots/shots/download-report.txt`
+and the background reports), with the run above:
 
-- Song menu: `menu.items=Play next|Add to queue|Add to playlist|Like|Go to
-  artist|Delete download|Start radio|Share|Song info`, every row asserted;
-  `menu.playlistGrew=true` after adding into a new playlist.
+- Song menu: `menu.items=Play next|Add to queue|Add to playlist|Like|Open
+  album|Open artist|Saved to downloads|Start radio|Share|Song info`, every
+  row asserted; `menu.hasAlbum=true`, `menu.playlistGrew=true` after adding
+  into a new playlist.
 - Queue: `queue.before=2`, `afterAdd=3`, `afterRemove=2`, `playNext=true`,
   `afterMove=3`, `moved=true`.
 - History screen: `historyPage.rows=4`, `afterClear=0`, `restored=1`; Replay:
   `replay.entries=6`, `replay.plays=6`.
-- Song info: `info.rows=7`, `info.title=Blinding Lights`, `info.source=Downloaded`.
+- Song info: `info.rows=5`, `info.title=Blinding Lights`, `info.album=Blinding
+  Lights` (the single's own album name); the four live counts remain em dashes
+  when YouTube's watch page cannot be reached from the simulator.
 - Autoplay: `autoplay.started=true`, `autoplay.tracks=51` from a one-song queue.
 - A force-quit relaunch reads back `verify.localTracks=1` and
   `verify.history=2` with `verify.historyTop=Blinding Lights`, and
