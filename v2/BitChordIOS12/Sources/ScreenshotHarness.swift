@@ -1533,7 +1533,17 @@ enum ScreenshotHarness {
         SettingsStore.shared.set(false, for: "BitChord.Download.WifiOnly")
         CatalogueSearch.shared.songs("Save Your Tears The Weeknd") { tracks in
             // Anything already on disk would short-circuit, so take a fresh one.
-            let fresh = tracks.filter { !DownloadStore.shared.isDownloaded($0.videoID) }
+            var fresh = tracks.filter { !DownloadStore.shared.isDownloaded($0.videoID) }
+            if fresh.isEmpty {
+                // The live search occasionally returns nothing; the transfer
+                // fixture still has a known catalogue id to fall back on.
+                let known = Track(videoID: "XXYlFuWEuKI", title: "Save Your Tears",
+                                  artist: "The Weeknd", album: "After Hours",
+                                  durationSeconds: 215)
+                if !DownloadStore.shared.isDownloaded(known.videoID) {
+                    fresh = [known]
+                }
+            }
             tryBackgroundStart(fresh, index: 0, base: base, directory: directory, keep: keep)
         }
     }
