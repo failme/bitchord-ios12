@@ -33,3 +33,6 @@ _ci_tmp/
 shots/
 _android/
 BitChord/
+
+# CI-measured renditions are evidence on the runner, not repo payload.
+shots-v2/*.m4a
