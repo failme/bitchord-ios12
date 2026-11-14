@@ -108,6 +108,10 @@ final class RootViewController: UIViewController {
         let previous = selectedIndex
         selectedIndex = index
         tabBar.setSelectedIndex(index)
+        if index == 3,
+           let search = navigations[index].viewControllers.first as? SearchViewController {
+            DispatchQueue.main.async { search.focusFieldForDisplay() }
+        }
         guard previous != index, navigations.indices.contains(index) else {
             for (position, navigation) in navigations.enumerated() {
                 navigation.view.isHidden = position != index

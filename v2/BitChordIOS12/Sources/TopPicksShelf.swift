@@ -173,7 +173,7 @@ final class TopPickCell: UICollectionViewCell {
     }
 
     func configure(track: Track) {
-        sourceLabel.text = track.album.isEmpty ? "Top pick" : "New from \(track.artist)"
+        sourceLabel.text = "New from \(track.artist)"
         titleLabel.text = track.title
         detailLabel.text = track.artist
         artwork.image = nil

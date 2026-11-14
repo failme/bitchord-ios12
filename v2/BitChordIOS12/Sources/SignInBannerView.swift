@@ -108,32 +108,36 @@ final class GoogleMarkView: UIView {
     }
 
     override func draw(_ rect: CGRect) {
-        let line: CGFloat = rect.width * 0.22
+        let line: CGFloat = rect.width * 0.24
         let radius = (rect.width - line) / 2
         let center = CGPoint(x: rect.midX, y: rect.midY)
-        let colors = [UIColor(red: 0.92, green: 0.26, blue: 0.21, alpha: 1),
-                      UIColor(red: 0.98, green: 0.74, blue: 0.02, alpha: 1),
-                      UIColor(red: 0.20, green: 0.66, blue: 0.33, alpha: 1),
-                      UIColor(red: 0.26, green: 0.52, blue: 0.96, alpha: 1)]
-        // Start at the top-right gap and sweep clockwise in four arcs.
-        let starts: [CGFloat] = [-45, -135, 135, 45]
-        let ends: [CGFloat] = [-165, 45, 135, 30]
-        for index in 0..<4 {
+        // A full four-colour ring, with the small opening at the top right.
+        // Each segment owns an increasing-angle sweep in this flipped UIKit
+        // space: red over the top, yellow at the left, green below, blue right.
+        let segments: [(from: CGFloat, to: CGFloat, color: UIColor)] = [
+            (218, 312, UIColor(red: 0.92, green: 0.26, blue: 0.21, alpha: 1)),
+            (134, 218, UIColor(red: 0.98, green: 0.74, blue: 0.02, alpha: 1)),
+            (50, 134, UIColor(red: 0.20, green: 0.66, blue: 0.33, alpha: 1)),
+            (-40, 50, UIColor(red: 0.26, green: 0.52, blue: 0.96, alpha: 1))
+        ]
+        for segment in segments {
             let path = UIBezierPath(arcCenter: center,
                                     radius: radius,
-                                    startAngle: starts[index] * .pi / 180,
-                                    endAngle: ends[index] * .pi / 180,
-                                    clockwise: index == 2 ? false : true)
+                                    startAngle: segment.from * .pi / 180,
+                                    endAngle: segment.to * .pi / 180,
+                                    clockwise: true)
             path.lineWidth = line
-            colors[index].setStroke()
+            path.lineCapStyle = .butt
+            segment.color.setStroke()
             path.stroke()
         }
-        // The crossbar of the G.
+        // The blue crossbar runs from the centre to the ring's right edge.
         let bar = UIBezierPath()
         bar.move(to: CGPoint(x: center.x, y: center.y))
-        bar.addLine(to: CGPoint(x: rect.maxX - 1, y: center.y))
+        bar.addLine(to: CGPoint(x: rect.maxX - line / 2, y: center.y))
         bar.lineWidth = line
-        colors[3].setStroke()
+        bar.lineCapStyle = .butt
+        segments[3].color.setStroke()
         bar.stroke()
     }
 }

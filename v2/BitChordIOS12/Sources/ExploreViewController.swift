@@ -67,7 +67,7 @@ final class ExploreViewController: UIViewController {
         avatar.backgroundColor = Theme.surfaceVariant
         avatar.layer.cornerRadius = 20
         avatar.tintColor = Theme.secondaryText
-        avatar.setImage(Icons.image(.person, size: 18), for: .normal)
+        avatar.setImage(Icons.image(.personOutline, size: 19), for: .normal)
         avatar.addTarget(self, action: #selector(openSettings), for: .touchUpInside)
         avatar.translatesAutoresizingMaskIntoConstraints = false
         scrollView.addSubview(avatar)

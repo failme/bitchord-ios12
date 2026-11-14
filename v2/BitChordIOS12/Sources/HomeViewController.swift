@@ -48,7 +48,7 @@ final class HomeViewController: UIViewController {
         avatar.backgroundColor = Theme.surfaceVariant
         avatar.layer.cornerRadius = 22
         avatar.tintColor = Theme.secondaryText
-        avatar.setImage(Icons.image(.person, size: 20), for: .normal)
+        avatar.setImage(Icons.image(.personOutline, size: 20), for: .normal)
         avatar.addTarget(self, action: #selector(openSettings), for: .touchUpInside)
         avatar.translatesAutoresizingMaskIntoConstraints = false
         header.addSubview(avatar)

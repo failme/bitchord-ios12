@@ -54,10 +54,11 @@ final class CapsuleTabBar: UIView {
         stack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stack)
         NSLayoutConstraint.activate([
-            stack.topAnchor.constraint(equalTo: topAnchor, constant: 4),
-            stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 4),
-            stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),
-            stack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -4)
+            // The real selection capsule fills the bar's full height.
+            stack.topAnchor.constraint(equalTo: topAnchor),
+            stack.leadingAnchor.constraint(equalTo: leadingAnchor),
+            stack.trailingAnchor.constraint(equalTo: trailingAnchor),
+            stack.bottomAnchor.constraint(equalTo: bottomAnchor)
         ])
 
         for (index, item) in items.enumerated() {
@@ -73,16 +74,16 @@ final class CapsuleTabBar: UIView {
             cell.isUserInteractionEnabled = false
             cell.translatesAutoresizingMaskIntoConstraints = false
 
-            let icon = UIImageView(image: Icons.image(item.icon, size: 23))
+            let icon = UIImageView(image: Icons.image(item.icon, size: 22))
             icon.translatesAutoresizingMaskIntoConstraints = false
             NSLayoutConstraint.activate([
-                icon.widthAnchor.constraint(equalToConstant: 23),
-                icon.heightAnchor.constraint(equalToConstant: 23)
+                icon.widthAnchor.constraint(equalToConstant: 22),
+                icon.heightAnchor.constraint(equalToConstant: 22)
             ])
 
             let label = UILabel()
             label.text = item.title
-            label.font = Theme.font(11, weight: .semibold)
+            label.font = Theme.font(10, weight: .semibold)
 
             cell.addArrangedSubview(icon)
             cell.addArrangedSubview(label)

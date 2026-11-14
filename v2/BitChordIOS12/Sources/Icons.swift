@@ -15,8 +15,8 @@ enum Icons {
         case search, close, plus
         case musicNote, headphones, download
         case house, compass, library, list, gear
-        case grid, books, person, logo
-        case people, plug, wifi, mobileData, dolby
+        case grid, books, person, personOutline, logo
+        case people, peopleOutline, plug, wifi, mobileData, dolby
         case history, folder, spotify
         case downloadArrow
         case globe, cast, bubble, speaker
@@ -340,6 +340,34 @@ enum Icons {
                                         startAngle: -0.9, endAngle: 0.9, clockwise: true)
                 stroke(wave, width: w * 0.85)
             }
+        case .personOutline:
+            // The outline account glyph every real header and Settings row
+            // uses; the filled silhouette merged into a blob at 18pt.
+            let head = UIBezierPath(ovalIn: CGRect(x: 0.34 * s, y: 0.18 * s,
+                                                   width: 0.32 * s, height: 0.32 * s))
+            stroke(head, width: w * 0.9)
+            let shoulders = UIBezierPath()
+            shoulders.move(to: pt(0.18, 0.82))
+            shoulders.addCurve(to: pt(0.82, 0.82),
+                               controlPoint1: pt(0.20, 0.52), controlPoint2: pt(0.80, 0.52))
+            stroke(shoulders, width: w * 0.9)
+        case .peopleOutline:
+            let backHead = UIBezierPath(ovalIn: CGRect(x: 0.16 * s, y: 0.24 * s,
+                                                       width: 0.22 * s, height: 0.22 * s))
+            stroke(backHead, width: w * 0.75)
+            let back = UIBezierPath()
+            back.move(to: pt(0.08, 0.72))
+            back.addCurve(to: pt(0.46, 0.72),
+                          controlPoint1: pt(0.10, 0.50), controlPoint2: pt(0.44, 0.50))
+            stroke(back, width: w * 0.75)
+            let frontHead = UIBezierPath(ovalIn: CGRect(x: 0.50 * s, y: 0.28 * s,
+                                                        width: 0.28 * s, height: 0.28 * s))
+            stroke(frontHead, width: w * 0.85)
+            let front = UIBezierPath()
+            front.move(to: pt(0.38, 0.82))
+            front.addCurve(to: pt(0.90, 0.82),
+                           controlPoint1: pt(0.40, 0.56), controlPoint2: pt(0.88, 0.56))
+            stroke(front, width: w * 0.85)
         case .people:
             // Two overlapping listeners: the back head and shoulders, then the
             // front silhouette, matching the Listen together row's glyph.
@@ -400,12 +428,13 @@ enum Icons {
                 stroke(d, width: w * 0.85)
             }
         case .downloadArrow:
-            // The solid download glyph in the Downloads empty-state hero.
-            UIBezierPath(roundedRect: CGRect(x: 0.42 * s, y: 0.12 * s,
-                                             width: 0.16 * s, height: 0.44 * s),
-                         cornerRadius: 0.05 * s).fill()
-            roundedTriangle(pt(0.20, 0.44), pt(0.50, 0.76), pt(0.80, 0.44),
-                            radius: 0.035 * s).fill()
+            // The solid download glyph in the Downloads empty-state hero: a
+            // wide head and short shaft, not the small tray used in rows.
+            UIBezierPath(roundedRect: CGRect(x: 0.44 * s, y: 0.22 * s,
+                                             width: 0.12 * s, height: 0.32 * s),
+                         cornerRadius: 0.04 * s).fill()
+            roundedTriangle(pt(0.14, 0.48), pt(0.50, 0.80), pt(0.86, 0.48),
+                            radius: 0.045 * s).fill()
         case .person:
             UIBezierPath(ovalIn: CGRect(x: 0.36 * s, y: 0.20 * s, width: 0.28 * s, height: 0.28 * s)).fill()
             let shoulders = UIBezierPath()

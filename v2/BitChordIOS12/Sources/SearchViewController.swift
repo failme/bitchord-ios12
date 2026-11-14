@@ -56,14 +56,13 @@ final class SearchViewController: UIViewController {
         refresh()
     }
 
-    override func viewDidAppear(_ animated: Bool) {
-        super.viewDidAppear(animated)
-        // The real Search opens with the field already active, keyboard up.
-        // Only when no query is underway, so returning from a result does not
-        // cover the list the user came back to read.
-        if query.isEmpty, (field.text ?? "").isEmpty, presentedViewController == nil {
-            field.becomeFirstResponder()
-        }
+    /// Called by the tab host when this page becomes visible. The real Search
+    /// opens with the field active; a view-appearance callback never fires on
+    /// a tab swap because all four pages stay in the same hierarchy.
+    func focusFieldForDisplay() {
+        guard query.isEmpty, (field.text ?? "").isEmpty,
+              presentedViewController == nil else { return }
+        field.becomeFirstResponder()
     }
 
     // MARK: - Chrome
@@ -109,7 +108,7 @@ final class SearchViewController: UIViewController {
         avatarButton.backgroundColor = Theme.surfaceVariant
         avatarButton.layer.cornerRadius = 22
         avatarButton.tintColor = Theme.secondaryText
-        avatarButton.setImage(Icons.image(.person, size: 20), for: .normal)
+        avatarButton.setImage(Icons.image(.personOutline, size: 21), for: .normal)
         view.addSubview(avatarButton)
 
         NSLayoutConstraint.activate([

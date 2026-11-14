@@ -88,7 +88,7 @@ final class LibraryViewController: UIViewController {
         avatar.backgroundColor = Theme.outline
         avatar.layer.cornerRadius = 17
         avatar.tintColor = Theme.secondaryText
-        avatar.setImage(Icons.image(.person, size: 18), for: .normal)
+        avatar.setImage(Icons.image(.personOutline, size: 19), for: .normal)
         avatar.addTarget(self, action: #selector(openSettings), for: .touchUpInside)
         avatar.translatesAutoresizingMaskIntoConstraints = false
         pill.addSubview(avatar)
@@ -183,7 +183,9 @@ final class LibraryViewController: UIViewController {
             rowsHolder.addArrangedSubview(row)
             index += 1
         }
-        stack.setCustomSpacing(8, after: stack.arrangedSubviews.last!)
+        // The real rows start immediately under the stats card, not a full
+        // row-gap below it.
+        stack.setCustomSpacing(-1, after: stack.arrangedSubviews.last!)
         stack.addArrangedSubview(rowsHolder)
         stack.setCustomSpacing(10, after: rowsHolder)
     }
@@ -193,7 +195,7 @@ final class LibraryViewController: UIViewController {
     private func buildPlaylists() {
         let heading = UILabel()
         heading.text = "Playlists"
-        heading.font = Theme.font(18, weight: .bold)
+        heading.font = Theme.font(17, weight: .bold)
         heading.textColor = Theme.primaryText
         let holder = UIView()
         holder.addSubview(heading)
@@ -570,7 +572,7 @@ final class LibraryRowButton: UIControl {
 
         let label = UILabel()
         label.text = title
-        label.font = Theme.font(18)
+        label.font = Theme.font(17)
         label.textColor = Theme.primaryText
         label.translatesAutoresizingMaskIntoConstraints = false
         addSubview(label)
@@ -592,7 +594,7 @@ final class LibraryRowButton: UIControl {
             glyph.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 16),
             glyph.centerYAnchor.constraint(equalTo: centerYAnchor),
 
-            label.leadingAnchor.constraint(equalTo: glyph.trailingAnchor, constant: 14),
+            label.leadingAnchor.constraint(equalTo: glyph.trailingAnchor, constant: 20),
             label.centerYAnchor.constraint(equalTo: centerYAnchor),
             label.trailingAnchor.constraint(lessThanOrEqualTo: chevron.leadingAnchor, constant: -8),
 

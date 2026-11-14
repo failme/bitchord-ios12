@@ -50,9 +50,9 @@ final class SettingsViewController: UIViewController {
         tableView.separatorInset = UIEdgeInsets(top: 0, left: 52, bottom: 0, right: 16)
         tableView.dataSource = self
         tableView.delegate = self
-        // Upstream's rows are 48pt. At 60 the grouped card ran 120pt instead
-        // of 96, pushing AUDIO QUALITY a third of a row down the page.
-        tableView.rowHeight = 48
+        // The opening account card is compact (48pt per row); the preference
+        // sections use the real 58pt rows, with Dolby's two-line footnote at 66.
+        tableView.rowHeight = 58
         tableView.sectionHeaderHeight = 26
         tableView.tableFooterView = UIView()
         tableView.contentInset = UIEdgeInsets(top: 0, left: 0, bottom: 40, right: 0)
@@ -196,6 +196,12 @@ extension SettingsViewController: UITableViewDataSource, UITableViewDelegate {
         return sections[section].items.count
     }
 
+    func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
+        if sections[indexPath.section].title.isEmpty { return 48 }
+        if sections[indexPath.section].items[indexPath.row].key == "BitChord.Audio.DolbyAtmos" { return 66 }
+        return 58
+    }
+
     func tableView(_ tableView: UITableView, heightForHeaderInSection section: Int) -> CGFloat {
         // A nil header still reserves sectionHeaderHeight, so the unlabelled
         // opening card would float below a 34pt gap without this.
@@ -230,7 +236,8 @@ extension SettingsViewController: UITableViewDataSource, UITableViewDelegate {
         let rows = sections[indexPath.section].items.count
         cell.configure(item: item, card: card,
                        first: indexPath.row == 0,
-                       last: indexPath.row == rows - 1)
+                       last: indexPath.row == rows - 1,
+                       topInset: sections[indexPath.section].title.isEmpty ? 8 : 10)
         if case .toggle(let fallback) = item.kind {
             let toggle = UISwitch()
             toggle.onTintColor = .white
@@ -311,7 +318,7 @@ final class SettingsCell: UITableViewCell {
         detailLabel.translatesAutoresizingMaskIntoConstraints = false
         detailLabel.font = Theme.font(13)
         detailLabel.textColor = Theme.secondaryText
-        detailLabel.numberOfLines = 1
+        detailLabel.numberOfLines = 2
         // The real subtitles are set to fit the row rather than truncate, and
         // the icon inset costs just enough width to clip them otherwise.
         detailLabel.adjustsFontSizeToFitWidth = true
@@ -398,7 +405,7 @@ final class SettingsCell: UITableViewCell {
         ])
     }
 
-    func configure(item: SettingItem, card: UIColor, first: Bool, last: Bool) {
+    func configure(item: SettingItem, card: UIColor, first: Bool, last: Bool, topInset: CGFloat) {
         if separator.superview == nil {
             // The real cards are one surface split by hairlines, not a slab.
             separator.backgroundColor = UIColor.white.withAlphaComponent(0.09)
@@ -466,8 +473,9 @@ final class SettingsCell: UITableViewCell {
         }
         valueLabel.isHidden = !trailingValue
         if trailingValue { detailLabel.text = nil }
-        // A row with no subtitle is one centred line; a two-line row starts
-        // at the 8pt top inset so both lines fit a 48pt card.
+        // A row with no subtitle is one centred line; a two-line row starts at
+        // the section's top inset so both lines fit its 48/58/66pt card.
+        titleTop.constant = topInset
         let singleLine = trailingValue || (detailLabel.text ?? "").isEmpty
         titleTop.isActive = !singleLine
         titleCentered.isActive = singleLine

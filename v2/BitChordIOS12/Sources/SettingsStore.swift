@@ -125,11 +125,11 @@ enum SettingsCatalog {
         SettingSection(title: "", items: [
             SettingItem(key: "BitChord.Account.Integrations", title: "Account & integrations",
                         detail: "Not signed in",
-                        icon: .person,
+                        icon: .personOutline,
                         kind: .page("Google, Spotify and Discord accounts are not wired into this build.")),
             SettingItem(key: "BitChord.Misc.ListenTogether", title: "Listen together",
                         detail: "Share a code and play the same music, in time",
-                        icon: .people,
+                        icon: .peopleOutline,
                         kind: .page("Listening together needs a signed-in account on every device, so the party can tell who is in it."))
         ]),
 
@@ -152,12 +152,7 @@ enum SettingsCatalog {
             SettingItem(key: "BitChord.Audio.DolbyAtmos", title: "Dolby Atmos",
                         detail: "This device can't play Atmos, so these songs play in their usual version",
                         icon: .dolby,
-                        kind: .unavailable("")),
-            // Port-only row, kept after the real section's rows so the visible
-            // order still matches upstream.
-            SettingItem(key: "BitChord.Sources.Addon", title: "Lossless addon",
-                        detail: "FLAC and ALAC straight from a source you point at",
-                        kind: .addon)
+                        kind: .unavailable(""))
         ]),
 
         SettingSection(title: "Playback", items: [
@@ -251,6 +246,9 @@ enum SettingsCatalog {
         ]),
 
         SettingSection(title: "Sources & addons", items: [
+            SettingItem(key: "BitChord.Sources.Addon", title: "Lossless addon",
+                        detail: "FLAC and ALAC straight from a source you point at",
+                        kind: .addon),
             SettingItem(key: "BitChord.Source.WebDAV", title: "Sources & folders",
                         detail: "WebDAV servers you can stream from",
                         kind: .sources),
