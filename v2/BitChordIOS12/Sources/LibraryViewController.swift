@@ -533,6 +533,14 @@ final class LibraryStatCard: UIControl {
     @objc private func tapped() {
         onTap?()
     }
+
+    func motionPressForCapture() {
+        pressIn()
+    }
+
+    func motionReleaseForCapture() {
+        pressOut()
+    }
 }
 
 /// "Downloads" / "Local Music" row: icon, label and a hairline.
@@ -667,13 +675,6 @@ class PlaylistCard: UIControl {
         onTap?()
     }
 
-    func motionPressForCapture() {
-        pressIn()
-    }
-
-    func motionReleaseForCapture() {
-        pressOut()
-    }
 }
 
 extension LibraryViewController: UIScrollViewDelegate {
