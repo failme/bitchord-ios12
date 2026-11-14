@@ -73,7 +73,7 @@ final class SearchViewController: UIViewController {
         field.translatesAutoresizingMaskIntoConstraints = false
         field.textColor = Theme.primaryText
         field.tintColor = Theme.accent
-        field.font = Theme.font(18)
+        field.font = Theme.font(17)
         field.attributedPlaceholder = NSAttributedString(
             string: "Artists, Songs, Lyrics and More",
             attributes: [.foregroundColor: Theme.secondaryText]
@@ -103,10 +103,10 @@ final class SearchViewController: UIViewController {
         view.addSubview(avatarButton)
 
         NSLayoutConstraint.activate([
-            fieldContainer.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 4),
+            fieldContainer.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: -14),
             fieldContainer.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
             fieldContainer.trailingAnchor.constraint(equalTo: avatarButton.leadingAnchor, constant: -10),
-            fieldContainer.heightAnchor.constraint(equalToConstant: 50),
+            fieldContainer.heightAnchor.constraint(equalToConstant: 49),
 
             fieldIcon.leadingAnchor.constraint(equalTo: fieldContainer.leadingAnchor, constant: 14),
             fieldIcon.centerYAnchor.constraint(equalTo: fieldContainer.centerYAnchor),
@@ -148,7 +148,7 @@ final class SearchViewController: UIViewController {
         }
         view.addSubview(sourceSelector)
         NSLayoutConstraint.activate([
-            sourceSelector.topAnchor.constraint(equalTo: fieldContainer.bottomAnchor, constant: 6),
+            sourceSelector.topAnchor.constraint(equalTo: fieldContainer.bottomAnchor, constant: 0),
             sourceSelector.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: Theme.gutter),
             sourceSelector.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -Theme.gutter),
             sourceSelector.heightAnchor.constraint(equalToConstant: 40)

@@ -45,7 +45,7 @@ final class SignInBannerView: UIView {
 
         let button = UIButton(type: .custom)
         button.backgroundColor = .white
-        button.layer.cornerRadius = 20
+        button.layer.cornerRadius = 23
         button.addTarget(self, action: #selector(signInTapped), for: .touchUpInside)
         button.translatesAutoresizingMaskIntoConstraints = false
         addSubview(button)
@@ -64,13 +64,13 @@ final class SignInBannerView: UIView {
         button.addSubview(buttonTitle)
 
         NSLayoutConstraint.activate([
-            title.topAnchor.constraint(equalTo: topAnchor, constant: 22),
-            title.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 24),
+            title.topAnchor.constraint(equalTo: topAnchor, constant: 24),
+            title.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
 
             button.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 14),
-            button.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 24),
-            button.heightAnchor.constraint(equalToConstant: 44),
-            button.widthAnchor.constraint(equalToConstant: 208),
+            button.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+            button.heightAnchor.constraint(equalToConstant: 46),
+            button.widthAnchor.constraint(equalToConstant: 232),
 
             mark.leadingAnchor.constraint(equalTo: button.leadingAnchor, constant: 18),
             mark.centerYAnchor.constraint(equalTo: button.centerYAnchor),

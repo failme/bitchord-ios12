@@ -114,7 +114,7 @@ final class ExploreViewController: UIViewController {
             scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
 
-            avatar.topAnchor.constraint(equalTo: scrollView.topAnchor, constant: 8),
+            avatar.topAnchor.constraint(equalTo: scrollView.topAnchor, constant: -10),
             avatar.trailingAnchor.constraint(equalTo: scrollView.trailingAnchor, constant: -16),
             avatar.widthAnchor.constraint(equalToConstant: 40),
             avatar.heightAnchor.constraint(equalToConstant: 40),
@@ -122,7 +122,7 @@ final class ExploreViewController: UIViewController {
             titleLabel.topAnchor.constraint(equalTo: avatar.bottomAnchor, constant: 30),
             titleLabel.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor, constant: 16),
 
-            grid.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 18),
+            grid.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 12),
             grid.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor, constant: 16),
             grid.trailingAnchor.constraint(equalTo: scrollView.trailingAnchor, constant: -16),
             grid.bottomAnchor.constraint(equalTo: scrollView.bottomAnchor, constant: -110),

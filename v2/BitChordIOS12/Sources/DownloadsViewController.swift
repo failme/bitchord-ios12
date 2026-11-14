@@ -118,7 +118,7 @@ final class DownloadsViewController: UIViewController {
         pill.addSubview(account)
 
         NSLayoutConstraint.activate([
-            backButton.topAnchor.constraint(equalTo: safe.topAnchor, constant: 6),
+            backButton.topAnchor.constraint(equalTo: safe.topAnchor, constant: -10),
             backButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
             backButton.widthAnchor.constraint(equalToConstant: 44),
             backButton.heightAnchor.constraint(equalToConstant: 44),
@@ -138,7 +138,7 @@ final class DownloadsViewController: UIViewController {
             account.widthAnchor.constraint(equalToConstant: 30),
             account.heightAnchor.constraint(equalToConstant: 30),
 
-            hero.topAnchor.constraint(equalTo: backButton.bottomAnchor, constant: 26),
+            hero.topAnchor.constraint(equalTo: backButton.bottomAnchor, constant: 15),
             hero.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             hero.widthAnchor.constraint(equalTo: view.widthAnchor, multiplier: 0.76),
             hero.heightAnchor.constraint(equalTo: hero.widthAnchor),
@@ -153,7 +153,7 @@ final class DownloadsViewController: UIViewController {
             heroBar.widthAnchor.constraint(equalToConstant: 56),
             heroBar.heightAnchor.constraint(equalToConstant: 8),
 
-            titleLabel.topAnchor.constraint(equalTo: hero.bottomAnchor, constant: 22),
+            titleLabel.topAnchor.constraint(equalTo: hero.bottomAnchor, constant: 10),
             titleLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
 
             subtitleLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 4),

@@ -61,7 +61,7 @@ final class LibraryViewController: UIViewController {
         // Real order: the history/account capsule sits high on the right, then
         // the 34pt Library title drops below it on the next line.
         let header = UIView()
-        header.heightAnchor.constraint(equalToConstant: 140).isActive = true
+        header.heightAnchor.constraint(equalToConstant: 122).isActive = true
 
         titleLabel.text = "Library"
         titleLabel.font = Theme.font(34, weight: .bold)
@@ -98,7 +98,7 @@ final class LibraryViewController: UIViewController {
             titleLabel.topAnchor.constraint(equalTo: pill.bottomAnchor, constant: 20),
 
             pill.trailingAnchor.constraint(equalTo: header.trailingAnchor, constant: -16),
-            pill.topAnchor.constraint(equalTo: header.topAnchor, constant: 8),
+            pill.topAnchor.constraint(equalTo: header.topAnchor, constant: -11),
             pill.widthAnchor.constraint(equalToConstant: 100),
             pill.heightAnchor.constraint(equalToConstant: 48),
 
@@ -498,7 +498,7 @@ final class LibraryStatCard: UIControl {
     }
 }
 
-/// "Downloads" / "Local Music" row: icon, label, chevron, hairline.
+/// "Downloads" / "Local Music" row: icon, label and a hairline.
 final class LibraryRowButton: UIControl {
     init(title: String, icon: Icons.Kind) {
         super.init(frame: .zero)
@@ -514,11 +514,6 @@ final class LibraryRowButton: UIControl {
         label.translatesAutoresizingMaskIntoConstraints = false
         addSubview(label)
 
-        let chevron = UIImageView(image: Icons.image(.chevronRight, size: 14))
-        chevron.tintColor = Theme.secondaryText
-        chevron.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(chevron)
-
         let hairline = UIView()
         hairline.backgroundColor = UIColor.white.withAlphaComponent(0.08)
         hairline.translatesAutoresizingMaskIntoConstraints = false
@@ -531,9 +526,6 @@ final class LibraryRowButton: UIControl {
 
             label.leadingAnchor.constraint(equalTo: glyph.trailingAnchor, constant: 18),
             label.centerYAnchor.constraint(equalTo: centerYAnchor),
-
-            chevron.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -16),
-            chevron.centerYAnchor.constraint(equalTo: centerYAnchor),
 
             hairline.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 56),
             hairline.trailingAnchor.constraint(equalTo: trailingAnchor),

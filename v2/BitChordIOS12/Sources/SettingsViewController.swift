@@ -32,6 +32,9 @@ final class SettingsViewController: UIViewController {
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
+        // Settings draws its own back button and 34pt heading, so the system
+        // bar must not add a second 44pt band above them.
+        navigationController?.setNavigationBarHidden(true, animated: false)
         // Storage used is live state: it changes as downloads come and go.
         tableView.reloadData()
     }
@@ -47,15 +50,15 @@ final class SettingsViewController: UIViewController {
         tableView.separatorInset = UIEdgeInsets(top: 0, left: 52, bottom: 0, right: 16)
         tableView.dataSource = self
         tableView.delegate = self
-        tableView.rowHeight = 70
-        tableView.sectionHeaderHeight = 34
+        tableView.rowHeight = 60
+        tableView.sectionHeaderHeight = 26
         tableView.tableFooterView = UIView()
         tableView.contentInset = UIEdgeInsets(top: 0, left: 0, bottom: 40, right: 0)
         tableView.register(SettingsCell.self, forCellReuseIdentifier: SettingsCell.reuseIdentifier)
         view.addSubview(tableView)
 
         NSLayoutConstraint.activate([
-            tableView.topAnchor.constraint(equalTo: searchField.bottomAnchor, constant: 18),
+            tableView.topAnchor.constraint(equalTo: searchField.bottomAnchor, constant: 10),
             tableView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             tableView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             tableView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
@@ -104,20 +107,13 @@ final class SettingsViewController: UIViewController {
             backButton.heightAnchor.constraint(equalToConstant: 44),
 
             titleLabel.topAnchor.constraint(equalTo: backButton.bottomAnchor, constant: 8),
-            titleLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
+            titleLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
 
             searchField.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 14),
             searchField.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
             searchField.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
             searchField.heightAnchor.constraint(equalToConstant: 48)
         ])
-    }
-
-    override func viewWillAppear(_ animated: Bool) {
-        super.viewWillAppear(animated)
-        // Settings draws its own back button and 34pt heading, so the system
-        // bar must not add a second 44pt band above them.
-        navigationController?.setNavigationBarHidden(true, animated: false)
     }
 
     @objc private func close() {
@@ -201,7 +197,7 @@ extension SettingsViewController: UITableViewDataSource, UITableViewDelegate {
     func tableView(_ tableView: UITableView, heightForHeaderInSection section: Int) -> CGFloat {
         // A nil header still reserves sectionHeaderHeight, so the unlabelled
         // opening card would float below a 34pt gap without this.
-        return sections[section].title.isEmpty ? 0.5 : 34
+        return sections[section].title.isEmpty ? 0.5 : 26
     }
 
     func tableView(_ tableView: UITableView, viewForHeaderInSection section: Int) -> UIView? {
@@ -374,7 +370,7 @@ final class SettingsCell: UITableViewCell {
             detailLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 2),
             detailLabel.trailingAnchor.constraint(equalTo: titleLabel.trailingAnchor),
 
-            cardView.heightAnchor.constraint(greaterThanOrEqualToConstant: 64),
+            cardView.heightAnchor.constraint(greaterThanOrEqualToConstant: 56),
 
             valueLabel.trailingAnchor.constraint(equalTo: chevron.leadingAnchor, constant: -8),
             valueLabel.centerYAnchor.constraint(equalTo: cardView.centerYAnchor),

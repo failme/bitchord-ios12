@@ -48,7 +48,7 @@ final class PillSelectorView: UIView {
         for (index, title) in titles.enumerated() {
             let label = UILabel()
             label.text = title
-            label.font = Theme.font(.labelMedium)
+            label.font = Theme.font(15, weight: .medium)
             label.textColor = .white
             label.textAlignment = .center
             labels.append(label)

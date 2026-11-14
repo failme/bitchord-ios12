@@ -140,9 +140,6 @@ enum SettingsCatalog {
                         detail: "Where audio comes from and the order used",
                         icon: .speaker,
                         kind: .page("Streams come from YouTube Music and JioSaavn. A lossless addon can be pointed at below.")),
-            SettingItem(key: "BitChord.Sources.Addon", title: "Lossless addon",
-                        detail: "FLAC and ALAC straight from a source you point at",
-                        kind: .addon),
             SettingItem(key: "BitChord.Audio.DirectSourceStream", title: "Direct Source Stream",
                         kind: .toggle(false)),
             SettingItem(key: "BitChord.Audio.WifiQuality", title: "On Wi-Fi",
@@ -152,7 +149,12 @@ enum SettingsCatalog {
                         kind: .choice("Lossless", ["Lossless", "High", "Normal", "Data saver"])),
             SettingItem(key: "BitChord.Audio.DolbyAtmos", title: "Dolby Atmos",
                         detail: "This device can't play Atmos, so these songs play in their usual version",
-                        kind: .unavailable(""))
+                        kind: .unavailable("")),
+            // Port-only row, kept after the real section's rows so the visible
+            // order still matches upstream.
+            SettingItem(key: "BitChord.Sources.Addon", title: "Lossless addon",
+                        detail: "FLAC and ALAC straight from a source you point at",
+                        kind: .addon)
         ]),
 
         SettingSection(title: "Playback", items: [
