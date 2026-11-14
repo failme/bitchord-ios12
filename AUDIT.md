@@ -12,12 +12,26 @@ screenshot), **Ported** (implemented and reachable, exercised indirectly by the
 flows CI asserts), **iOS 12 block**, **Account/credential** (needs an account or
 third-party keys this build cannot ship), **Android-only**.
 
-Latest full run: commit `32c0fee`, all three jobs green (`43536015686`). Both
-root IPAs are that build: 17,060,582 bytes, sha256 `e146410d...`, bundle
+Latest full run: commit `949365c`, all three jobs green (`43546543740`); it
+retook all 59 screenshots in `shots-v2/` after the UI parity pass. Both root
+IPAs are that build: 17,083,987 bytes, sha256 `54439995...`, bundle
 `com.bitchord.ios12v2` 2.0.0, `MinimumOSVersion 12.0`, `UIDeviceFamily [1,2]`,
 a thin `arm64` executable (`cputype 0x100000c`) and a registered `bitchord`
 URL scheme - verified inside CI by unzipping the packaged IPA and again on the
 committed file, with both copies byte-identical.
+
+## UI parity pass
+
+The screens were measured against the running Android app in the emulator
+(1080x2400, mapped to 402x874) rather than compared by eye alone. Header
+heights, banner and card origins, list rows, settings rows, player transport
+and footer were moved onto the reference bounds; `home.png`, `library.png`,
+`explore.png`, `search.png`, `settings.png`, `downloads-empty.png`,
+`local-music.png` and `now-playing.png` in `shots-v2/` are the resulting
+captures. Motion is ported as well: the tab pill springs while the pages
+crossfade, the mini player expands and collapses, Now Playing rises and slides
+away with the play/pause glyph crossfading, artwork fades between tracks, cards
+scale on press, the stats carousel snaps and onboarding steps fade.
 
 ## Shell and navigation
 
