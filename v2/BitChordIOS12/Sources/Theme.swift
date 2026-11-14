@@ -107,8 +107,17 @@ enum Theme {
     static func blurredImage(_ image: UIImage?, radius: CGFloat = 42) -> UIImage? {
         guard let image = image, let source = image.cgImage else { return nil }
         let input = CIImage(cgImage: source)
+        // Apple Music's full-artwork backdrop keeps more of the sleeve's colour
+        // than a plain gaussian blur does; lift the saturation before blurring
+        // so a dark cover does not turn the player into a grey smear.
+        let controls = CIFilter(name: "CIColorControls")
+        controls?.setValue(input, forKey: kCIInputImageKey)
+        controls?.setValue(1.35, forKey: kCIInputSaturationKey)
+        controls?.setValue(0.03, forKey: kCIInputBrightnessKey)
+        controls?.setValue(1.05, forKey: kCIInputContrastKey)
+        let coloured = controls?.outputImage ?? input
         guard let filter = CIFilter(name: "CIGaussianBlur") else { return image }
-        filter.setValue(input, forKey: kCIInputImageKey)
+        filter.setValue(coloured, forKey: kCIInputImageKey)
         filter.setValue(radius, forKey: kCIInputRadiusKey)
         guard let output = filter.outputImage,
               let cg = CIContext(options: [.useSoftwareRenderer: false])

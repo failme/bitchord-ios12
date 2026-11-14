@@ -113,7 +113,7 @@ final class NowPlayingViewController: UIViewController {
                              UIColor.black.cgColor,
                              UIColor.black.cgColor,
                              UIColor.clear.cgColor]
-        lyricsFade.locations = [0, 0.055, 0.93, 1]
+        lyricsFade.locations = [0, 0.055, 0.80, 1]
         lyricsFade.startPoint = CGPoint(x: 0.5, y: 0)
         lyricsFade.endPoint = CGPoint(x: 0.5, y: 1)
         lyricsTable.layer.mask = lyricsFade
@@ -206,7 +206,7 @@ final class NowPlayingViewController: UIViewController {
         artworkView.translatesAutoresizingMaskIntoConstraints = false
         artworkView.contentMode = .scaleAspectFill
         artworkView.clipsToBounds = true
-        artworkView.layer.cornerRadius = 12
+        artworkView.layer.cornerRadius = 0
         artworkView.backgroundColor = Theme.surface
         artworkView.isUserInteractionEnabled = true
         artworkView.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(toggleMode)))
@@ -217,7 +217,7 @@ final class NowPlayingViewController: UIViewController {
         artworkFadeView.translatesAutoresizingMaskIntoConstraints = false
         artworkFadeView.isUserInteractionEnabled = false
         artworkFadeLayer.colors = [UIColor.clear.cgColor,
-                                   UIColor.black.withAlphaComponent(0.30).cgColor]
+                                   UIColor.black.withAlphaComponent(0.18).cgColor]
         artworkFadeLayer.locations = [0, 1]
         artworkFadeView.layer.addSublayer(artworkFadeLayer)
         view.addSubview(artworkFadeView)
@@ -307,7 +307,7 @@ final class NowPlayingViewController: UIViewController {
             button.isHidden = true
             view.addSubview(button)
         }
-        globeButton.setImage(Icons.image(.globe, size: 18), for: .normal)
+        globeButton.setImage(Icons.image(.globe, size: 20), for: .normal)
         translitButton.titleLabel?.font = Theme.font(15, weight: .semibold)
         translitButton.setTitle("文A", for: .normal)
         translitButton.setTitleColor(UIColor(white: 1, alpha: 0.85), for: .normal)
@@ -526,7 +526,7 @@ final class NowPlayingViewController: UIViewController {
             toggleButton.widthAnchor.constraint(equalToConstant: 40),
             toggleButton.heightAnchor.constraint(equalToConstant: 40),
 
-            peekLabel.topAnchor.constraint(equalTo: artistLabel.bottomAnchor, constant: 16),
+            peekLabel.topAnchor.constraint(equalTo: artistLabel.bottomAnchor, constant: 12),
             peekLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 30),
             peekLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -30),
 
@@ -576,14 +576,14 @@ final class NowPlayingViewController: UIViewController {
 
             globeButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 30),
             globeButton.bottomAnchor.constraint(equalTo: lyricsSourceLabel.topAnchor, constant: -10),
-            globeButton.widthAnchor.constraint(equalToConstant: 36),
-            globeButton.heightAnchor.constraint(equalToConstant: 36),
+            globeButton.widthAnchor.constraint(equalToConstant: 40),
+            globeButton.heightAnchor.constraint(equalToConstant: 40),
 
             translitButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -30),
             translitButton.centerYAnchor.constraint(equalTo: globeButton.centerYAnchor),
-            translitButton.widthAnchor.constraint(equalToConstant: 36),
-            translitButton.heightAnchor.constraint(equalToConstant: 36),
-            slider.topAnchor.constraint(equalTo: peekLabel.bottomAnchor, constant: 8),
+            translitButton.widthAnchor.constraint(equalToConstant: 40),
+            translitButton.heightAnchor.constraint(equalToConstant: 40),
+            slider.topAnchor.constraint(equalTo: peekLabel.bottomAnchor, constant: 0),
             slider.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 30),
             slider.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -30),
             slider.heightAnchor.constraint(equalToConstant: 34),
@@ -600,12 +600,12 @@ final class NowPlayingViewController: UIViewController {
             playButton.widthAnchor.constraint(equalToConstant: 74),
 
             previousButton.centerYAnchor.constraint(equalTo: playButton.centerYAnchor),
-            previousButton.trailingAnchor.constraint(equalTo: playButton.leadingAnchor, constant: -36),
+            previousButton.trailingAnchor.constraint(equalTo: playButton.leadingAnchor, constant: -58),
             previousButton.widthAnchor.constraint(equalToConstant: 53),
             previousButton.heightAnchor.constraint(equalToConstant: 53),
 
             nextButton.centerYAnchor.constraint(equalTo: playButton.centerYAnchor),
-            nextButton.leadingAnchor.constraint(equalTo: playButton.trailingAnchor, constant: 36),
+            nextButton.leadingAnchor.constraint(equalTo: playButton.trailingAnchor, constant: 58),
             nextButton.widthAnchor.constraint(equalToConstant: 53),
             nextButton.heightAnchor.constraint(equalToConstant: 53),
 
@@ -660,12 +660,21 @@ final class NowPlayingViewController: UIViewController {
         playButton.tintColor = Theme.primaryText
         playButton.imageEdgeInsets = .zero
         playButton.setImage(Icons.image(PlayerService.shared.isPlaying ? .pause : .play, size: 74), for: .normal)
-        // In lyrics mode the cover itself is the backdrop: one blurred still
-        // with the mesh over it, exactly the pair upstream draws. The old dark
-        // blur effect is gone so the artwork's colour survives.
-        backdropView.alpha = lyrics ? 0.82 : 0
-        meshView.alpha = lyrics ? 0.45 : 1
-        scrimView.isHidden = !lyrics
+        // Upstream's fallback backdrop for the lyrics/queue/player surfaces is
+        // the cover itself, pre-blurred and stretched to the full screen. Using
+        // that here (rather than the mesh, whose renderer is still flat on this
+        // target) guarantees the surface is always the sleeve's colours.
+        backdropView.alpha = 1
+        meshView.isHidden = true
+        scrimView.isHidden = false
+        scrimLayer.colors = (lyrics
+            ? [UIColor.black.withAlphaComponent(0.16).cgColor,
+               UIColor.black.withAlphaComponent(0.30).cgColor,
+               UIColor.black.withAlphaComponent(0.56).cgColor]
+            : [UIColor.black.withAlphaComponent(0.02).cgColor,
+               UIColor.black.withAlphaComponent(0.12).cgColor,
+               UIColor.black.withAlphaComponent(0.44).cgColor])
+        scrimLayer.locations = [0, 0.45, 1]
         handle.isHidden = false
         stationLabel.isHidden = lyrics
         peekLabel.isHidden = lyrics
