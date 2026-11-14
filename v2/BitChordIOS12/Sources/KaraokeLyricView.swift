@@ -21,7 +21,7 @@ final class KaraokeLineView: UIView {
 
     /// Unsung text stays white and dimmed rather than turning grey; over the
     /// blurred cover that is what the real panel looks like.
-    var dimmed: UIColor = UIColor(white: 1, alpha: 0.42)
+    var dimmed: UIColor = UIColor(white: 1, alpha: 0.45)
 
     /// Playback position this line is drawn at. Setting it repaints only when
     /// the revealed characters actually change, which is most ticks apart.
@@ -179,7 +179,7 @@ final class KaraokeLyricCell: UITableViewCell {
     private var lineView: KaraokeLineView?
 
     /// How the unsung part of the line is coloured for this row.
-    var dimmed: UIColor = UIColor(white: 1, alpha: 0.42) {
+    var dimmed: UIColor = UIColor(white: 1, alpha: 0.45) {
         didSet { lineView?.dimmed = dimmed }
     }
 

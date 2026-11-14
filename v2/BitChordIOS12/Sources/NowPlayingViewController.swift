@@ -113,7 +113,7 @@ final class NowPlayingViewController: UIViewController {
                              UIColor.black.cgColor,
                              UIColor.black.cgColor,
                              UIColor.clear.cgColor]
-        lyricsFade.locations = [0, 0.055, 0.80, 1]
+        lyricsFade.locations = [0, 0.055, 0.74, 1]
         lyricsFade.startPoint = CGPoint(x: 0.5, y: 0)
         lyricsFade.endPoint = CGPoint(x: 0.5, y: 1)
         lyricsTable.layer.mask = lyricsFade
@@ -668,9 +668,9 @@ final class NowPlayingViewController: UIViewController {
         meshView.isHidden = true
         scrimView.isHidden = false
         scrimLayer.colors = (lyrics
-            ? [UIColor.black.withAlphaComponent(0.22).cgColor,
-               UIColor.black.withAlphaComponent(0.38).cgColor,
-               UIColor.black.withAlphaComponent(0.62).cgColor]
+            ? [UIColor.black.withAlphaComponent(0.34).cgColor,
+               UIColor.black.withAlphaComponent(0.48).cgColor,
+               UIColor.black.withAlphaComponent(0.64).cgColor]
             : [UIColor.black.withAlphaComponent(0.02).cgColor,
                UIColor.black.withAlphaComponent(0.12).cgColor,
                UIColor.black.withAlphaComponent(0.44).cgColor])
@@ -692,6 +692,9 @@ final class NowPlayingViewController: UIViewController {
         repeatButton.isHidden = true
         likeButton.isHidden = true
         modeButton.isHidden = false
+        // The quote tile is lit only while the lyrics panel is up, the same
+        // way `BottomGlyph(highlighted = lyricsOpen)` behaves upstream.
+        modeButton.backgroundColor = lyrics ? UIColor(white: 1, alpha: 0.10) : .clear
         closeButton.isHidden = true
         toggleButton.setTitle(nil, for: .normal)
         toggleButton.backgroundColor = UIColor(white: 1, alpha: 0.10)
@@ -877,9 +880,24 @@ final class NowPlayingViewController: UIViewController {
             }
         }
         if index >= 0, index < currentLyrics.count {
-            peekLabel.text = currentLyrics[index].text + "  ›"
+            // The strip's chevron is a 14pt glyph at half alpha, not a text
+            // character sharing the lyric's 16pt white: upstream draws an
+            // icon after a 6dp spacer.
+            let line = currentLyrics[index].text
+            let mark = "  ›"
+            let strip = NSMutableAttributedString(
+                string: line + mark,
+                attributes: [.font: Theme.font(16, weight: .medium),
+                             .foregroundColor: UIColor(white: 1, alpha: 0.78)])
+            let markRange = NSRange(location: (line as NSString).length,
+                                    length: (mark as NSString).length)
+            strip.addAttribute(.font, value: Theme.font(14), range: markRange)
+            strip.addAttribute(.foregroundColor,
+                               value: UIColor(white: 1, alpha: 0.50),
+                               range: markRange)
+            peekLabel.attributedText = strip
         } else {
-            peekLabel.text = nil
+            peekLabel.attributedText = nil
         }
         if index != lyricHighlight {
             lyricHighlight = index
@@ -1044,10 +1062,9 @@ extension NowPlayingViewController: UITableViewDataSource, UITableViewDelegate {
             lyricCell.configure(line: currentLyrics[row],
                                 font: NowPlayingViewController.lyricFont(synced: lyricsSynced),
                                 position: cellPosition)
-            // Every row waits in dimmed white; the karaoke overlay turns the
-            // words white as they are sung. Painting the active row white up
-            // front would hide the sweep entirely.
-            lyricCell.dimmed = UIColor(white: 1, alpha: 0.42)
+            // `UNSUNG_ALPHA` upstream is 0.45: every row waits there and the
+            // karaoke overlay turns the words white as they are sung.
+            lyricCell.dimmed = UIColor(white: 1, alpha: 0.45)
         }
         return cell
     }
