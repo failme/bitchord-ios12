@@ -14,6 +14,9 @@ final class LibraryViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = Theme.background
+        // The page draws its own 34pt heading; an empty large-title bar would
+        // push every card down by half a screen.
+        navigationItem.largeTitleDisplayMode = .never
 
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.alwaysBounceVertical = true
@@ -63,23 +66,26 @@ final class LibraryViewController: UIViewController {
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
         header.addSubview(titleLabel)
 
-        // The real header keeps a history glyph and the avatar in one capsule.
-        let pill = UIButton(type: .custom)
+        // The real header keeps history and the account avatar in one capsule,
+        // each a full 48pt target beside the other.
+        let pill = UIView()
         pill.backgroundColor = Theme.surfaceVariant
-        pill.layer.cornerRadius = 20
+        pill.layer.cornerRadius = 24
         pill.translatesAutoresizingMaskIntoConstraints = false
         header.addSubview(pill)
 
-        let history = UIImageView(image: Icons.image(.musicNote, size: 18))
+        let history = UIButton(type: .custom)
         history.tintColor = Theme.secondaryText
+        history.setImage(Icons.image(.history, size: 21), for: .normal)
+        history.addTarget(self, action: #selector(openHistory), for: .touchUpInside)
         history.translatesAutoresizingMaskIntoConstraints = false
         pill.addSubview(history)
 
         let avatar = UIButton(type: .custom)
         avatar.backgroundColor = Theme.outline
-        avatar.layer.cornerRadius = 16
+        avatar.layer.cornerRadius = 17
         avatar.tintColor = Theme.secondaryText
-        avatar.setImage(Icons.image(.person, size: 17), for: .normal)
+        avatar.setImage(Icons.image(.person, size: 18), for: .normal)
         avatar.addTarget(self, action: #selector(openSettings), for: .touchUpInside)
         avatar.translatesAutoresizingMaskIntoConstraints = false
         pill.addSubview(avatar)
@@ -90,79 +96,82 @@ final class LibraryViewController: UIViewController {
 
             pill.trailingAnchor.constraint(equalTo: header.trailingAnchor, constant: -16),
             pill.centerYAnchor.constraint(equalTo: titleLabel.centerYAnchor),
-            pill.widthAnchor.constraint(equalToConstant: 76),
-            pill.heightAnchor.constraint(equalToConstant: 40),
+            pill.widthAnchor.constraint(equalToConstant: 120),
+            pill.heightAnchor.constraint(equalToConstant: 48),
 
-            history.leadingAnchor.constraint(equalTo: pill.leadingAnchor, constant: 12),
+            history.leadingAnchor.constraint(equalTo: pill.leadingAnchor, constant: 2),
             history.centerYAnchor.constraint(equalTo: pill.centerYAnchor),
-            history.widthAnchor.constraint(equalToConstant: 18),
-            history.heightAnchor.constraint(equalToConstant: 18),
+            history.widthAnchor.constraint(equalToConstant: 44),
+            history.heightAnchor.constraint(equalToConstant: 44),
 
-            avatar.trailingAnchor.constraint(equalTo: pill.trailingAnchor, constant: -4),
+            avatar.trailingAnchor.constraint(equalTo: pill.trailingAnchor, constant: -6),
             avatar.centerYAnchor.constraint(equalTo: pill.centerYAnchor),
-            avatar.widthAnchor.constraint(equalToConstant: 32),
-            avatar.heightAnchor.constraint(equalToConstant: 32)
+            avatar.widthAnchor.constraint(equalToConstant: 34),
+            avatar.heightAnchor.constraint(equalToConstant: 34)
         ])
         stack.addArrangedSubview(header)
     }
 
     private func buildStats() {
         statsRow.axis = .horizontal
-        statsRow.spacing = 10
-        statsRow.distribution = .fillEqually
+        statsRow.spacing = 12
+        statsRow.alignment = .fill
         statsRow.translatesAutoresizingMaskIntoConstraints = false
-        statsRow.heightAnchor.constraint(equalToConstant: 152).isActive = true
-
-        let innings = UIImageView(image: Icons.image(.logo, size: 22))
-        innings.tintColor = .white
-        innings.translatesAutoresizingMaskIntoConstraints = false
-        innings.tag = 9001
 
         let holder = UIView()
         holder.translatesAutoresizingMaskIntoConstraints = false
         stack.addArrangedSubview(holder)
-        holder.addSubview(statsRow)
-        NSLayoutConstraint.activate([
-            holder.heightAnchor.constraint(equalToConstant: 176),
-            statsRow.leadingAnchor.constraint(equalTo: holder.leadingAnchor, constant: 16),
-            statsRow.trailingAnchor.constraint(equalTo: holder.trailingAnchor, constant: -16),
-            statsRow.topAnchor.constraint(equalTo: holder.topAnchor, constant: 8)
-        ])
 
-        // Card one: listening experience, as in the reference capture.
-        let experience = LibraryStatCard(colors: [UIColor(red: 0.76, green: 0.33, blue: 0.14, alpha: 1),
-                                                 UIColor(red: 0.45, green: 0.13, blue: 0.07, alpha: 1)])
-        experience.addTopCaption("YOUR LISTENING EXPERIENCE", size: 10)
-        experience.bigNumber.tag = 9002
-        experience.addCaption("MINUTES LISTENED", size: 11)
-        experience.addLine("BITCHORD LISTENER", size: 12, weight: .semibold)
-        experience.addCaption("MEMBER SINCE 11/26", size: 10)
+        // The real cards are 300pt wide, 189pt tall and paged: the second one
+        // peeks in from the right instead of being squeezed beside the first.
+        let scroller = UIScrollView()
+        scroller.showsHorizontalScrollIndicator = false
+        scroller.alwaysBounceHorizontal = true
+        scroller.translatesAutoresizingMaskIntoConstraints = false
+        holder.addSubview(scroller)
+        scroller.addSubview(statsRow)
+
+        let experience = LibraryStatCard(colors: [UIColor(red: 0.58, green: 0.36, blue: 0.10, alpha: 1),
+                                                  UIColor(red: 0.42, green: 0.11, blue: 0.16, alpha: 1),
+                                                  UIColor(red: 0.23, green: 0.06, blue: 0.15, alpha: 1)])
+        experience.tag = 9002
+        experience.widthAnchor.constraint(equalToConstant: 300).isActive = true
         experience.onTap = { [weak self] in
             self?.navigationController?.pushViewController(ReplayViewController(), animated: true)
         }
         statsRow.addArrangedSubview(experience)
 
-        // Card two: the top song of the recent plays.
-        let top = LibraryStatCard(colors: [UIColor(red: 0.45, green: 0.12, blue: 0.20, alpha: 1),
-                                          UIColor(red: 0.28, green: 0.08, blue: 0.13, alpha: 1)])
-        top.addTopCaption("YOUR TOP SONG", size: 10)
-        top.bigNumber.tag = 9003
-        top.addCaption("BITCHORD LISTENER", size: 10)
+        let top = LibraryStatCard(colors: [UIColor(red: 0.52, green: 0.31, blue: 0.08, alpha: 1),
+                                           UIColor(red: 0.38, green: 0.10, blue: 0.14, alpha: 1),
+                                           UIColor(red: 0.21, green: 0.05, blue: 0.13, alpha: 1)])
+        top.tag = 9003
+        top.widthAnchor.constraint(equalToConstant: 300).isActive = true
         top.onTap = { [weak self] in
             self?.navigationController?.pushViewController(ReplayViewController(), animated: true)
         }
         statsRow.addArrangedSubview(top)
-        _ = innings
+
+        NSLayoutConstraint.activate([
+            holder.heightAnchor.constraint(equalToConstant: 205),
+            scroller.topAnchor.constraint(equalTo: holder.topAnchor, constant: 8),
+            scroller.leadingAnchor.constraint(equalTo: holder.leadingAnchor),
+            scroller.trailingAnchor.constraint(equalTo: holder.trailingAnchor),
+            scroller.heightAnchor.constraint(equalToConstant: 189),
+            statsRow.topAnchor.constraint(equalTo: scroller.topAnchor),
+            statsRow.leadingAnchor.constraint(equalTo: scroller.leadingAnchor, constant: 16),
+            statsRow.trailingAnchor.constraint(equalTo: scroller.trailingAnchor, constant: -16),
+            statsRow.heightAnchor.constraint(equalTo: scroller.heightAnchor)
+        ])
     }
 
     private func buildRows() {
         rowsHolder.axis = .vertical
         rowsHolder.alignment = .fill
-        let rows = ["Downloads", "Local Music", "History"]
+        let rows = ["Downloads", "Local Music"]
         var index = 0
         for title in rows {
             let row = LibraryRowButton(title: title,
-                                       icon: index == 0 ? .download : (index == 1 ? .list : .musicNote))
+                                       icon: index == 0 ? .download : .folder)
             row.addTarget(self, action: #selector(rowTapped(_:)), for: .touchUpInside)
             row.tag = index
             rowsHolder.addArrangedSubview(row)
@@ -184,31 +193,15 @@ final class LibraryViewController: UIViewController {
         holder.addSubview(heading)
         heading.translatesAutoresizingMaskIntoConstraints = false
 
-        // Upstream's playlists come from the account; this port syncs a public
-        // YouTube Music playlist by link instead, from the same heading.
-        let sync = UIButton(type: .system)
-        sync.translatesAutoresizingMaskIntoConstraints = false
-        sync.setTitle("Sync", for: .normal)
-        sync.setTitleColor(Theme.primaryText, for: .normal)
-        sync.titleLabel?.font = Theme.font(13, weight: .semibold)
-        sync.backgroundColor = Theme.surfaceVariant
-        sync.layer.cornerRadius = 13
-        sync.contentEdgeInsets = UIEdgeInsets(top: 5, left: 14, bottom: 5, right: 14)
-        sync.addTarget(self, action: #selector(syncPlaylistPrompt), for: .touchUpInside)
-        holder.addSubview(sync)
-
         NSLayoutConstraint.activate([
-            holder.heightAnchor.constraint(equalToConstant: 52),
+            holder.heightAnchor.constraint(equalToConstant: 60),
             heading.leadingAnchor.constraint(equalTo: holder.leadingAnchor, constant: 16),
-            heading.bottomAnchor.constraint(equalTo: holder.bottomAnchor, constant: -8),
-
-            sync.trailingAnchor.constraint(equalTo: holder.trailingAnchor, constant: -16),
-            sync.centerYAnchor.constraint(equalTo: heading.centerYAnchor),
-            sync.heightAnchor.constraint(equalToConstant: 26)
+            heading.bottomAnchor.constraint(equalTo: holder.bottomAnchor, constant: -8)
         ])
         stack.addArrangedSubview(holder)
 
         playlistGrid.axis = .vertical
+        playlistGrid.alignment = .leading
         playlistGrid.spacing = 16
         playlistGrid.translatesAutoresizingMaskIntoConstraints = false
         let gridHolder = UIView()
@@ -225,10 +218,26 @@ final class LibraryViewController: UIViewController {
     @objc private func reload() {
         playlists = LibraryStore.shared.playlists
 
-        (statsRow.viewWithTag(9002) as? UILabel)?.text = "\(LibraryStore.shared.recentTracks.count * 4 + 9)"
-
         let recent = LibraryStore.shared.recentTracks
-        (statsRow.viewWithTag(9003) as? UILabel)?.text = recent.first.map { shortTitle($0.title) } ?? "—"
+        let plays = recent.count
+        let year = Calendar.current.component(.year, from: Date())
+        if let card = statsRow.viewWithTag(9002) as? LibraryStatCard {
+            card.configure(value: "\(plays * 4 + 9)",
+                           valueCaption: "MINUTES LISTENED",
+                           line: "BITCHORD LISTENER",
+                           detail: "\(plays) plays · \(year)",
+                           memberCaption: "MEMBER SINCE",
+                           memberValue: "11/26")
+        }
+        if let card = statsRow.viewWithTag(9003) as? LibraryStatCard {
+            let song = recent.first
+            card.configure(value: song?.title ?? "—",
+                           valueCaption: "TOP SONG",
+                           line: "BITCHORD LISTENER",
+                           detail: song.map { "\($0.artist) · \(plays) \(plays == 1 ? "play" : "plays")" } ?? "No plays yet",
+                           memberCaption: "",
+                           memberValue: "")
+        }
 
         rebuildGrid()
     }
@@ -244,6 +253,7 @@ final class LibraryViewController: UIViewController {
         firstRow.axis = .horizontal
         firstRow.spacing = 10
         firstRow.distribution = .fillEqually
+        firstRow.widthAnchor.constraint(equalToConstant: 310).isActive = true
 
         let create = PlaylistCard(title: "New playlist",
                                         caption: "Saved to YouTube Music",
@@ -253,7 +263,7 @@ final class LibraryViewController: UIViewController {
 
         let importCard = PlaylistCard(title: "Import Spotify",
                                             caption: "From a playlist link",
-                                            icon: .logo)
+                                            icon: .spotify)
         importCard.onTap = { [weak self] in
             let alert = UIAlertController(title: "Import Spotify",
                                           message: "Importing from a Spotify link is not available in this build.",
@@ -271,6 +281,7 @@ final class LibraryViewController: UIViewController {
                 newRow.axis = .horizontal
                 newRow.spacing = 10
                 newRow.distribution = .fillEqually
+                newRow.widthAnchor.constraint(equalToConstant: 310).isActive = true
                 playlistGrid.addArrangedSubview(newRow)
                 row = newRow
             }
@@ -324,11 +335,13 @@ final class LibraryViewController: UIViewController {
         switch sender.tag {
         case 0:
             navigationController?.pushViewController(DownloadsViewController(), animated: true)
-        case 1:
-            navigationController?.pushViewController(LocalMusicViewController(), animated: true)
         default:
-            navigationController?.pushViewController(HistoryViewController(), animated: true)
+            navigationController?.pushViewController(LocalMusicViewController(), animated: true)
         }
+    }
+
+    @objc private func openHistory() {
+        navigationController?.pushViewController(HistoryViewController(), animated: true)
     }
 
     @objc private func openSettings() {
@@ -347,38 +360,105 @@ final class LibraryViewController: UIViewController {
 
 /// A large listening-stat card with a gradient fill.
 final class LibraryStatCard: UIControl {
-    let bigNumber = UILabel()
-    private let inner = UIStackView()
+    private let gradient = CAGradientLayer()
+    private let topCaption = UILabel()
+    private let logo = UIImageView(image: Icons.image(.logo, size: 30))
+    private let valueLabel = UILabel()
+    private let valueCaption = UILabel()
+    private let nameLabel = UILabel()
+    private let detailLabel = UILabel()
+    private let memberCaption = UILabel()
+    private let memberValue = UILabel()
     var onTap: (() -> Void)?
 
     init(colors: [UIColor]) {
         super.init(frame: .zero)
-        layer.cornerRadius = 12
+        layer.cornerRadius = 14
         layer.masksToBounds = true
 
-        let gradient = CAGradientLayer()
         gradient.colors = colors.map { $0.cgColor }
         gradient.startPoint = CGPoint(x: 0, y: 0)
-        gradient.endPoint = CGPoint(x: 1, y: 1)
-        gradient.frame = CGRect(x: 0, y: 0, width: 320, height: 160)
+        gradient.endPoint = CGPoint(x: 0.9, y: 1)
         layer.addSublayer(gradient)
 
-        inner.axis = .vertical
-        inner.alignment = .leading
-        inner.spacing = 4
-        inner.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(inner)
-        NSLayoutConstraint.activate([
-            inner.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 14),
-            inner.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -12),
-            inner.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -14)
-        ])
+        topCaption.translatesAutoresizingMaskIntoConstraints = false
+        topCaption.font = Theme.font(10, weight: .semibold)
+        topCaption.textColor = UIColor(white: 1, alpha: 0.92)
+        topCaption.text = "YOUR LISTENING EXPERIENCE"
+        addSubview(topCaption)
 
-        bigNumber.font = Theme.font(34, weight: .bold)
-        bigNumber.textColor = .white
-        bigNumber.numberOfLines = 1
-        bigNumber.adjustsFontSizeToFitWidth = true
-        inner.addArrangedSubview(bigNumber)
+        logo.tintColor = .white
+        logo.contentMode = .scaleAspectFit
+        logo.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(logo)
+
+        valueLabel.translatesAutoresizingMaskIntoConstraints = false
+        valueLabel.font = Theme.font(34, weight: .bold)
+        valueLabel.textColor = .white
+        valueLabel.numberOfLines = 1
+        valueLabel.adjustsFontSizeToFitWidth = true
+        valueLabel.minimumScaleFactor = 0.45
+        addSubview(valueLabel)
+
+        valueCaption.translatesAutoresizingMaskIntoConstraints = false
+        valueCaption.font = Theme.font(10, weight: .semibold)
+        valueCaption.textColor = UIColor(white: 1, alpha: 0.9)
+        addSubview(valueCaption)
+
+        nameLabel.translatesAutoresizingMaskIntoConstraints = false
+        nameLabel.font = Theme.font(12, weight: .semibold)
+        nameLabel.textColor = UIColor(white: 1, alpha: 0.94)
+        nameLabel.text = "BITCHORD LISTENER"
+        addSubview(nameLabel)
+
+        detailLabel.translatesAutoresizingMaskIntoConstraints = false
+        detailLabel.font = Theme.font(13)
+        detailLabel.textColor = UIColor(white: 1, alpha: 0.82)
+        detailLabel.numberOfLines = 1
+        addSubview(detailLabel)
+
+        memberCaption.translatesAutoresizingMaskIntoConstraints = false
+        memberCaption.font = Theme.font(9, weight: .semibold)
+        memberCaption.textColor = UIColor(white: 1, alpha: 0.8)
+        memberCaption.textAlignment = .right
+        addSubview(memberCaption)
+
+        memberValue.translatesAutoresizingMaskIntoConstraints = false
+        memberValue.font = Theme.font(15, weight: .bold)
+        memberValue.textColor = .white
+        memberValue.textAlignment = .right
+        addSubview(memberValue)
+
+        NSLayoutConstraint.activate([
+            topCaption.topAnchor.constraint(equalTo: topAnchor, constant: 16),
+            topCaption.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 16),
+
+            logo.topAnchor.constraint(equalTo: topAnchor, constant: 12),
+            logo.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -14),
+            logo.widthAnchor.constraint(equalToConstant: 30),
+            logo.heightAnchor.constraint(equalToConstant: 30),
+
+            valueLabel.topAnchor.constraint(equalTo: topAnchor, constant: 62),
+            valueLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 16),
+            valueLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -16),
+
+            valueCaption.topAnchor.constraint(equalTo: valueLabel.bottomAnchor, constant: 1),
+            valueCaption.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 16),
+            valueCaption.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -16),
+
+            nameLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 16),
+            nameLabel.bottomAnchor.constraint(equalTo: detailLabel.topAnchor, constant: -3),
+
+            detailLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 16),
+            detailLabel.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -12),
+            detailLabel.trailingAnchor.constraint(lessThanOrEqualTo: memberCaption.leadingAnchor, constant: -8),
+
+            memberCaption.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -16),
+            memberCaption.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -28),
+
+            memberValue.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -16),
+            memberValue.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -10)
+        ])
 
         addTarget(self, action: #selector(tapped), for: .touchUpInside)
     }
@@ -387,31 +467,24 @@ final class LibraryStatCard: UIControl {
         return nil
     }
 
-    func addCaption(_ text: String, size: CGFloat) {
-        inner.addArrangedSubview(captionLabel(text, size: size))
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        gradient.frame = bounds
     }
 
-    func addTopCaption(_ text: String, size: CGFloat) {
-        inner.insertArrangedSubview(captionLabel(text, size: size), at: 0)
-    }
-
-    private func captionLabel(_ text: String, size: CGFloat) -> UILabel {
-        let label = UILabel()
-        label.text = text
-        label.font = Theme.font(size, weight: .semibold)
-        label.textColor = UIColor(white: 1, alpha: 0.92)
-        label.numberOfLines = 1
-        label.adjustsFontSizeToFitWidth = true
-        label.minimumScaleFactor = 0.7
-        return label
-    }
-
-    func addLine(_ text: String, size: CGFloat, weight: UIFont.Weight) {
-        let label = UILabel()
-        label.text = text
-        label.font = Theme.font(size, weight: weight)
-        label.textColor = UIColor(white: 1, alpha: 0.92)
-        inner.addArrangedSubview(label)
+    func configure(value: String,
+                   valueCaption: String,
+                   line: String,
+                   detail: String,
+                   memberCaption: String,
+                   memberValue: String) {
+        valueLabel.text = value
+        self.valueCaption.attributedText = Theme.attributed(valueCaption.uppercased(), .labelSmall,
+                                                             color: UIColor(white: 1, alpha: 0.9))
+        nameLabel.text = line
+        detailLabel.text = detail
+        self.memberCaption.text = memberCaption
+        self.memberValue.text = memberValue
     }
 
     @objc private func tapped() {
@@ -430,7 +503,7 @@ final class LibraryRowButton: UIControl {
 
         let label = UILabel()
         label.text = title
-        label.font = Theme.font(17)
+        label.font = Theme.font(20)
         label.textColor = Theme.primaryText
         label.translatesAutoresizingMaskIntoConstraints = false
         addSubview(label)
@@ -446,17 +519,17 @@ final class LibraryRowButton: UIControl {
         addSubview(hairline)
 
         NSLayoutConstraint.activate([
-            heightAnchor.constraint(equalToConstant: 56),
+            heightAnchor.constraint(equalToConstant: 54),
             glyph.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 16),
             glyph.centerYAnchor.constraint(equalTo: centerYAnchor),
 
-            label.leadingAnchor.constraint(equalTo: glyph.trailingAnchor, constant: 16),
+            label.leadingAnchor.constraint(equalTo: glyph.trailingAnchor, constant: 18),
             label.centerYAnchor.constraint(equalTo: centerYAnchor),
 
             chevron.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -16),
             chevron.centerYAnchor.constraint(equalTo: centerYAnchor),
 
-            hairline.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 16),
+            hairline.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 56),
             hairline.trailingAnchor.constraint(equalTo: trailingAnchor),
             hairline.bottomAnchor.constraint(equalTo: bottomAnchor),
             hairline.heightAnchor.constraint(equalToConstant: 1.0 / UIScreen.main.scale)
@@ -492,7 +565,7 @@ class PlaylistCard: UIControl {
         super.init(frame: .zero)
         titleLabel.text = title
         captionLabel.text = caption
-        build(with: Icons.image(icon, size: 46))
+        build(with: Icons.image(icon, size: 50))
     }
 
     required init?(coder: NSCoder) {
@@ -509,13 +582,13 @@ class PlaylistCard: UIControl {
         artwork.translatesAutoresizingMaskIntoConstraints = false
         addSubview(artwork)
 
-        titleLabel.font = Theme.font(15)
+        titleLabel.font = Theme.font(19, weight: .medium)
         titleLabel.textColor = Theme.primaryText
         titleLabel.numberOfLines = 1
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
         addSubview(titleLabel)
 
-        captionLabel.font = Theme.font(12)
+        captionLabel.font = Theme.font(14)
         captionLabel.textColor = Theme.secondaryText
         captionLabel.numberOfLines = 1
         captionLabel.translatesAutoresizingMaskIntoConstraints = false

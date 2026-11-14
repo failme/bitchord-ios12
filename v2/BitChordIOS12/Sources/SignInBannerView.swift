@@ -27,16 +27,18 @@ final class SignInBannerView: UIView {
         layer.cornerRadius = 16
         layer.masksToBounds = true
 
-        gradient.colors = [UIColor(red: 0.09, green: 0.29, blue: 0.78, alpha: 1).cgColor,
-                           UIColor(red: 0.31, green: 0.20, blue: 0.78, alpha: 1).cgColor,
-                           UIColor(red: 0.45, green: 0.24, blue: 0.82, alpha: 1).cgColor]
+        // The real card runs navy on the left to a brighter royal blue on the
+        // right; it has no violet in it.
+        gradient.colors = [UIColor(red: 0.04, green: 0.16, blue: 0.48, alpha: 1).cgColor,
+                           UIColor(red: 0.08, green: 0.25, blue: 0.62, alpha: 1).cgColor,
+                           UIColor(red: 0.16, green: 0.36, blue: 0.78, alpha: 1).cgColor]
         gradient.startPoint = CGPoint(x: 0, y: 0.1)
         gradient.endPoint = CGPoint(x: 1, y: 0.9)
         layer.addSublayer(gradient)
 
         let title = UILabel()
         title.text = "Sign in to YouTube Music"
-        title.font = Theme.font(20, weight: .semibold)
+        title.font = Theme.font(22, weight: .semibold)
         title.textColor = .white
         title.translatesAutoresizingMaskIntoConstraints = false
         addSubview(title)
@@ -62,12 +64,12 @@ final class SignInBannerView: UIView {
         button.addSubview(buttonTitle)
 
         NSLayoutConstraint.activate([
-            title.topAnchor.constraint(equalTo: topAnchor, constant: 20),
+            title.topAnchor.constraint(equalTo: topAnchor, constant: 22),
             title.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 24),
 
             button.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 14),
             button.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 24),
-            button.heightAnchor.constraint(equalToConstant: 40),
+            button.heightAnchor.constraint(equalToConstant: 44),
             button.widthAnchor.constraint(equalToConstant: 208),
 
             mark.leadingAnchor.constraint(equalTo: button.leadingAnchor, constant: 18),

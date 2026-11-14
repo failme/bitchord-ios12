@@ -63,8 +63,8 @@ final class HomeViewController: UIViewController {
             logo.heightAnchor.constraint(equalToConstant: 37),
             avatar.trailingAnchor.constraint(equalTo: header.trailingAnchor, constant: -Theme.gutter),
             avatar.centerYAnchor.constraint(equalTo: header.centerYAnchor),
-            avatar.widthAnchor.constraint(equalToConstant: 38),
-            avatar.heightAnchor.constraint(equalToConstant: 38)
+            avatar.widthAnchor.constraint(equalToConstant: 46),
+            avatar.heightAnchor.constraint(equalToConstant: 46)
         ])
         stack.addArrangedSubview(header)
 

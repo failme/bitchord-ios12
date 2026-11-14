@@ -16,6 +16,7 @@ enum Icons {
         case musicNote, headphones, download
         case house, compass, library, list, gear
         case grid, books, person, logo
+        case history, folder, spotify
         case globe, cast, bubble, speaker
     }
 
@@ -310,6 +311,33 @@ enum Icons {
             shoulders.addCurve(to: pt(0.80, 0.80), controlPoint1: pt(0.20, 0.48), controlPoint2: pt(0.80, 0.48))
             shoulders.close()
             shoulders.fill()
+        case .history:
+            // A clock face, the glyph in the Library header's history button.
+            stroke(UIBezierPath(ovalIn: CGRect(x: 0.22 * s, y: 0.22 * s, width: 0.56 * s, height: 0.56 * s)))
+            let hand = UIBezierPath()
+            hand.move(to: pt(0.50, 0.50))
+            hand.addLine(to: pt(0.50, 0.32))
+            hand.move(to: pt(0.50, 0.50))
+            hand.addLine(to: pt(0.63, 0.57))
+            stroke(hand, width: w * 0.85)
+        case .folder:
+            // A filled folder with its tab, the Local Music row's glyph.
+            let tab = UIBezierPath(roundedRect: CGRect(x: 0.16 * s, y: 0.30 * s, width: 0.30 * s, height: 0.16 * s),
+                                   cornerRadius: 0.04 * s)
+            tab.fill()
+            let body = UIBezierPath(roundedRect: CGRect(x: 0.16 * s, y: 0.40 * s, width: 0.68 * s, height: 0.34 * s),
+                                    cornerRadius: 0.06 * s)
+            body.fill()
+        case .spotify:
+            // The three curved bars of the Spotify mark, drawn at tile size.
+            for (index, y) in [0.38, 0.50, 0.62].enumerated() {
+                let arc = UIBezierPath()
+                arc.move(to: pt(0.26, CGFloat(y) + 0.03))
+                arc.addCurve(to: pt(0.74, CGFloat(y) - 0.02),
+                             controlPoint1: pt(0.42, CGFloat(y) - 0.05),
+                             controlPoint2: pt(0.60, CGFloat(y) - 0.06))
+                stroke(arc, width: (0.075 - CGFloat(index) * 0.012) * s)
+            }
         case .logo:
             // The three stacked arcs the real app uses as its mark.
             for (index, radius) in [0.20, 0.34, 0.48].enumerated() {

@@ -30,15 +30,29 @@ final class RootViewController: UIViewController {
         bridgeView.isUserInteractionEnabled = false
         view.addSubview(bridgeView)
 
-        buildTabs()
-        buildOverlays()
-
         NSLayoutConstraint.activate([
             bridgeView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             bridgeView.topAnchor.constraint(equalTo: view.topAnchor),
             bridgeView.widthAnchor.constraint(equalToConstant: 320),
             bridgeView.heightAnchor.constraint(equalToConstant: 240)
         ])
+
+        // The bridge stays in the window so WebKit keeps its audio permission,
+        // but its white page must never show through a transparent bar or a
+        // gap between cards. One opaque sheet above it hides it completely.
+        let veil = UIView()
+        veil.backgroundColor = Theme.background
+        veil.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(veil)
+        NSLayoutConstraint.activate([
+            veil.topAnchor.constraint(equalTo: view.topAnchor),
+            veil.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            veil.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            veil.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+        ])
+
+        buildTabs()
+        buildOverlays()
 
         install(0)
         playerChanged()

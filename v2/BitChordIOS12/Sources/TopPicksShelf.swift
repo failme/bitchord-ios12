@@ -4,8 +4,8 @@ import UIKit
 /// artwork fills the card, a small grey source line above the title, then the
 /// title and its "Single · 2026" style detail.
 final class TopPicksShelfView: UIView {
-    static let cardWidth: CGFloat = 300
-    static let rowHeight: CGFloat = 404
+    static let cardWidth: CGFloat = 248
+    static let rowHeight: CGFloat = 368
 
     private let titleLabel = UILabel()
     private let collectionView: UICollectionView
@@ -17,7 +17,7 @@ final class TopPicksShelfView: UIView {
         let layout = UICollectionViewFlowLayout()
         layout.scrollDirection = .horizontal
         layout.itemSize = CGSize(width: TopPicksShelfView.cardWidth,
-                                 height: TopPicksShelfView.rowHeight - 36)
+                                 height: TopPicksShelfView.rowHeight - 34)
         layout.minimumLineSpacing = 12
         layout.sectionInset = UIEdgeInsets(top: 0, left: 16, bottom: 0, right: 16)
         collectionView = UICollectionView(frame: .zero, collectionViewLayout: layout)
@@ -31,7 +31,7 @@ final class TopPicksShelfView: UIView {
 
     private func build() {
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
-        titleLabel.font = Theme.font(17, weight: .semibold)
+        titleLabel.font = Theme.font(16, weight: .semibold)
         titleLabel.textColor = Theme.primaryText
         titleLabel.text = "Top Picks for You"
         addSubview(titleLabel)
@@ -101,11 +101,11 @@ final class TopPickCell: UICollectionViewCell {
             label.translatesAutoresizingMaskIntoConstraints = false
             contentView.addSubview(label)
         }
-        sourceLabel.font = Theme.font(13)
+        sourceLabel.font = Theme.font(12)
         sourceLabel.textColor = Theme.secondaryText
-        titleLabel.font = Theme.font(17, weight: .semibold)
+        titleLabel.font = Theme.font(18, weight: .semibold)
         titleLabel.textColor = Theme.primaryText
-        titleLabel.numberOfLines = 1
+        titleLabel.numberOfLines = 2
         detailLabel.font = Theme.font(14)
         detailLabel.textColor = Theme.secondaryText
 
@@ -113,7 +113,7 @@ final class TopPickCell: UICollectionViewCell {
             artwork.topAnchor.constraint(equalTo: contentView.topAnchor),
             artwork.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
             artwork.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
-            artwork.heightAnchor.constraint(equalToConstant: 300),
+            artwork.heightAnchor.constraint(equalToConstant: 248),
 
             sourceLabel.topAnchor.constraint(equalTo: artwork.bottomAnchor, constant: 10),
             sourceLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
