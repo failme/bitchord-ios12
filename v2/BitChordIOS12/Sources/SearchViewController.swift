@@ -47,11 +47,21 @@ final class SearchViewController: UIViewController {
         buildField()
         buildSourceBar()
         buildList()
+        GoogleAccountStore.shared.updateAvatarButton(avatarButton, size: 44)
+        NotificationCenter.default.addObserver(self,
+                                              selector: #selector(accountChanged),
+                                              name: .googleAccountDidChange,
+                                              object: nil)
         refresh()
+    }
+
+    @objc private func accountChanged() {
+        GoogleAccountStore.shared.updateAvatarButton(avatarButton, size: 44)
     }
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
+        GoogleAccountStore.shared.updateAvatarButton(avatarButton, size: 44)
         tableView.reloadData()
         refresh()
     }
@@ -109,6 +119,7 @@ final class SearchViewController: UIViewController {
         avatarButton.layer.cornerRadius = 22
         avatarButton.tintColor = Theme.secondaryText
         avatarButton.setImage(Icons.image(.personOutline, size: 21), for: .normal)
+        avatarButton.addTarget(self, action: #selector(openSettings), for: .touchUpInside)
         view.addSubview(avatarButton)
 
         NSLayoutConstraint.activate([
@@ -348,6 +359,10 @@ final class SearchViewController: UIViewController {
             clear.centerYAnchor.constraint(equalTo: title.centerYAnchor)
         ])
         tableView.tableHeaderView = header
+    }
+
+    @objc private func openSettings() {
+        navigationController?.pushViewController(SettingsViewController(), animated: true)
     }
 
     @objc private func clearRecents() {

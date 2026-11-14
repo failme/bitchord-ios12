@@ -144,12 +144,18 @@ final class NowPlayingViewController: UIViewController {
     // MARK: - Layout
 
     private func buildLayout() {
-        let squat = UIScreen.main.bounds.height < 700
+        // The player is presented edge to edge, so its own bounds are the
+        // reliable screen size — `UIScreen.main` stays the simulator's size
+        // even when the capture harness runs the app in a 320x568 window.
+        let compact = view.bounds.height < 650 || view.bounds.width < 350
+        let squat = compact || view.bounds.height < 700
         let headerGap: CGFloat = squat ? 8 : 12
         let headerHeight: CGFloat = squat ? 52 : 56
         let lyricGap: CGFloat = squat ? 16 : 20
         let stackGap: CGFloat = squat ? 8 : 12
-        let playSide: CGFloat = squat ? 56 : 64
+        let playSide: CGFloat = compact ? 64 : 74
+        let transportSide: CGFloat = compact ? 48 : 53
+        let transportGap: CGFloat = compact ? 52 : 58
         let footGap: CGFloat = squat ? 10 : 14
         let bottomGap: CGFloat = squat ? 16 : 26
         backdropView.translatesAutoresizingMaskIntoConstraints = false
@@ -374,14 +380,14 @@ final class NowPlayingViewController: UIViewController {
         ])
 
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
-        titleLabel.font = Theme.font(20, weight: .semibold)
+        titleLabel.font = Theme.font(compact ? 18 : 20, weight: .semibold)
         titleLabel.textColor = Theme.primaryText
-        titleLabel.numberOfLines = 2
+        titleLabel.numberOfLines = compact ? 1 : 2
         titleLabel.textAlignment = .left
         view.addSubview(titleLabel)
 
         artistLabel.translatesAutoresizingMaskIntoConstraints = false
-        artistLabel.font = Theme.font(20, weight: .medium)
+        artistLabel.font = Theme.font(compact ? 16 : 20, weight: .medium)
         artistLabel.textColor = UIColor(white: 1, alpha: 0.55)
         artistLabel.textAlignment = .left
         view.addSubview(artistLabel)
@@ -426,14 +432,14 @@ final class NowPlayingViewController: UIViewController {
         }
 
         configureTransportButton(shuffleButton, icon: .shuffle, size: 20, action: #selector(goShuffle))
-        configureTransportButton(previousButton, icon: .previous, size: 53, action: #selector(goPrevious))
-        configureTransportButton(playButton, icon: .play, size: 74, action: #selector(togglePlay))
+        configureTransportButton(previousButton, icon: .previous, size: transportSide, action: #selector(goPrevious))
+        configureTransportButton(playButton, icon: .play, size: playSide, action: #selector(togglePlay))
         // Apple Music's transport is white ink on the backdrop, not a filled
         // white disc; upstream `TransportRow` draws the glyph alone.
         playButton.backgroundColor = .clear
         playButton.layer.cornerRadius = 0
         playButton.tintColor = Theme.primaryText
-        configureTransportButton(nextButton, icon: .next, size: 53, action: #selector(goNext))
+        configureTransportButton(nextButton, icon: .next, size: transportSide, action: #selector(goNext))
         configureTransportButton(repeatButton, icon: .repeatAll, size: 20, action: #selector(goRepeat))
 
         configureTransportButton(likeButton, icon: .heart, size: 22, action: #selector(toggleLike))
@@ -489,7 +495,8 @@ final class NowPlayingViewController: UIViewController {
             artworkView.topAnchor.constraint(equalTo: view.topAnchor),
             artworkView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             artworkView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            artworkView.heightAnchor.constraint(equalTo: view.heightAnchor, multiplier: 0.55),
+            artworkView.heightAnchor.constraint(equalTo: view.heightAnchor,
+                                                multiplier: compact ? 0.47 : (squat ? 0.52 : 0.55)),
 
             artworkFadeView.leadingAnchor.constraint(equalTo: artworkView.leadingAnchor),
             artworkFadeView.trailingAnchor.constraint(equalTo: artworkView.trailingAnchor),
@@ -518,7 +525,8 @@ final class NowPlayingViewController: UIViewController {
             lyricsSourceLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
             lyricsSourceLabel.bottomAnchor.constraint(equalTo: slider.topAnchor, constant: -10),
 
-            titleUnderArtwork ?? titleLabel.topAnchor.constraint(equalTo: artworkView.bottomAnchor, constant: 20),
+            titleUnderArtwork ?? titleLabel.topAnchor.constraint(equalTo: artworkView.bottomAnchor,
+                                                                  constant: compact ? 10 : 20),
             titleLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 30),
             titleLabel.trailingAnchor.constraint(equalTo: toggleButton.leadingAnchor, constant: -10),
 
@@ -594,20 +602,21 @@ final class NowPlayingViewController: UIViewController {
             remainingLabel.topAnchor.constraint(equalTo: elapsedLabel.topAnchor),
             remainingLabel.trailingAnchor.constraint(equalTo: slider.trailingAnchor),
 
-            playButton.topAnchor.constraint(equalTo: elapsedLabel.bottomAnchor, constant: squat ? 10 : 18),
+            playButton.topAnchor.constraint(equalTo: elapsedLabel.bottomAnchor,
+                                            constant: compact ? 6 : (squat ? 10 : 18)),
             playButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            playButton.heightAnchor.constraint(equalToConstant: 74),
-            playButton.widthAnchor.constraint(equalToConstant: 74),
+            playButton.heightAnchor.constraint(equalToConstant: playSide),
+            playButton.widthAnchor.constraint(equalToConstant: playSide),
 
             previousButton.centerYAnchor.constraint(equalTo: playButton.centerYAnchor),
-            previousButton.trailingAnchor.constraint(equalTo: playButton.leadingAnchor, constant: -58),
-            previousButton.widthAnchor.constraint(equalToConstant: 53),
-            previousButton.heightAnchor.constraint(equalToConstant: 53),
+            previousButton.trailingAnchor.constraint(equalTo: playButton.leadingAnchor, constant: -transportGap),
+            previousButton.widthAnchor.constraint(equalToConstant: transportSide),
+            previousButton.heightAnchor.constraint(equalToConstant: transportSide),
 
             nextButton.centerYAnchor.constraint(equalTo: playButton.centerYAnchor),
-            nextButton.leadingAnchor.constraint(equalTo: playButton.trailingAnchor, constant: 58),
-            nextButton.widthAnchor.constraint(equalToConstant: 53),
-            nextButton.heightAnchor.constraint(equalToConstant: 53),
+            nextButton.leadingAnchor.constraint(equalTo: playButton.trailingAnchor, constant: transportGap),
+            nextButton.widthAnchor.constraint(equalToConstant: transportSide),
+            nextButton.heightAnchor.constraint(equalToConstant: transportSide),
 
             shuffleButton.centerYAnchor.constraint(equalTo: playButton.centerYAnchor),
             shuffleButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
@@ -619,15 +628,19 @@ final class NowPlayingViewController: UIViewController {
             repeatButton.widthAnchor.constraint(equalToConstant: 44),
             repeatButton.heightAnchor.constraint(equalToConstant: 44),
 
-            likeButton.bottomAnchor.constraint(equalTo: safe.bottomAnchor, constant: -8),
+            // The output label hangs 34pt below this row. On a 568pt screen
+            // pinning the row to the very bottom clipped it, so the compact
+            // footer sits high enough for its own label.
+            likeButton.bottomAnchor.constraint(equalTo: safe.bottomAnchor,
+                                               constant: compact ? -34 : (squat ? -28 : -8)),
             likeButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 40),
-            likeButton.widthAnchor.constraint(equalToConstant: 44),
-            likeButton.heightAnchor.constraint(equalToConstant: 44),
+            likeButton.widthAnchor.constraint(equalToConstant: compact ? 38 : 44),
+            likeButton.heightAnchor.constraint(equalToConstant: compact ? 38 : 44),
 
             queueButton.centerYAnchor.constraint(equalTo: likeButton.centerYAnchor),
             queueButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -56),
-            queueButton.widthAnchor.constraint(equalToConstant: 44),
-            queueButton.heightAnchor.constraint(equalToConstant: 44)
+            queueButton.widthAnchor.constraint(equalToConstant: compact ? 38 : 44),
+            queueButton.heightAnchor.constraint(equalToConstant: compact ? 38 : 44)
         ])
     }
 
@@ -713,6 +726,23 @@ final class NowPlayingViewController: UIViewController {
         if !lyrics {
             lyricsTable.setContentOffset(.zero, animated: false)
         }
+    }
+
+    /// Frames used by the compact-layout capture. They are read after a real
+    /// layout pass, so a screen whose controls overlap cannot pass by looking
+    /// right in a still.
+    func layoutFrames(in host: UIView) -> [String: CGRect] {
+        view.layoutIfNeeded()
+        return [
+            "artwork": artworkView.convert(artworkView.bounds, to: host),
+            "title": titleLabel.convert(titleLabel.bounds, to: host),
+            "play": playButton.convert(playButton.bounds, to: host),
+            "previous": previousButton.convert(previousButton.bounds, to: host),
+            "next": nextButton.convert(nextButton.bounds, to: host),
+            "like": likeButton.convert(likeButton.bounds, to: host),
+            "queue": queueButton.convert(queueButton.bounds, to: host),
+            "output": outputLabel.convert(outputLabel.bounds, to: host)
+        ]
     }
 
     // MARK: - State

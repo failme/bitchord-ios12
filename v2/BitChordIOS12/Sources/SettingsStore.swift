@@ -21,6 +21,8 @@ enum SettingKind {
     case onboarding
     /// Opens the WebDAV source browser.
     case sources
+    /// Opens the Google / YouTube Music account page.
+    case account
 }
 
 struct SettingItem {
@@ -126,7 +128,7 @@ enum SettingsCatalog {
             SettingItem(key: "BitChord.Account.Integrations", title: "Account & integrations",
                         detail: "Not signed in",
                         icon: .personOutline,
-                        kind: .page("Google, Spotify and Discord accounts are not wired into this build.")),
+                        kind: .account),
             SettingItem(key: "BitChord.Misc.ListenTogether", title: "Listen together",
                         detail: "Share a code and play the same music, in time",
                         icon: .peopleOutline,

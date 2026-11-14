@@ -9,6 +9,7 @@ final class LibraryViewController: UIViewController {
     private let statsRow = UIStackView()
     private weak var statsScroller: UIScrollView?
     private let playlistGrid = UIStackView()
+    private let accountAvatar = UIButton(type: .custom)
 
     private var playlists: [Playlist] = []
 
@@ -50,6 +51,11 @@ final class LibraryViewController: UIViewController {
                                               selector: #selector(reload),
                                               name: .libraryDidChange,
                                               object: nil)
+        NotificationCenter.default.addObserver(self,
+                                              selector: #selector(accountChanged),
+                                              name: .googleAccountDidChange,
+                                              object: nil)
+        GoogleAccountStore.shared.updateAvatarButton(accountAvatar, size: 34, background: Theme.outline)
         reload()
     }
 
@@ -84,14 +90,12 @@ final class LibraryViewController: UIViewController {
         history.translatesAutoresizingMaskIntoConstraints = false
         pill.addSubview(history)
 
-        let avatar = UIButton(type: .custom)
-        avatar.backgroundColor = Theme.outline
-        avatar.layer.cornerRadius = 17
-        avatar.tintColor = Theme.secondaryText
-        avatar.setImage(Icons.image(.personOutline, size: 19), for: .normal)
-        avatar.addTarget(self, action: #selector(openSettings), for: .touchUpInside)
-        avatar.translatesAutoresizingMaskIntoConstraints = false
-        pill.addSubview(avatar)
+        accountAvatar.backgroundColor = Theme.outline
+        accountAvatar.layer.cornerRadius = 17
+        accountAvatar.tintColor = Theme.secondaryText
+        accountAvatar.addTarget(self, action: #selector(openSettings), for: .touchUpInside)
+        accountAvatar.translatesAutoresizingMaskIntoConstraints = false
+        pill.addSubview(accountAvatar)
 
         NSLayoutConstraint.activate([
             titleLabel.leadingAnchor.constraint(equalTo: header.leadingAnchor, constant: 16),
@@ -107,10 +111,10 @@ final class LibraryViewController: UIViewController {
             history.widthAnchor.constraint(equalToConstant: 44),
             history.heightAnchor.constraint(equalToConstant: 44),
 
-            avatar.trailingAnchor.constraint(equalTo: pill.trailingAnchor, constant: -7),
-            avatar.centerYAnchor.constraint(equalTo: pill.centerYAnchor),
-            avatar.widthAnchor.constraint(equalToConstant: 34),
-            avatar.heightAnchor.constraint(equalToConstant: 34)
+            accountAvatar.trailingAnchor.constraint(equalTo: pill.trailingAnchor, constant: -7),
+            accountAvatar.centerYAnchor.constraint(equalTo: pill.centerYAnchor),
+            accountAvatar.widthAnchor.constraint(equalToConstant: 34),
+            accountAvatar.heightAnchor.constraint(equalToConstant: 34)
         ])
         stack.addArrangedSubview(header)
     }
@@ -346,6 +350,10 @@ final class LibraryViewController: UIViewController {
         default:
             navigationController?.pushViewController(LocalMusicViewController(), animated: true)
         }
+    }
+
+    @objc private func accountChanged() {
+        GoogleAccountStore.shared.updateAvatarButton(accountAvatar, size: 34, background: Theme.outline)
     }
 
     @objc private func openHistory() {

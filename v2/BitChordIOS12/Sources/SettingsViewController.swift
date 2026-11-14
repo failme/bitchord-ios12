@@ -232,7 +232,13 @@ extension SettingsViewController: UITableViewDataSource, UITableViewDelegate {
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: SettingsCell.reuseIdentifier,
                                                  for: indexPath) as! SettingsCell
-        let item = sections[indexPath.section].items[indexPath.row]
+        var item = sections[indexPath.section].items[indexPath.row]
+        if case .account = item.kind {
+            let account = GoogleAccountStore.shared
+            item.detail = account.isSignedIn
+                ? (account.email.isEmpty ? account.displayName : account.email)
+                : "Not signed in"
+        }
         let rows = sections[indexPath.section].items.count
         cell.configure(item: item, card: card,
                        first: indexPath.row == 0,
@@ -269,6 +275,9 @@ extension SettingsViewController: UITableViewDataSource, UITableViewDelegate {
         }
         if case .sources = item.kind {
             navigationController?.pushViewController(SourcesViewController(), animated: true)
+        }
+        if case .account = item.kind {
+            navigationController?.pushViewController(AccountViewController(), animated: true)
         }
         if case .page(let explanation) = item.kind {
             let alert = UIAlertController(title: item.title, message: explanation, preferredStyle: .alert)
@@ -469,7 +478,7 @@ final class SettingsCell: UITableViewCell {
             // The real app greys the row out; a subtitle, where it has one,
             // explains why the row is inert rather than hiding the reason.
             available = false
-        case .page, .onboarding, .sources:
+        case .page, .onboarding, .sources, .account:
             showsChevron = true
         case .toggle:
             showsChevron = false

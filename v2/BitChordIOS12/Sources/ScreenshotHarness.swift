@@ -46,6 +46,21 @@ enum ScreenshotHarness {
             }
             return
         }
+        // A 320x568 pass over the live tabs and the player. This runs with
+        // -BCSmallScreen, so the same code and constraints are exercised at the
+        // width where the fixed-size Explore rows and player stack used to fail.
+        if let flag = arguments.firstIndex(of: "-BCSmallScreens"), flag + 1 < arguments.count {
+            let directory = URL(fileURLWithPath: arguments[flag + 1], isDirectory: true)
+            try? FileManager.default.createDirectory(at: directory,
+                                                     withIntermediateDirectories: true,
+                                                     attributes: nil)
+            // This pass photographs the tabs, not onboarding.
+            OnboardingViewController.complete(path: "local")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 6) {
+                captureCompact(directory: directory)
+            }
+            return
+        }
         // A separate 320x568 launch just for the first-run flow.
         if let flag = arguments.firstIndex(of: "-BCOnboardingOnly"), flag + 1 < arguments.count {
             let directory = URL(fileURLWithPath: arguments[flag + 1], isDirectory: true)
@@ -200,6 +215,137 @@ enum ScreenshotHarness {
                     writeText(report.joined(separator: "\n"), name: "jellyfin-small-report.txt", directory: directory)
                     write(window: window, name: "jellyfin-small", directory: directory)
                     exit(0)
+                }
+            }
+        }
+    }
+
+    /// The compact pass: every tab, the player and the account page at the
+    /// smallest supported size. It reports geometry rather than trusting the
+    /// PNGs, so a clipped control fails CI even if the still looks plausible.
+    private static func captureCompact(directory: URL) {
+        guard let window = UIApplication.shared.keyWindow,
+              let root = window.rootViewController as? RootViewController else {
+            writeText("compact.absent=true", name: "small-report.txt", directory: directory)
+            exit(0)
+            return
+        }
+        var report: [String] = []
+        report.append("small.window=\(Int(window.bounds.width))x\(Int(window.bounds.height))")
+        report.append("auth.signedIn=\(GoogleAccountStore.shared.isSignedIn)")
+        report.append("auth.browserFlow=google-web-session")
+        report.append("auth.hasCookie=\(GoogleAccountStore.shared.requestHeaders()["Cookie"] != nil)")
+
+        func shot(_ name: String) {
+            write(window: window, name: name, directory: directory)
+        }
+
+        root.showTab(0)
+        after(1.2) {
+            shot("small-home")
+            report.append("home.visible=\(window.bounds.width > 300)")
+            root.showTab(1)
+            after(1.2) {
+                shot("small-explore")
+                let explore = root.children.compactMap { $0 as? UINavigationController }
+                    .compactMap { $0.viewControllers.first as? ExploreViewController }
+                    .first
+                if let tile = explore?.motionFirstTileFrame(in: window), tile.width > 0 {
+                    let ratio = tile.height / tile.width
+                    report.append(String(format: "explore.tile=%.1f,%.1f,%.1f,%.1f",
+                                         tile.origin.x, tile.origin.y, tile.width, tile.height))
+                    report.append(String(format: "explore.ratio=%.3f", ratio))
+                    report.append("explore.ratioOk=\(abs(ratio - 1.0 / 1.72) < 0.035)")
+                    report.append("explore.within=\(tile.maxX <= window.bounds.width + 0.5)")
+                } else {
+                    report.append("explore.ratioOk=false")
+                    report.append("explore.within=false")
+                }
+                root.showTab(2)
+                after(1.2) {
+                    shot("small-library")
+                    report.append("library.visible=\(window.bounds.width > 300)")
+                    root.showTab(3)
+                    after(1.2) {
+                        shot("small-search")
+                        report.append("search.visible=\(window.bounds.width > 300)")
+                        captureCompactPlayer(window: window, root: root, directory: directory,
+                                             report: report)
+                    }
+                }
+            }
+        }
+    }
+
+    private static func captureCompactPlayer(window: UIWindow,
+                                             root: RootViewController,
+                                             directory: URL,
+                                             report: [String]) {
+        var report = report
+        CatalogueSearch.shared.songs("Blinding Lights The Weeknd") { tracks in
+            guard let track = tracks.first else {
+                report.append("small.player=false")
+                writeText(report.joined(separator: "\n"), name: "small-report.txt", directory: directory)
+                exit(0)
+                return
+            }
+            PlayerService.shared.play(tracks: [track], startingAt: 0)
+            root.presentNowPlayingFromRoot()
+            after(2.5) {
+                guard let player = root.presentedViewController as? NowPlayingViewController else {
+                    report.append("small.player=false")
+                    writeText(report.joined(separator: "\n"), name: "small-report.txt", directory: directory)
+                    exit(0)
+                    return
+                }
+                write(window: window, name: "small-now-playing", directory: directory)
+                let frames = player.layoutFrames(in: window)
+                if let play = frames["play"], let like = frames["like"],
+                   let previous = frames["previous"], let next = frames["next"],
+                   let artwork = frames["artwork"], let output = frames["output"] {
+                    report.append(String(format: "player.play=%.1f,%.1f,%.1f,%.1f",
+                                         play.origin.x, play.origin.y, play.width, play.height))
+                    report.append(String(format: "player.footerTop=%.1f", like.minY))
+                    report.append("player.noOverlap=\(play.maxY <= like.minY - 2)")
+                    report.append("player.transportFits=\(previous.minX >= -0.5 && next.maxX <= window.bounds.width + 0.5)")
+                    report.append("player.artworkFits=\(artwork.maxY <= window.bounds.height)")
+                    report.append("player.outputFits=\(output.maxY <= window.bounds.height + 0.5)")
+                    report.append("player.fits=\(play.maxY <= like.minY - 2 && previous.minX >= -0.5 && next.maxX <= window.bounds.width + 0.5 && output.maxY <= window.bounds.height + 0.5)")
+                } else {
+                    report.append("player.fits=false")
+                }
+                let track = PlayerService.shared.currentTrack
+                if let track = track {
+                    TrackActions.present(for: track, from: player, sourceView: nil)
+                }
+                after(1.0) {
+                    write(window: window, name: "small-song-actions", directory: directory)
+                    TrackActions.topController()?.dismiss(animated: false) {
+                        root.dismiss(animated: false) {
+                            let account = AccountViewController()
+                            account.modalPresentationStyle = .fullScreen
+                            root.present(chrome(account), animated: false) {
+                                after(1.0) {
+                                    write(window: window, name: "small-account", directory: directory)
+                                    report.append("auth.accountSheet=\(account.isShowingSignedOut || GoogleAccountStore.shared.isSignedIn)")
+                                    account.dismiss(animated: false) {
+                                        let settings = SettingsViewController()
+                                        root.present(chrome(settings), animated: false) {
+                                            after(0.8) {
+                                                write(window: window, name: "small-settings", directory: directory)
+                                                report.append("small.done=true")
+                                                writeText(report.joined(separator: "\n"),
+                                                          name: "small-report.txt", directory: directory)
+                                                try? "done".write(to: directory.appendingPathComponent("small-done.txt"),
+                                                                  atomically: true, encoding: .utf8)
+                                                after(0.4) { exit(0) }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

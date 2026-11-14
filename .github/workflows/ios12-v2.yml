@@ -345,6 +345,22 @@ jobs:
           find ~/Library/Logs/DiagnosticReports -name '*BitChord*' -mmin -10 \
             -exec sh -c 'echo "== $1"; head -60 "$1"' _ {} \; 2>/dev/null || true
 
+          # The same app in a 320x568 window: the size where the fixed Explore
+          # row and the player's vertical stack used to break. Separate output
+          # directory so these never overwrite the full-size captures.
+          xcrun simctl terminate "$UDID" "$BUNDLE" || true
+          sleep 1
+          xcrun simctl launch "$UDID" "$BUNDLE" -BCSmallScreens \
+            "$CONTAINER/Documents/shots/small" -BCSmallScreen
+          for i in $(seq 1 90); do
+            [ -f "$CONTAINER/Documents/shots/small/small-done.txt" ] && break
+            sleep 1
+          done
+          echo "### Compact report"
+          cat "$CONTAINER/Documents/shots/small/small-report.txt" 2>/dev/null \
+            || { echo "::error ::compact capture wrote no report"; exit 1; }
+          xcrun simctl terminate "$UDID" "$BUNDLE" || true
+
           # Middle-of-transition frames. The harness drives every motion from
           # the real controls, writes origin/mid/settled PNGs and records the
           # presentation-layer values so a snap cannot pass as an animation.
@@ -361,6 +377,24 @@ jobs:
           cp -R "$CONTAINER/Documents/shots/." shots/ || true
           ls -l shots
           ls shots/*.png > /dev/null
+
+          # Compact geometry is a measured result, not the judgement of a
+          # screenshot: the mood sleeve keeps its 1.72 ratio at 320pt, the
+          # player's transport clears its footer, and the account page exists
+          # in its signed-out state without a placeholder alert.
+          SMALL=shots/small/small-report.txt
+          test -s "$SMALL"
+          grep -q "small.window=320x568" "$SMALL"
+          grep -q "explore.ratioOk=true" "$SMALL"
+          grep -q "explore.within=true" "$SMALL"
+          grep -q "player.fits=true" "$SMALL"
+          grep -q "player.noOverlap=true" "$SMALL"
+          grep -q "player.outputFits=true" "$SMALL"
+          grep -q "auth.accountSheet=true" "$SMALL"
+          grep -q "small.done=true" "$SMALL"
+          for SHOT in small-home small-explore small-library small-search small-now-playing small-account small-settings; do
+            test -s "shots/small/$SHOT.png"
+          done
 
           REPORT=shots/download-report.txt
           echo "### Download report"

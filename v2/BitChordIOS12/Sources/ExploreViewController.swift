@@ -50,6 +50,7 @@ final class ExploreViewController: UIViewController {
     private let scrollView = UIScrollView()
     private let titleLabel = UILabel()
     private let grid = UIStackView()
+    private let avatar = UIButton(type: .system)
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -63,11 +64,9 @@ final class ExploreViewController: UIViewController {
 
         // Like the real Explore, a lone account avatar sits high on the right,
         // above the 34pt page title.
-        let avatar = UIButton(type: .system)
         avatar.backgroundColor = Theme.surfaceVariant
         avatar.layer.cornerRadius = 20
         avatar.tintColor = Theme.secondaryText
-        avatar.setImage(Icons.image(.personOutline, size: 19), for: .normal)
         avatar.addTarget(self, action: #selector(openSettings), for: .touchUpInside)
         avatar.translatesAutoresizingMaskIntoConstraints = false
         scrollView.addSubview(avatar)
@@ -92,7 +91,12 @@ final class ExploreViewController: UIViewController {
                 newRow.spacing = 12
                 newRow.distribution = .fillEqually
                 grid.addArrangedSubview(newRow)
-                newRow.heightAnchor.constraint(equalToConstant: 104).isActive = true
+                // Upstream's mood sleeve is 1.72:1, not a fixed 104pt. At the
+                // 320pt width of an SE the old fixed height made every tile
+                // square-ish and visibly different from the reference.
+                newRow.heightAnchor.constraint(equalTo: newRow.widthAnchor,
+                                               multiplier: 1.0 / 3.44,
+                                               constant: -3.49).isActive = true
                 row = newRow
             }
             let tile = MoodTileView(mood: mood.title, top: mood.top, bottom: mood.bottom)
@@ -109,6 +113,12 @@ final class ExploreViewController: UIViewController {
                 }
             }
         }
+
+        GoogleAccountStore.shared.updateAvatarButton(avatar, size: 40)
+        NotificationCenter.default.addObserver(self,
+                                              selector: #selector(accountChanged),
+                                              name: .googleAccountDidChange,
+                                              object: nil)
 
         NSLayoutConstraint.activate([
             scrollView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
@@ -132,6 +142,10 @@ final class ExploreViewController: UIViewController {
             grid.bottomAnchor.constraint(equalTo: scrollView.bottomAnchor, constant: -110),
             grid.widthAnchor.constraint(equalTo: scrollView.widthAnchor, constant: -32)
         ])
+    }
+
+    @objc private func accountChanged() {
+        GoogleAccountStore.shared.updateAvatarButton(avatar, size: 40)
     }
 
     @objc private func openSettings() {

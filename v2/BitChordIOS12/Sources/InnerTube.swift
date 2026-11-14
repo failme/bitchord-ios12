@@ -196,6 +196,23 @@ final class InnerTube {
 
     // MARK: - Transport
 
+    /// The signed-in profile: display name, email/handle and avatar.
+    func accountMenu(completion: @escaping ([String: Any]?) -> Void) {
+        let body: [String: Any] = [
+            "context": [
+                "client": [
+                    "clientName": "WEB_REMIX",
+                    "clientVersion": "1.20241011.01.00",
+                    "hl": "en",
+                    "gl": "US"
+                ]
+            ]
+        ]
+        post(path: "account/account_menu", body: body, userAgent: InnerTube.browserUserAgent) { json, _ in
+            completion(json)
+        }
+    }
+
     func post(path: String,
                       body: [String: Any],
                       userAgent: String,
@@ -206,6 +223,15 @@ final class InnerTube {
         request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
         request.setValue("https://music.youtube.com", forHTTPHeaderField: "Origin")
         request.setValue("en-US,en;q=0.9", forHTTPHeaderField: "Accept-Language")
+        // Signed-in browsing is what makes the personal library and
+        // age-restricted catalogue answer as this listener. Playback stays on
+        // the anonymous clients, whose direct audio URLs are the ones that
+        // work here; signing those changed the player response shape.
+        if path != "player" {
+            for (name, value) in GoogleAccountStore.shared.requestHeaders() {
+                request.setValue(value, forHTTPHeaderField: name)
+            }
+        }
         guard let data = try? JSONSerialization.data(withJSONObject: body, options: []) else {
             completion(nil, "Could not encode the request.")
             return

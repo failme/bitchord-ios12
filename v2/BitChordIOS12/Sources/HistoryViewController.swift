@@ -16,6 +16,8 @@ final class HistoryViewController: UIViewController {
         // Like Downloads and Local Music, this route draws its own round
         // header instead of the navigation bar's large title.
         navigationController?.setNavigationBarHidden(true, animated: false)
+        GoogleAccountStore.shared.updateAvatarButton(accountButton, size: 44,
+                                                     background: UIColor(white: 1, alpha: 0.06))
     }
 
     override func viewDidLoad() {
@@ -35,7 +37,6 @@ final class HistoryViewController: UIViewController {
         accountButton.backgroundColor = UIColor(white: 1, alpha: 0.06)
         accountButton.layer.cornerRadius = 22
         accountButton.tintColor = Theme.secondaryText
-        accountButton.setImage(Icons.image(.personOutline, size: 20), for: .normal)
         accountButton.addTarget(self, action: #selector(openSettings), for: .touchUpInside)
         view.addSubview(accountButton)
 
@@ -108,6 +109,7 @@ final class HistoryViewController: UIViewController {
             retryButton.widthAnchor.constraint(equalToConstant: 104),
             retryButton.heightAnchor.constraint(equalToConstant: 40)
         ])
+        GoogleAccountStore.shared.updateAvatarButton(accountButton, size: 44, background: UIColor(white: 1, alpha: 0.06))
         reload()
     }
 
@@ -116,11 +118,7 @@ final class HistoryViewController: UIViewController {
     }
 
     @objc private func retryTapped() {
-        let alert = UIAlertController(title: "Sign in to YouTube Music",
-                                      message: "Google sign-in is not available in this build.",
-                                      preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "OK", style: .default))
-        present(alert, animated: true)
+        GoogleAccountStore.shared.presentSignIn(from: self)
     }
 
     @objc private func openSettings() {

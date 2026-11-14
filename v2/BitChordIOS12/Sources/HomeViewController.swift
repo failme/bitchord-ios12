@@ -9,6 +9,8 @@ final class HomeViewController: UIViewController {
     private let greetingLabel = UILabel()
     private let releasesShelf = CardShelfView()
     private let topPicks = TopPicksShelfView()
+    private let signInHolder = UIView()
+    private let accountAvatar = UIButton(type: .system)
     private var albums: [CatalogueAlbum] = []
 
     private var remoteQuickPicks: [Track] = []
@@ -44,14 +46,11 @@ final class HomeViewController: UIViewController {
         logo.translatesAutoresizingMaskIntoConstraints = false
         header.addSubview(logo)
 
-        let avatar = UIButton(type: .system)
-        avatar.backgroundColor = Theme.surfaceVariant
-        avatar.layer.cornerRadius = 18
-        avatar.tintColor = Theme.secondaryText
-        avatar.setImage(Icons.image(.personOutline, size: 17), for: .normal)
-        avatar.addTarget(self, action: #selector(openSettings), for: .touchUpInside)
-        avatar.translatesAutoresizingMaskIntoConstraints = false
-        header.addSubview(avatar)
+        accountAvatar.backgroundColor = Theme.surfaceVariant
+        accountAvatar.tintColor = Theme.secondaryText
+        accountAvatar.addTarget(self, action: #selector(openSettings), for: .touchUpInside)
+        accountAvatar.translatesAutoresizingMaskIntoConstraints = false
+        header.addSubview(accountAvatar)
 
         NSLayoutConstraint.activate([
             // The real header is two rows: the avatar at the very top right,
@@ -61,40 +60,36 @@ final class HomeViewController: UIViewController {
             logo.bottomAnchor.constraint(equalTo: header.bottomAnchor, constant: -22),
             logo.widthAnchor.constraint(equalToConstant: 46),
             logo.heightAnchor.constraint(equalToConstant: 30),
-            avatar.trailingAnchor.constraint(equalTo: header.trailingAnchor, constant: -Theme.gutter),
+            accountAvatar.trailingAnchor.constraint(equalTo: header.trailingAnchor, constant: -Theme.gutter),
             // The stack starts 18pt above the scroll view's top edge, so an
             // avatar pinned to the header's top was half clipped away.
-            avatar.topAnchor.constraint(equalTo: header.topAnchor, constant: 18),
-            avatar.widthAnchor.constraint(equalToConstant: 36),
-            avatar.heightAnchor.constraint(equalToConstant: 36)
+            accountAvatar.topAnchor.constraint(equalTo: header.topAnchor, constant: 18),
+            accountAvatar.widthAnchor.constraint(equalToConstant: 36),
+            accountAvatar.heightAnchor.constraint(equalToConstant: 36)
         ])
         stack.addArrangedSubview(header)
 
         // Signed-out Home opens with the blue sign-in card, 119pt tall and
         // inset 16pt, which is what sets the rhythm of the whole feed.
-        let bannerHolder = UIView()
-        bannerHolder.translatesAutoresizingMaskIntoConstraints = false
-        bannerHolder.heightAnchor.constraint(
+        signInHolder.translatesAutoresizingMaskIntoConstraints = false
+        signInHolder.heightAnchor.constraint(
             equalToConstant: SignInBannerView.bannerHeight).isActive = true
         let banner = SignInBannerView()
-        bannerHolder.addSubview(banner)
+        signInHolder.addSubview(banner)
         NSLayoutConstraint.activate([
-            banner.leadingAnchor.constraint(equalTo: bannerHolder.leadingAnchor, constant: 16),
-            banner.trailingAnchor.constraint(equalTo: bannerHolder.trailingAnchor, constant: -16),
-            banner.topAnchor.constraint(equalTo: bannerHolder.topAnchor),
-            banner.bottomAnchor.constraint(equalTo: bannerHolder.bottomAnchor)
+            banner.leadingAnchor.constraint(equalTo: signInHolder.leadingAnchor, constant: 16),
+            banner.trailingAnchor.constraint(equalTo: signInHolder.trailingAnchor, constant: -16),
+            banner.topAnchor.constraint(equalTo: signInHolder.topAnchor),
+            banner.bottomAnchor.constraint(equalTo: signInHolder.bottomAnchor)
         ])
         banner.onSignIn = { [weak self] in
-            let alert = UIAlertController(title: "Sign in to YouTube Music",
-                                          message: "Google sign-in is not available in this build.",
-                                          preferredStyle: .alert)
-            alert.addAction(UIAlertAction(title: "OK", style: .default))
-            self?.present(alert, animated: true)
+            guard let self = self else { return }
+            GoogleAccountStore.shared.presentSignIn(from: self)
         }
         stack.setCustomSpacing(8, after: header)
-        stack.addArrangedSubview(bannerHolder)
+        stack.addArrangedSubview(signInHolder)
         // Custom spacing only sticks once the view is actually arranged.
-        stack.setCustomSpacing(23, after: bannerHolder)
+        stack.setCustomSpacing(23, after: signInHolder)
 
         // The real feed opens with the large Top Picks cards, not a small shelf.
         topPicks.translatesAutoresizingMaskIntoConstraints = false
@@ -128,6 +123,11 @@ final class HomeViewController: UIViewController {
                                               selector: #selector(rebuild),
                                               name: .libraryDidChange,
                                               object: nil)
+        NotificationCenter.default.addObserver(self,
+                                              selector: #selector(accountChanged),
+                                              name: .googleAccountDidChange,
+                                              object: nil)
+        applyAccountState()
         rebuild()
         loadQuickPicks()
         loadNewReleases()
@@ -218,6 +218,16 @@ final class HomeViewController: UIViewController {
         // own clearance or the last shelf scrolls under it.
         scrollView.contentInset.bottom = 104
         scrollView.scrollIndicatorInsets.bottom = 104
+    }
+
+    @objc private func accountChanged() {
+        applyAccountState()
+    }
+
+    private func applyAccountState() {
+        let signedIn = GoogleAccountStore.shared.isSignedIn
+        signInHolder.isHidden = signedIn
+        GoogleAccountStore.shared.updateAvatarButton(accountAvatar, size: 36)
     }
 
     @objc private func openSettings() {
