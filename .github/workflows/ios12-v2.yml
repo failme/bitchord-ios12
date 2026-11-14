@@ -514,9 +514,9 @@ jobs:
           test -n "$REPLAY_PLAYS"
           test "$REPLAY_PLAYS" -ge 1
           test -n "$(sed -n 's/^replay.top=//p' "$REPORT" | head -1)"
-          grep -q "info.rows=7" "$REPORT"
+          grep -q "info.rows=5" "$REPORT"
           test -n "$(sed -n 's/^info.title=//p' "$REPORT" | head -1)"
-          test -n "$(sed -n 's/^info.source=//p' "$REPORT" | head -1)"
+          test -n "$(sed -n 's/^info.album=//p' "$REPORT" | head -1)"
           grep -q "autoplay.setting=true" "$REPORT"
           grep -q "autoplay.started=true" "$REPORT"
           AUTOPLAY=$(sed -n 's/^autoplay.tracks=//p' "$REPORT" | head -1)

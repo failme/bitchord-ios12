@@ -122,20 +122,31 @@ final class RootViewController: UIViewController {
         let incoming = navigations[index]
         incoming.view.isHidden = false
         incoming.view.alpha = 0
-        // A short crossfade, the way the real tab host swaps pages; sliding the
-        // whole page would fight the floating bar's own motion.
-        UIView.animate(withDuration: 0.22, delay: 0, options: [.beginFromCurrentState, .curveEaseOut],
-                       animations: {
-            outgoing.view.alpha = 0
-            incoming.view.alpha = 1
-        }, completion: { _ in
-            // A second tab tap can land before this fade ends; only hide the
-            // page we actually left if the fade still owns the screen.
-            if self.selectedIndex == index {
-                outgoing.view.isHidden = true
+        view.layoutIfNeeded()
+        // A hidden view unhidden and faded in the same transaction jumps
+        // straight to its final alpha. One runloop spent at zero gives Core
+        // Animation a real start value, so the page actually dissolves in.
+        DispatchQueue.main.async {
+            guard self.selectedIndex == index else {
+                incoming.view.isHidden = true
+                incoming.view.alpha = 1
+                return
             }
-            outgoing.view.alpha = 1
-        })
+            // A short crossfade, the way the real tab host swaps pages; sliding
+            // the whole page would fight the floating bar's own motion.
+            UIView.animate(withDuration: 0.22, delay: 0, options: [.beginFromCurrentState, .curveEaseOut],
+                           animations: {
+                outgoing.view.alpha = 0
+                incoming.view.alpha = 1
+            }, completion: { _ in
+                // A second tab tap can land before this fade ends; only hide the
+                // page we actually left if the fade still owns the screen.
+                if self.selectedIndex == index {
+                    outgoing.view.isHidden = true
+                }
+                outgoing.view.alpha = 1
+            })
+        }
     }
 
     private func buildOverlays() {

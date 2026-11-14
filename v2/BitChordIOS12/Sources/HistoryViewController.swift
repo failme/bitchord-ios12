@@ -6,6 +6,7 @@ import UIKit
 final class HistoryViewController: UIViewController {
     private let tableView = UITableView(frame: .zero, style: .plain)
     private let emptyLabel = UILabel()
+    private let retryButton = UIButton(type: .system)
     private let clearButton = UIButton(type: .system)
     private let backButton = UIButton(type: .system)
     private let accountButton = UIButton(type: .system)
@@ -57,13 +58,26 @@ final class HistoryViewController: UIViewController {
         tableView.register(TrackCell.self, forCellReuseIdentifier: TrackCell.reuseIdentifier)
         view.addSubview(tableView)
 
+        // Signed out, the real History is the account feed's error state:
+        // the explanation, then a white retry pill.
         emptyLabel.translatesAutoresizingMaskIntoConstraints = false
-        emptyLabel.text = "Nothing played yet"
-        emptyLabel.font = Theme.font(17)
+        emptyLabel.text = "Sign in to see what you have been listening to"
+        emptyLabel.font = Theme.font(14)
         emptyLabel.textColor = Theme.secondaryText
         emptyLabel.textAlignment = .center
+        emptyLabel.numberOfLines = 0
         emptyLabel.isHidden = !PlaybackHistoryStore.shared.items.isEmpty
         view.addSubview(emptyLabel)
+
+        retryButton.translatesAutoresizingMaskIntoConstraints = false
+        retryButton.setTitle("Try Again", for: .normal)
+        retryButton.setTitleColor(.black, for: .normal)
+        retryButton.titleLabel?.font = Theme.font(15, weight: .semibold)
+        retryButton.backgroundColor = .white
+        retryButton.layer.cornerRadius = 20
+        retryButton.isHidden = emptyLabel.isHidden
+        retryButton.addTarget(self, action: #selector(retryTapped), for: .touchUpInside)
+        view.addSubview(retryButton)
 
         NSLayoutConstraint.activate([
             backButton.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: -10),
@@ -85,13 +99,28 @@ final class HistoryViewController: UIViewController {
             tableView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
 
             emptyLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            emptyLabel.topAnchor.constraint(equalTo: backButton.bottomAnchor, constant: 84)
+            emptyLabel.topAnchor.constraint(equalTo: backButton.bottomAnchor, constant: 64),
+            emptyLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
+            emptyLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
+
+            retryButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            retryButton.topAnchor.constraint(equalTo: emptyLabel.bottomAnchor, constant: 20),
+            retryButton.widthAnchor.constraint(equalToConstant: 104),
+            retryButton.heightAnchor.constraint(equalToConstant: 40)
         ])
         reload()
     }
 
     @objc private func closeTapped() {
         navigationController?.popViewController(animated: true)
+    }
+
+    @objc private func retryTapped() {
+        let alert = UIAlertController(title: "Sign in to YouTube Music",
+                                      message: "Google sign-in is not available in this build.",
+                                      preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        present(alert, animated: true)
     }
 
     @objc private func openSettings() {
@@ -108,6 +137,7 @@ final class HistoryViewController: UIViewController {
         tableView.reloadData()
         tableView.isHidden = empty
         emptyLabel.isHidden = !empty
+        retryButton.isHidden = !empty
         clearButton.isHidden = empty
     }
 

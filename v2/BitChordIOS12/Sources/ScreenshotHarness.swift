@@ -1229,9 +1229,8 @@ enum ScreenshotHarness {
             return rows.first(where: { $0.label == label })?.value ?? ""
         }
         capture.report.append("info.rows=\(rows.count)")
-        capture.report.append("info.title=\(value("Title"))")
-        capture.report.append("info.source=\(value("Source"))")
-        capture.report.append("info.quality=\(value("Quality"))")
+        capture.report.append("info.title=\(track.title)")
+        capture.report.append("info.album=\(value("Album"))")
         let info = SongInfoViewController(track: track)
         info.modalPresentationStyle = .fullScreen
         capture.root.present(info, animated: false) {

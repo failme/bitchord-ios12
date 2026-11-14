@@ -62,7 +62,9 @@ final class HomeViewController: UIViewController {
             logo.widthAnchor.constraint(equalToConstant: 46),
             logo.heightAnchor.constraint(equalToConstant: 30),
             avatar.trailingAnchor.constraint(equalTo: header.trailingAnchor, constant: -Theme.gutter),
-            avatar.topAnchor.constraint(equalTo: header.topAnchor),
+            // The stack starts 18pt above the scroll view's top edge, so an
+            // avatar pinned to the header's top was half clipped away.
+            avatar.topAnchor.constraint(equalTo: header.topAnchor, constant: 18),
             avatar.widthAnchor.constraint(equalToConstant: 44),
             avatar.heightAnchor.constraint(equalToConstant: 44)
         ])
@@ -92,7 +94,7 @@ final class HomeViewController: UIViewController {
         stack.setCustomSpacing(8, after: header)
         stack.addArrangedSubview(bannerHolder)
         // Custom spacing only sticks once the view is actually arranged.
-        stack.setCustomSpacing(13, after: bannerHolder)
+        stack.setCustomSpacing(23, after: bannerHolder)
 
         // The real feed opens with the large Top Picks cards, not a small shelf.
         topPicks.translatesAutoresizingMaskIntoConstraints = false

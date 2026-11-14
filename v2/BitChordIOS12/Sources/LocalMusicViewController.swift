@@ -126,7 +126,7 @@ final class LocalMusicViewController: UIViewController {
             hero.topAnchor.constraint(equalTo: backButton.bottomAnchor, constant: 15),
             hero.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             hero.widthAnchor.constraint(equalTo: view.widthAnchor, multiplier: 0.76),
-            hero.heightAnchor.constraint(equalTo: hero.widthAnchor),
+            hero.heightAnchor.constraint(equalTo: hero.widthAnchor, multiplier: 0.96),
 
             folder.centerXAnchor.constraint(equalTo: hero.centerXAnchor),
             folder.centerYAnchor.constraint(equalTo: hero.centerYAnchor),

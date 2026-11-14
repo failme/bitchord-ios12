@@ -158,11 +158,11 @@ final class LibraryViewController: UIViewController {
         statsRow.addArrangedSubview(top)
 
         NSLayoutConstraint.activate([
-            holder.heightAnchor.constraint(equalToConstant: 197),
-            scroller.topAnchor.constraint(equalTo: holder.topAnchor, constant: 8),
+            holder.heightAnchor.constraint(equalToConstant: 188),
+            scroller.topAnchor.constraint(equalTo: holder.topAnchor, constant: 3),
             scroller.leadingAnchor.constraint(equalTo: holder.leadingAnchor),
             scroller.trailingAnchor.constraint(equalTo: holder.trailingAnchor),
-            scroller.heightAnchor.constraint(equalToConstant: 189),
+            scroller.heightAnchor.constraint(equalToConstant: 185),
             statsRow.topAnchor.constraint(equalTo: scroller.topAnchor),
             statsRow.leadingAnchor.constraint(equalTo: scroller.leadingAnchor, constant: 16),
             statsRow.trailingAnchor.constraint(equalTo: scroller.trailingAnchor, constant: -16),
@@ -183,11 +183,11 @@ final class LibraryViewController: UIViewController {
             rowsHolder.addArrangedSubview(row)
             index += 1
         }
-        // The real rows start immediately under the stats card, not a full
-        // row-gap below it.
-        stack.setCustomSpacing(-1, after: stack.arrangedSubviews.last!)
+        // The real rows sit just under the stats card, with the breathing
+        // room the card itself lost when it was measured.
+        stack.setCustomSpacing(8, after: stack.arrangedSubviews.last!)
         stack.addArrangedSubview(rowsHolder)
-        stack.setCustomSpacing(10, after: rowsHolder)
+        stack.setCustomSpacing(7, after: rowsHolder)
     }
 
     private let rowsHolder = UIStackView()
@@ -215,7 +215,7 @@ final class LibraryViewController: UIViewController {
         let gridHolder = UIView()
         gridHolder.addSubview(playlistGrid)
         NSLayoutConstraint.activate([
-            playlistGrid.topAnchor.constraint(equalTo: gridHolder.topAnchor, constant: 4),
+            playlistGrid.topAnchor.constraint(equalTo: gridHolder.topAnchor, constant: 1),
             playlistGrid.leadingAnchor.constraint(equalTo: gridHolder.leadingAnchor, constant: 16),
             playlistGrid.trailingAnchor.constraint(equalTo: gridHolder.trailingAnchor, constant: -16),
             playlistGrid.bottomAnchor.constraint(equalTo: gridHolder.bottomAnchor)
@@ -261,7 +261,7 @@ final class LibraryViewController: UIViewController {
         firstRow.axis = .horizontal
         firstRow.spacing = 12
         firstRow.distribution = .fillEqually
-        firstRow.widthAnchor.constraint(equalToConstant: 320).isActive = true
+        firstRow.widthAnchor.constraint(equalToConstant: 304).isActive = true
 
         let create = PlaylistCard(title: "New playlist",
                                         caption: "Saved to YouTube Music",
@@ -289,7 +289,7 @@ final class LibraryViewController: UIViewController {
                 newRow.axis = .horizontal
                 newRow.spacing = 12
                 newRow.distribution = .fillEqually
-                newRow.widthAnchor.constraint(equalToConstant: 320).isActive = true
+                newRow.widthAnchor.constraint(equalToConstant: 304).isActive = true
                 playlistGrid.addArrangedSubview(newRow)
                 row = newRow
             }
