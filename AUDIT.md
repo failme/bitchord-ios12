@@ -22,7 +22,7 @@ IPAs are that build: 17,244,148 bytes, sha256
 `7cfb58587243fbc18f1bf896212ad37ce5d53039a875ed9e4e788391c23e6c3a`, bundle
 `com.bitchord.ios12v2` 2.0.0, `MinimumOSVersion 12.0`, `UIDeviceFamily [1,2]`,
 a thin `arm64` executable (Mach-O) and a registered `bitchord` URL scheme -
-verified on the committed file, with both copies byte-identical.
+verified on the packaged file, with both copies byte-identical.
 
 ## UI parity pass
 
