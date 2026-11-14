@@ -332,7 +332,7 @@ final class NowPlayingViewController: UIViewController {
         modeButton.tintColor = Theme.primaryText
         modeButton.backgroundColor = UIColor(white: 1, alpha: 0.10)
         modeButton.layer.cornerRadius = 8
-        modeButton.setImage(Icons.image(.bubble, size: 24), for: .normal)
+        modeButton.setImage(Icons.image(.lyricsQuote, size: 24), for: .normal)
         modeButton.addTarget(self, action: #selector(toggleMode), for: .touchUpInside)
         modeButton.isHidden = true
         view.addSubview(modeButton)
@@ -374,7 +374,7 @@ final class NowPlayingViewController: UIViewController {
         ])
 
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
-        titleLabel.font = Theme.font(20, weight: .medium)
+        titleLabel.font = Theme.font(20, weight: .semibold)
         titleLabel.textColor = Theme.primaryText
         titleLabel.numberOfLines = 2
         titleLabel.textAlignment = .left
@@ -437,7 +437,7 @@ final class NowPlayingViewController: UIViewController {
         configureTransportButton(repeatButton, icon: .repeatAll, size: 20, action: #selector(goRepeat))
 
         configureTransportButton(likeButton, icon: .heart, size: 22, action: #selector(toggleLike))
-        configureTransportButton(queueButton, icon: .list, size: 26, action: #selector(showQueue))
+        configureTransportButton(queueButton, icon: .queue, size: 26, action: #selector(showQueue))
 
         let safe = view.safeAreaLayoutGuide
         glowLayer.startPoint = CGPoint(x: 0.5, y: 0)
@@ -668,9 +668,9 @@ final class NowPlayingViewController: UIViewController {
         meshView.isHidden = true
         scrimView.isHidden = false
         scrimLayer.colors = (lyrics
-            ? [UIColor.black.withAlphaComponent(0.16).cgColor,
-               UIColor.black.withAlphaComponent(0.30).cgColor,
-               UIColor.black.withAlphaComponent(0.56).cgColor]
+            ? [UIColor.black.withAlphaComponent(0.22).cgColor,
+               UIColor.black.withAlphaComponent(0.38).cgColor,
+               UIColor.black.withAlphaComponent(0.62).cgColor]
             : [UIColor.black.withAlphaComponent(0.02).cgColor,
                UIColor.black.withAlphaComponent(0.12).cgColor,
                UIColor.black.withAlphaComponent(0.44).cgColor])
@@ -733,11 +733,14 @@ final class NowPlayingViewController: UIViewController {
             loadArtwork(track)
         }
         if track.isExplicit || AudioEngine.shared.currentIsExplicit {
-            let body = NSMutableAttributedString(string: track.title + " ")
+            // The real credit row leads with the badge, before the title, in
+            // the artist line's colour.
+            let body = NSMutableAttributedString()
             let tile = NSTextAttachment()
             tile.image = Theme.explicitBadgeImage()
             tile.bounds = CGRect(x: 0, y: -2, width: 13, height: 13)
             body.append(NSAttributedString(attachment: tile))
+            body.append(NSAttributedString(string: " " + track.title))
             titleLabel.attributedText = body
         } else {
             titleLabel.attributedText = nil

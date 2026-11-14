@@ -18,6 +18,7 @@ enum Icons {
         case grid, books, person, logo
         case history, folder, spotify
         case globe, cast, bubble, speaker
+        case lyricsQuote, queue
     }
 
     static func image(_ kind: Kind, size: CGFloat = 24) -> UIImage {
@@ -223,9 +224,6 @@ enum Icons {
             stroke(arc2, width: w * 0.85)
             UIBezierPath(ovalIn: CGRect(x: 0.22 * s, y: 0.70 * s, width: 0.09 * s, height: 0.09 * s)).fill()
         case .bubble:
-            // The footer's lyrics tile is an outlined speech bubble with three
-            // dots, not a solid blob: it sits on a lifted grey tile and has to
-            // read as a glyph.
             let bubble = UIBezierPath(roundedRect: CGRect(x: 0.15 * s, y: 0.16 * s, width: 0.70 * s, height: 0.58 * s),
                                       cornerRadius: 0.18 * s)
             stroke(bubble, width: w * 0.95)
@@ -237,6 +235,47 @@ enum Icons {
             for dx in [-0.14, 0.0, 0.14] {
                 UIBezierPath(ovalIn: CGRect(x: (0.5 + CGFloat(dx) - 0.038) * s, y: 0.445 * s,
                                             width: 0.076 * s, height: 0.076 * s)).fill()
+            }
+        case .lyricsQuote:
+            // `bc_lyrics_quote`: a speech bubble with two quote marks, the
+            // tile's glyph in the real action row.
+            let bubble = UIBezierPath()
+            bubble.move(to: pt(0.25, 0.1458))
+            bubble.addLine(to: pt(0.75, 0.1458))
+            bubble.addQuadCurve(to: pt(0.875, 0.2708), controlPoint: pt(0.875, 0.1458))
+            bubble.addLine(to: pt(0.875, 0.625))
+            bubble.addQuadCurve(to: pt(0.75, 0.75), controlPoint: pt(0.875, 0.75))
+            bubble.addLine(to: pt(0.4167, 0.75))
+            bubble.addLine(to: pt(0.25, 0.875))
+            bubble.addLine(to: pt(0.25, 0.75))
+            bubble.addQuadCurve(to: pt(0.125, 0.625), controlPoint: pt(0.125, 0.75))
+            bubble.addLine(to: pt(0.125, 0.2708))
+            bubble.addQuadCurve(to: pt(0.25, 0.1458), controlPoint: pt(0.125, 0.1458))
+            bubble.close()
+            stroke(bubble, width: 2.0 / 24.0 * s)
+            for x: CGFloat in [7.6 / 24.0, 12.8 / 24.0] {
+                let quote = UIBezierPath()
+                quote.move(to: pt(x, 0.3333))
+                quote.addLine(to: pt(x + 0.125, 0.3333))
+                quote.addLine(to: pt(x + 0.125, 0.4625))
+                quote.addQuadCurve(to: pt(x + 0.0208, 0.5708),
+                                   controlPoint: pt(x + 0.125, 0.55))
+                quote.addLine(to: pt(x + 0.0208, 0.5125))
+                quote.addQuadCurve(to: pt(x + 0.0708, 0.4583),
+                                   controlPoint: pt(x + 0.0708, 0.5))
+                quote.addLine(to: pt(x, 0.4583))
+                quote.close()
+                quote.fill()
+            }
+        case .queue:
+            for y: CGFloat in [0.25, 0.50, 0.75] {
+                let line = UIBezierPath()
+                line.move(to: pt(0.3333, y))
+                line.addLine(to: pt(0.875, y))
+                stroke(line, width: 2.0 / 24.0 * s)
+                UIBezierPath(ovalIn: CGRect(x: (0.1292 - 0.0521) * s,
+                                            y: (y - 0.0521) * s,
+                                            width: 0.1042 * s, height: 0.1042 * s)).fill()
             }
         case .speaker:
             let body = UIBezierPath()
