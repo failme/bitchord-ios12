@@ -103,13 +103,13 @@ final class SettingsViewController: UIViewController {
             backButton.widthAnchor.constraint(equalToConstant: 44),
             backButton.heightAnchor.constraint(equalToConstant: 44),
 
-            titleLabel.topAnchor.constraint(equalTo: backButton.bottomAnchor, constant: 14),
+            titleLabel.topAnchor.constraint(equalTo: backButton.bottomAnchor, constant: 8),
             titleLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
 
-            searchField.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 22),
+            searchField.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 14),
             searchField.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
             searchField.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
-            searchField.heightAnchor.constraint(equalToConstant: 52)
+            searchField.heightAnchor.constraint(equalToConstant: 48)
         ])
     }
 
@@ -295,7 +295,7 @@ final class SettingsCell: UITableViewCell {
         contentView.addSubview(cardView)
 
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
-        titleLabel.font = Theme.font(17)
+        titleLabel.font = Theme.font(18)
         titleLabel.textColor = Theme.primaryText
         cardView.addSubview(titleLabel)
 

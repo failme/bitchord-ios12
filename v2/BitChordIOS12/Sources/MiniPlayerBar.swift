@@ -10,6 +10,7 @@ final class MiniPlayerBar: UIView {
     private let titleLabel = UILabel()
     private let subtitleLabel = UILabel()
     private let playButton = UIButton(type: .system)
+    private let nextButton = UIButton(type: .system)
     private var artworkTask: URLSessionDataTask?
 
     override init(frame: CGRect) {
@@ -36,18 +37,18 @@ final class MiniPlayerBar: UIView {
         artworkView.translatesAutoresizingMaskIntoConstraints = false
         artworkView.contentMode = .scaleAspectFill
         artworkView.clipsToBounds = true
-        artworkView.layer.cornerRadius = 4
+        artworkView.layer.cornerRadius = 6
         artworkView.backgroundColor = Theme.surface
         addSubview(artworkView)
 
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
-        titleLabel.font = Theme.font(14, weight: .semibold)
+        titleLabel.font = Theme.font(15, weight: .semibold)
         titleLabel.textColor = Theme.primaryText
         titleLabel.text = "Nothing playing"
         addSubview(titleLabel)
 
         subtitleLabel.translatesAutoresizingMaskIntoConstraints = false
-        subtitleLabel.font = Theme.font(12)
+        subtitleLabel.font = Theme.font(13)
         subtitleLabel.textColor = Theme.secondaryText
         addSubview(subtitleLabel)
 
@@ -57,6 +58,12 @@ final class MiniPlayerBar: UIView {
         playButton.setImage(Icons.image(.play, size: 24), for: .normal)
         playButton.addTarget(self, action: #selector(togglePlayback), for: .touchUpInside)
         addSubview(playButton)
+
+        nextButton.translatesAutoresizingMaskIntoConstraints = false
+        nextButton.tintColor = Theme.primaryText
+        nextButton.setImage(Icons.image(.next, size: 22), for: .normal)
+        nextButton.addTarget(self, action: #selector(skipNext), for: .touchUpInside)
+        addSubview(nextButton)
 
         progressWidth = progressView.widthAnchor.constraint(equalToConstant: 0)
         NSLayoutConstraint.activate([
@@ -70,17 +77,22 @@ final class MiniPlayerBar: UIView {
             blurView.trailingAnchor.constraint(equalTo: trailingAnchor),
             blurView.bottomAnchor.constraint(equalTo: bottomAnchor),
 
-            artworkView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
+            artworkView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 14),
             artworkView.centerYAnchor.constraint(equalTo: centerYAnchor),
-            artworkView.widthAnchor.constraint(equalToConstant: 40),
-            artworkView.heightAnchor.constraint(equalToConstant: 40),
+            artworkView.widthAnchor.constraint(equalToConstant: 44),
+            artworkView.heightAnchor.constraint(equalToConstant: 44),
 
-            playButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
+            nextButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -6),
+            nextButton.centerYAnchor.constraint(equalTo: centerYAnchor),
+            nextButton.widthAnchor.constraint(equalToConstant: 44),
+            nextButton.heightAnchor.constraint(equalToConstant: 44),
+
+            playButton.trailingAnchor.constraint(equalTo: nextButton.leadingAnchor, constant: -2),
             playButton.centerYAnchor.constraint(equalTo: centerYAnchor),
             playButton.widthAnchor.constraint(equalToConstant: 44),
             playButton.heightAnchor.constraint(equalToConstant: 44),
 
-            titleLabel.leadingAnchor.constraint(equalTo: artworkView.trailingAnchor, constant: 10),
+            titleLabel.leadingAnchor.constraint(equalTo: artworkView.trailingAnchor, constant: 12),
             titleLabel.trailingAnchor.constraint(equalTo: playButton.leadingAnchor, constant: -8),
             titleLabel.bottomAnchor.constraint(equalTo: centerYAnchor, constant: -1),
 
@@ -128,6 +140,10 @@ final class MiniPlayerBar: UIView {
         PlayerService.shared.togglePlayPause()
     }
 
+    @objc private func skipNext() {
+        PlayerService.shared.advance()
+    }
+
     func refresh() {
         let service = PlayerService.shared
         guard let track = service.currentTrack else {
@@ -140,7 +156,11 @@ final class MiniPlayerBar: UIView {
         }
         titleLabel.text = track.title
         subtitleLabel.text = track.artist.isEmpty ? (service.statusText.isEmpty ? " " : service.statusText) : track.artist
-        playButton.setImage(Icons.image(service.isPlaying ? .pause : .play, size: 24), for: .normal)
+        let glyph = Icons.image(service.isPlaying ? .pause : .play, size: 24)
+        UIView.transition(with: playButton, duration: 0.18,
+                          options: [.transitionCrossDissolve, .allowUserInteraction]) {
+            self.playButton.setImage(glyph, for: .normal)
+        }
 
         let url = track.artworkURL
         if let cached = ArtworkLoader.shared.cached(url) {
@@ -151,7 +171,10 @@ final class MiniPlayerBar: UIView {
         artworkTask?.cancel()
         artworkTask = ArtworkLoader.shared.load(url) { [weak self] image in
             guard let self = self else { return }
-            self.artworkView.image = image
+            UIView.transition(with: self.artworkView, duration: 0.25,
+                              options: [.transitionCrossDissolve, .allowUserInteraction]) {
+                self.artworkView.image = image
+            }
         }
     }
 }

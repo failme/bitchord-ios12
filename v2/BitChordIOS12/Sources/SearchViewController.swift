@@ -15,7 +15,10 @@ final class SearchViewController: UIViewController {
         case song(Track)
         case album(CatalogueAlbum)
         case artist(CatalogueArtist)
+        case recent(Track)
     }
+
+    private var recents: [Track] { return LibraryStore.shared.recentSearches }
 
     private let fieldContainer = UIView()
     private let fieldIcon = UIImageView()
@@ -58,11 +61,11 @@ final class SearchViewController: UIViewController {
     private func buildField() {
         fieldContainer.translatesAutoresizingMaskIntoConstraints = false
         fieldContainer.backgroundColor = Theme.surfaceVariant
-        fieldContainer.layer.cornerRadius = 22
+        fieldContainer.layer.cornerRadius = 25
         view.addSubview(fieldContainer)
 
         fieldIcon.translatesAutoresizingMaskIntoConstraints = false
-        fieldIcon.image = Icons.image(.search, size: 18).withRenderingMode(.alwaysTemplate)
+        fieldIcon.image = Icons.image(.search, size: 20).withRenderingMode(.alwaysTemplate)
         fieldIcon.tintColor = Theme.secondaryText
         fieldIcon.contentMode = .scaleAspectFit
         fieldContainer.addSubview(fieldIcon)
@@ -70,7 +73,7 @@ final class SearchViewController: UIViewController {
         field.translatesAutoresizingMaskIntoConstraints = false
         field.textColor = Theme.primaryText
         field.tintColor = Theme.accent
-        field.font = Theme.font(16)
+        field.font = Theme.font(18)
         field.attributedPlaceholder = NSAttributedString(
             string: "Artists, Songs, Lyrics and More",
             attributes: [.foregroundColor: Theme.secondaryText]
@@ -94,21 +97,21 @@ final class SearchViewController: UIViewController {
         // The real search bar pairs the field with a round account avatar.
         avatarButton.translatesAutoresizingMaskIntoConstraints = false
         avatarButton.backgroundColor = Theme.surfaceVariant
-        avatarButton.layer.cornerRadius = 22
+        avatarButton.layer.cornerRadius = 20
         avatarButton.tintColor = Theme.secondaryText
-        avatarButton.setImage(Icons.image(.person, size: 20), for: .normal)
+        avatarButton.setImage(Icons.image(.person, size: 18), for: .normal)
         view.addSubview(avatarButton)
 
         NSLayoutConstraint.activate([
             fieldContainer.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
             fieldContainer.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
             fieldContainer.trailingAnchor.constraint(equalTo: avatarButton.leadingAnchor, constant: -10),
-            fieldContainer.heightAnchor.constraint(equalToConstant: 44),
+            fieldContainer.heightAnchor.constraint(equalToConstant: 50),
 
-            fieldIcon.leadingAnchor.constraint(equalTo: fieldContainer.leadingAnchor, constant: 11),
+            fieldIcon.leadingAnchor.constraint(equalTo: fieldContainer.leadingAnchor, constant: 14),
             fieldIcon.centerYAnchor.constraint(equalTo: fieldContainer.centerYAnchor),
-            fieldIcon.widthAnchor.constraint(equalToConstant: 18),
-            fieldIcon.heightAnchor.constraint(equalToConstant: 18),
+            fieldIcon.widthAnchor.constraint(equalToConstant: 20),
+            fieldIcon.heightAnchor.constraint(equalToConstant: 20),
 
             field.leadingAnchor.constraint(equalTo: fieldIcon.trailingAnchor, constant: 8),
             field.trailingAnchor.constraint(equalTo: clearButton.leadingAnchor, constant: -6),
@@ -122,8 +125,8 @@ final class SearchViewController: UIViewController {
 
             avatarButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -Theme.gutter),
             avatarButton.centerYAnchor.constraint(equalTo: fieldContainer.centerYAnchor),
-            avatarButton.widthAnchor.constraint(equalToConstant: 44),
-            avatarButton.heightAnchor.constraint(equalToConstant: 44)
+            avatarButton.widthAnchor.constraint(equalToConstant: 40),
+            avatarButton.heightAnchor.constraint(equalToConstant: 40)
         ])
     }
 
@@ -199,6 +202,9 @@ final class SearchViewController: UIViewController {
     private var rows: [Row] {
         switch source {
         case .youtube:
+            if query.isEmpty && !recents.isEmpty {
+                return recents.map(Row.recent)
+            }
             return songs.map(Row.song) + albums.map(Row.album) + artists.map(Row.artist)
         case .library:
             return libraryRows()
@@ -306,7 +312,42 @@ final class SearchViewController: UIViewController {
         refresh()
     }
 
+    private func updateRecentsHeader() {
+        guard source == .youtube, query.isEmpty, !recents.isEmpty else {
+            tableView.tableHeaderView = nil
+            return
+        }
+        let header = UIView(frame: CGRect(x: 0, y: 0, width: UIScreen.main.bounds.width, height: 46))
+        let title = UILabel()
+        title.text = "Recent searches"
+        title.font = Theme.font(20, weight: .bold)
+        title.textColor = Theme.primaryText
+        title.translatesAutoresizingMaskIntoConstraints = false
+        header.addSubview(title)
+        let clear = UIButton(type: .system)
+        clear.setTitle("Clear", for: .normal)
+        clear.setTitleColor(Theme.secondaryText, for: .normal)
+        clear.titleLabel?.font = Theme.font(14)
+        clear.addTarget(self, action: #selector(clearRecents), for: .touchUpInside)
+        clear.translatesAutoresizingMaskIntoConstraints = false
+        header.addSubview(clear)
+        NSLayoutConstraint.activate([
+            title.leadingAnchor.constraint(equalTo: header.leadingAnchor, constant: 16),
+            title.bottomAnchor.constraint(equalTo: header.bottomAnchor, constant: -10),
+            clear.trailingAnchor.constraint(equalTo: header.trailingAnchor, constant: -16),
+            clear.centerYAnchor.constraint(equalTo: title.centerYAnchor)
+        ])
+        tableView.tableHeaderView = header
+    }
+
+    @objc private func clearRecents() {
+        LibraryStore.shared.clearRecentSearches()
+        tableView.reloadData()
+        refresh()
+    }
+
     private func refresh() {
+        updateRecentsHeader()
         let isEmpty = rows.isEmpty
         if query.isEmpty {
             switch source {
@@ -403,6 +444,12 @@ extension SearchViewController: UITableViewDataSource, UITableViewDelegate {
                 row.configure(title: artist.name, subtitle: "Artist", artwork: artist.artwork, circular: true)
             }
             return cell
+        case .recent(let track):
+            let cell = tableView.dequeueReusableCell(withIdentifier: TrackCell.reuseIdentifier, for: indexPath)
+            if let trackCell = cell as? TrackCell {
+                trackCell.configure(with: track)
+            }
+            return cell
         }
     }
 
@@ -411,6 +458,7 @@ extension SearchViewController: UITableViewDataSource, UITableViewDelegate {
         let row = rows[indexPath.row]
         switch row {
         case .song(let track):
+            LibraryStore.shared.addRecentSearch(track)
             let queue = songQueue
             let start = queue.firstIndex(where: { $0.videoID == track.videoID }) ?? 0
             field.resignFirstResponder()
@@ -422,6 +470,12 @@ extension SearchViewController: UITableViewDataSource, UITableViewDelegate {
             openAlbum(album)
         case .artist(let artist):
             openArtist(artist)
+        case .recent(let track):
+            field.text = track.title
+            query = track.title
+            requestToken += 1
+            run(track.title)
+            LibraryStore.shared.addRecentSearch(track)
         }
     }
 }

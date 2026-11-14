@@ -239,6 +239,9 @@ enum ScreenshotHarness {
             DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
                 PlayerService.shared.seek(toFraction: 0.16)
             }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+                write(window: window, name: "now-playing", directory: directory)
+            }
             DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
                 if let player = root.presentedViewController as? NowPlayingViewController {
                     player.showLyricsForScreenshots()

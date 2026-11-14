@@ -7,6 +7,7 @@ final class LibraryViewController: UIViewController {
     private let stack = UIStackView()
     private let titleLabel = UILabel()
     private let statsRow = UIStackView()
+    private weak var statsScroller: UIScrollView?
     private let playlistGrid = UIStackView()
 
     private var playlists: [Playlist] = []
@@ -57,8 +58,10 @@ final class LibraryViewController: UIViewController {
     }
 
     private func buildHeader() {
+        // Real order: the history/account capsule sits high on the right, then
+        // the 34pt Library title drops below it on the next line.
         let header = UIView()
-        header.heightAnchor.constraint(equalToConstant: 72).isActive = true
+        header.heightAnchor.constraint(equalToConstant: 140).isActive = true
 
         titleLabel.text = "Library"
         titleLabel.font = Theme.font(34, weight: .bold)
@@ -92,19 +95,19 @@ final class LibraryViewController: UIViewController {
 
         NSLayoutConstraint.activate([
             titleLabel.leadingAnchor.constraint(equalTo: header.leadingAnchor, constant: 16),
-            titleLabel.bottomAnchor.constraint(equalTo: header.bottomAnchor, constant: -8),
+            titleLabel.topAnchor.constraint(equalTo: pill.bottomAnchor, constant: 20),
 
             pill.trailingAnchor.constraint(equalTo: header.trailingAnchor, constant: -16),
-            pill.centerYAnchor.constraint(equalTo: titleLabel.centerYAnchor),
-            pill.widthAnchor.constraint(equalToConstant: 120),
+            pill.topAnchor.constraint(equalTo: header.topAnchor, constant: 8),
+            pill.widthAnchor.constraint(equalToConstant: 100),
             pill.heightAnchor.constraint(equalToConstant: 48),
 
-            history.leadingAnchor.constraint(equalTo: pill.leadingAnchor, constant: 2),
+            history.leadingAnchor.constraint(equalTo: pill.leadingAnchor, constant: 4),
             history.centerYAnchor.constraint(equalTo: pill.centerYAnchor),
             history.widthAnchor.constraint(equalToConstant: 44),
             history.heightAnchor.constraint(equalToConstant: 44),
 
-            avatar.trailingAnchor.constraint(equalTo: pill.trailingAnchor, constant: -6),
+            avatar.trailingAnchor.constraint(equalTo: pill.trailingAnchor, constant: -7),
             avatar.centerYAnchor.constraint(equalTo: pill.centerYAnchor),
             avatar.widthAnchor.constraint(equalToConstant: 34),
             avatar.heightAnchor.constraint(equalToConstant: 34)
@@ -127,6 +130,9 @@ final class LibraryViewController: UIViewController {
         let scroller = UIScrollView()
         scroller.showsHorizontalScrollIndicator = false
         scroller.alwaysBounceHorizontal = true
+        scroller.decelerationRate = .fast
+        scroller.delegate = self
+        statsScroller = scroller
         scroller.translatesAutoresizingMaskIntoConstraints = false
         holder.addSubview(scroller)
         scroller.addSubview(statsRow)
@@ -152,7 +158,7 @@ final class LibraryViewController: UIViewController {
         statsRow.addArrangedSubview(top)
 
         NSLayoutConstraint.activate([
-            holder.heightAnchor.constraint(equalToConstant: 205),
+            holder.heightAnchor.constraint(equalToConstant: 197),
             scroller.topAnchor.constraint(equalTo: holder.topAnchor, constant: 8),
             scroller.leadingAnchor.constraint(equalTo: holder.leadingAnchor),
             scroller.trailingAnchor.constraint(equalTo: holder.trailingAnchor),
@@ -610,9 +616,37 @@ class PlaylistCard: UIControl {
             captionLabel.bottomAnchor.constraint(equalTo: bottomAnchor)
         ])
         addTarget(self, action: #selector(tapped), for: .touchUpInside)
+        addTarget(self, action: #selector(pressIn), for: [.touchDown, .touchDragEnter])
+        addTarget(self, action: #selector(pressOut),
+                  for: [.touchUpInside, .touchUpOutside, .touchCancel, .touchDragExit])
+    }
+
+    @objc private func pressIn() {
+        UIView.animate(withDuration: 0.16, delay: 0, options: [.allowUserInteraction]) {
+            self.transform = CGAffineTransform(scaleX: 0.96, y: 0.96)
+        }
+    }
+
+    @objc private func pressOut() {
+        UIView.animate(withDuration: 0.24, delay: 0, usingSpringWithDamping: 0.7,
+                       initialSpringVelocity: 0.4, options: [.allowUserInteraction]) {
+            self.transform = .identity
+        }
     }
 
     @objc private func tapped() {
         onTap?()
+    }
+}
+
+extension LibraryViewController: UIScrollViewDelegate {
+    func scrollViewWillEndDragging(_ scrollView: UIScrollView,
+                                   withVelocity velocity: CGPoint,
+                                   targetContentOffset: UnsafeMutablePointer<CGPoint>) {
+        guard scrollView === statsScroller else { return }
+        // The stat cards page one at a time, each card plus its 12pt gap.
+        let page: CGFloat = 312
+        let proposed = targetContentOffset.pointee.x
+        targetContentOffset.pointee.x = (proposed / page).rounded() * page
     }
 }

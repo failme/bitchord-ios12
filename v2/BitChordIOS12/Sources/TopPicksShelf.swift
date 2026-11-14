@@ -92,7 +92,7 @@ final class TopPickCell: UICollectionViewCell {
         super.init(frame: frame)
         artwork.contentMode = .scaleAspectFill
         artwork.clipsToBounds = true
-        artwork.layer.cornerRadius = 8
+        artwork.layer.cornerRadius = 12
         artwork.backgroundColor = Theme.surfaceVariant
         artwork.translatesAutoresizingMaskIntoConstraints = false
         contentView.addSubview(artwork)
@@ -103,10 +103,10 @@ final class TopPickCell: UICollectionViewCell {
         }
         sourceLabel.font = Theme.font(12)
         sourceLabel.textColor = Theme.secondaryText
-        titleLabel.font = Theme.font(18, weight: .semibold)
+        titleLabel.font = Theme.font(16, weight: .semibold)
         titleLabel.textColor = Theme.primaryText
         titleLabel.numberOfLines = 2
-        detailLabel.font = Theme.font(14)
+        detailLabel.font = Theme.font(13)
         detailLabel.textColor = Theme.secondaryText
 
         NSLayoutConstraint.activate([
@@ -133,13 +133,27 @@ final class TopPickCell: UICollectionViewCell {
         return nil
     }
 
+    override var isHighlighted: Bool {
+        didSet {
+            UIView.animate(withDuration: 0.18, delay: 0,
+                           options: [.beginFromCurrentState, .allowUserInteraction]) {
+                self.contentView.transform = self.isHighlighted
+                    ? CGAffineTransform(scaleX: 0.97, y: 0.97) : .identity
+            }
+        }
+    }
+
     func configure(track: Track) {
         sourceLabel.text = track.album.isEmpty ? "Top pick" : track.album
         titleLabel.text = track.title
         detailLabel.text = track.artist
         artwork.image = nil
         ArtworkLoader.shared.load(track.largeArtworkURL) { [weak self] image in
-            self?.artwork.image = image
+            guard let self = self, let image = image else { return }
+            UIView.transition(with: self.artwork, duration: 0.25,
+                              options: [.transitionCrossDissolve, .allowUserInteraction]) {
+                self.artwork.image = image
+            }
         }
     }
 }

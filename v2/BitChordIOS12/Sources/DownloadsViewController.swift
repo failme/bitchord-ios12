@@ -13,6 +13,9 @@ final class DownloadsViewController: UIViewController {
     private let backButton = UIButton(type: .system)
     private let emptyTitle = UILabel()
     private let emptyDetail = UILabel()
+    private let hero = UIView()
+    private let heroIcon = UIImageView()
+    private let heroBar = UIView()
 
     private enum Row {
         case active(Track, Double)
@@ -66,15 +69,53 @@ final class DownloadsViewController: UIViewController {
 
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
         titleLabel.text = "Downloads"
-        titleLabel.font = Theme.font(34, weight: .bold)
+        titleLabel.font = Theme.font(20, weight: .bold)
         titleLabel.textColor = Theme.primaryText
         view.addSubview(titleLabel)
 
         subtitleLabel.translatesAutoresizingMaskIntoConstraints = false
         subtitleLabel.text = "Downloaded songs"
-        subtitleLabel.font = Theme.font(14)
+        subtitleLabel.font = Theme.font(15)
         subtitleLabel.textColor = Theme.secondaryText
         view.addSubview(subtitleLabel)
+
+        // The real empty screen shows a large dark tile with a download glyph,
+        // then the title and its subtitle centred under it.
+        hero.translatesAutoresizingMaskIntoConstraints = false
+        hero.backgroundColor = Theme.surfaceVariant
+        hero.layer.cornerRadius = 24
+        view.addSubview(hero)
+
+        heroIcon.translatesAutoresizingMaskIntoConstraints = false
+        heroIcon.image = Icons.image(.download, size: 64)
+        heroIcon.tintColor = UIColor(white: 0.62, alpha: 1)
+        heroIcon.contentMode = .scaleAspectFit
+        hero.addSubview(heroIcon)
+
+        heroBar.translatesAutoresizingMaskIntoConstraints = false
+        heroBar.backgroundColor = UIColor(white: 0.62, alpha: 1)
+        heroBar.layer.cornerRadius = 4
+        hero.addSubview(heroBar)
+
+        let pill = UIView()
+        pill.translatesAutoresizingMaskIntoConstraints = false
+        pill.backgroundColor = Theme.surfaceVariant
+        pill.layer.cornerRadius = 22
+        view.addSubview(pill)
+
+        let filter = UIImageView(image: Icons.image(.list, size: 20))
+        filter.tintColor = Theme.secondaryText
+        filter.translatesAutoresizingMaskIntoConstraints = false
+        pill.addSubview(filter)
+
+        let account = UIButton(type: .system)
+        account.backgroundColor = Theme.outline
+        account.layer.cornerRadius = 15
+        account.tintColor = Theme.secondaryText
+        account.setImage(Icons.image(.person, size: 16), for: .normal)
+        account.addTarget(self, action: #selector(openSettings), for: .touchUpInside)
+        account.translatesAutoresizingMaskIntoConstraints = false
+        pill.addSubview(account)
 
         NSLayoutConstraint.activate([
             backButton.topAnchor.constraint(equalTo: safe.topAnchor, constant: 6),
@@ -82,13 +123,41 @@ final class DownloadsViewController: UIViewController {
             backButton.widthAnchor.constraint(equalToConstant: 44),
             backButton.heightAnchor.constraint(equalToConstant: 44),
 
-            titleLabel.topAnchor.constraint(equalTo: backButton.bottomAnchor, constant: 12),
-            titleLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
-            titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -16),
+            pill.topAnchor.constraint(equalTo: backButton.topAnchor),
+            pill.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
+            pill.widthAnchor.constraint(equalToConstant: 100),
+            pill.heightAnchor.constraint(equalToConstant: 44),
 
-            subtitleLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 2),
-            subtitleLabel.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
-            subtitleLabel.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -16)
+            filter.leadingAnchor.constraint(equalTo: pill.leadingAnchor, constant: 18),
+            filter.centerYAnchor.constraint(equalTo: pill.centerYAnchor),
+            filter.widthAnchor.constraint(equalToConstant: 20),
+            filter.heightAnchor.constraint(equalToConstant: 20),
+
+            account.trailingAnchor.constraint(equalTo: pill.trailingAnchor, constant: -7),
+            account.centerYAnchor.constraint(equalTo: pill.centerYAnchor),
+            account.widthAnchor.constraint(equalToConstant: 30),
+            account.heightAnchor.constraint(equalToConstant: 30),
+
+            hero.topAnchor.constraint(equalTo: backButton.bottomAnchor, constant: 26),
+            hero.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            hero.widthAnchor.constraint(equalTo: view.widthAnchor, multiplier: 0.76),
+            hero.heightAnchor.constraint(equalTo: hero.widthAnchor),
+
+            heroIcon.centerXAnchor.constraint(equalTo: hero.centerXAnchor),
+            heroIcon.centerYAnchor.constraint(equalTo: hero.centerYAnchor, constant: -10),
+            heroIcon.widthAnchor.constraint(equalToConstant: 64),
+            heroIcon.heightAnchor.constraint(equalToConstant: 64),
+
+            heroBar.topAnchor.constraint(equalTo: heroIcon.bottomAnchor, constant: 12),
+            heroBar.centerXAnchor.constraint(equalTo: hero.centerXAnchor),
+            heroBar.widthAnchor.constraint(equalToConstant: 56),
+            heroBar.heightAnchor.constraint(equalToConstant: 8),
+
+            titleLabel.topAnchor.constraint(equalTo: hero.bottomAnchor, constant: 22),
+            titleLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+
+            subtitleLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 4),
+            subtitleLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor)
         ])
     }
 
@@ -114,14 +183,14 @@ final class DownloadsViewController: UIViewController {
 
     private func buildEmptyState() {
         emptyTitle.translatesAutoresizingMaskIntoConstraints = false
-        emptyTitle.text = "Nothing downloaded yet."
-        emptyTitle.font = Theme.font(17, weight: .semibold)
-        emptyTitle.textColor = Theme.primaryText
+        emptyTitle.text = "No downloaded tracks"
+        emptyTitle.font = Theme.font(15)
+        emptyTitle.textColor = Theme.secondaryText
         emptyTitle.textAlignment = .center
         view.addSubview(emptyTitle)
 
         emptyDetail.translatesAutoresizingMaskIntoConstraints = false
-        emptyDetail.text = "Long-press any song and choose Download. Saved songs play without a connection."
+        emptyDetail.isHidden = true
         emptyDetail.font = Theme.font(14)
         emptyDetail.textColor = Theme.secondaryText
         emptyDetail.textAlignment = .center
@@ -130,7 +199,7 @@ final class DownloadsViewController: UIViewController {
 
         NSLayoutConstraint.activate([
             emptyTitle.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            emptyTitle.topAnchor.constraint(equalTo: subtitleLabel.bottomAnchor, constant: 72),
+            emptyTitle.topAnchor.constraint(equalTo: subtitleLabel.bottomAnchor, constant: 64),
             emptyTitle.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 32),
             emptyTitle.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -32),
 
@@ -157,8 +226,19 @@ final class DownloadsViewController: UIViewController {
         tableView.reloadData()
         let empty = rows.isEmpty
         emptyTitle.isHidden = !empty
-        emptyDetail.isHidden = !empty
+        emptyDetail.isHidden = true
         tableView.isHidden = empty
+    }
+
+    @objc private func openSettings() {
+        let settings = SettingsViewController()
+        let navigation = UINavigationController(rootViewController: settings)
+        navigation.navigationBar.barTintColor = Theme.background
+        navigation.navigationBar.tintColor = Theme.accent
+        navigation.navigationBar.isTranslucent = false
+        navigation.navigationBar.titleTextAttributes = [.foregroundColor: UIColor.white]
+        settings.modalPresentationStyle = .fullScreen
+        present(navigation, animated: true, completion: nil)
     }
 
     private func delete(at index: Int, item: DownloadedTrack) {

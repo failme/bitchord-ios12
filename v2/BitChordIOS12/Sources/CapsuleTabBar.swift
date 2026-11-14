@@ -7,6 +7,9 @@ final class CapsuleTabBar: UIView {
     var onSelect: ((Int) -> Void)?
 
     private let stack = UIStackView()
+    private let selectionPill = UIView()
+    private var selectedIndex = 0
+    private var pillPlaced = false
     private var controls: [UIControl] = []
     private var iconViews: [UIImageView] = []
     private var labels: [UILabel] = []
@@ -29,13 +32,20 @@ final class CapsuleTabBar: UIView {
 
     private func build() {
         backgroundColor = UIColor(red: 0.11, green: 0.11, blue: 0.13, alpha: 0.96)
-        layer.cornerRadius = 32
+        layer.cornerRadius = 28
         layer.borderWidth = 1
         layer.borderColor = UIColor(white: 1, alpha: 0.14).cgColor
         layer.shadowColor = UIColor.black.cgColor
         layer.shadowOpacity = 0.45
         layer.shadowRadius = 16
         layer.shadowOffset = CGSize(width: 0, height: 6)
+
+        // The white selection pill lives under the controls and slides
+        // between them with the real bar's spring rather than jumping.
+        selectionPill.backgroundColor = .white
+        selectionPill.layer.cornerRadius = 28
+        selectionPill.isUserInteractionEnabled = false
+        addSubview(selectionPill)
 
         stack.axis = .horizontal
         stack.distribution = .fillEqually
@@ -70,7 +80,7 @@ final class CapsuleTabBar: UIView {
 
             let label = UILabel()
             label.text = item.title
-            label.font = Theme.font(10, weight: .semibold)
+            label.font = Theme.font(11, weight: .semibold)
 
             cell.addArrangedSubview(icon)
             cell.addArrangedSubview(label)
@@ -94,12 +104,38 @@ final class CapsuleTabBar: UIView {
     }
 
     func setSelectedIndex(_ index: Int) {
-        for (position, control) in controls.enumerated() {
-            let active = position == index
-            // The selected tab is a solid white pill with black content.
-            control.backgroundColor = active ? UIColor.white : UIColor.clear
-            iconViews[position].tintColor = active ? UIColor.black : UIColor(white: 1, alpha: 0.6)
-            labels[position].textColor = active ? UIColor.black : UIColor(white: 1, alpha: 0.6)
+        selectedIndex = index
+        UIView.transition(with: self, duration: 0.22,
+                          options: [.transitionCrossDissolve, .allowUserInteraction]) {
+            for (position, _) in self.controls.enumerated() {
+                let active = position == index
+                self.iconViews[position].tintColor = active ? UIColor.black : UIColor(white: 1, alpha: 0.6)
+                self.labels[position].textColor = active ? UIColor.black : UIColor(white: 1, alpha: 0.6)
+            }
         }
+        setNeedsLayout()
+        layoutIfNeeded()
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        guard controls.indices.contains(selectedIndex) else { return }
+        let control = controls[selectedIndex]
+        let target = control.convert(control.bounds, to: self)
+        guard target.width > 0, target.height > 0 else { return }
+        if !pillPlaced {
+            selectionPill.frame = target
+            pillPlaced = true
+        } else if selectionPill.frame != target {
+            UIView.animate(withDuration: 0.42,
+                           delay: 0,
+                           usingSpringWithDamping: 0.82,
+                           initialSpringVelocity: 0.3,
+                           options: [.allowUserInteraction, .beginFromCurrentState]) {
+                self.selectionPill.frame = target
+            }
+        }
+        selectionPill.layer.cornerRadius = target.height / 2
+        bringSubviewToFront(stack)
     }
 }

@@ -206,6 +206,21 @@ final class OnboardingViewController: UIViewController {
         }
         scroll.setContentOffset(.zero, animated: false)
         UIAccessibility.post(notification: .screenChanged, argument: titleLabel)
+
+        // Each step settles in rather than swapping instantly. Short enough
+        // that the 320x568 capture, taken 0.3s later, sees the finished frame.
+        guard view.window != nil, UIView.areAnimationsEnabled,
+              !UIAccessibility.isReduceMotionEnabled else { return }
+        for view in [titleLabel, bodyLabel, features] {
+            view.alpha = 0
+            view.transform = CGAffineTransform(translationX: 0, y: 10)
+        }
+        UIView.animate(withDuration: 0.22, delay: 0, options: [.curveEaseOut, .allowUserInteraction]) {
+            for view in [self.titleLabel, self.bodyLabel, self.features] {
+                view.alpha = 1
+                view.transform = .identity
+            }
+        }
     }
 
     private func addFeature(_ title: String, detail: String) {

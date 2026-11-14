@@ -27,18 +27,17 @@ final class SignInBannerView: UIView {
         layer.cornerRadius = 16
         layer.masksToBounds = true
 
-        // The real card runs navy on the left to a brighter royal blue on the
-        // right; it has no violet in it.
-        gradient.colors = [UIColor(red: 0.04, green: 0.16, blue: 0.48, alpha: 1).cgColor,
-                           UIColor(red: 0.08, green: 0.25, blue: 0.62, alpha: 1).cgColor,
-                           UIColor(red: 0.16, green: 0.36, blue: 0.78, alpha: 1).cgColor]
+        // The real card is a violet-to-rose wash, sampled from the running app.
+        gradient.colors = [UIColor(red: 0.42, green: 0.17, blue: 0.71, alpha: 1).cgColor,
+                           UIColor(red: 0.51, green: 0.18, blue: 0.59, alpha: 1).cgColor,
+                           UIColor(red: 0.65, green: 0.20, blue: 0.34, alpha: 1).cgColor]
         gradient.startPoint = CGPoint(x: 0, y: 0.1)
         gradient.endPoint = CGPoint(x: 1, y: 0.9)
         layer.addSublayer(gradient)
 
         let title = UILabel()
         title.text = "Sign in to YouTube Music"
-        title.font = Theme.font(22, weight: .semibold)
+        title.font = Theme.font(20, weight: .semibold)
         title.textColor = .white
         title.translatesAutoresizingMaskIntoConstraints = false
         addSubview(title)

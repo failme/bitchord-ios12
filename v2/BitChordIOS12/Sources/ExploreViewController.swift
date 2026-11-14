@@ -59,6 +59,17 @@ final class ExploreViewController: UIViewController {
         scrollView.showsVerticalScrollIndicator = false
         view.addSubview(scrollView)
 
+        // Like the real Explore, a lone account avatar sits high on the right,
+        // above the 34pt page title.
+        let avatar = UIButton(type: .system)
+        avatar.backgroundColor = Theme.surfaceVariant
+        avatar.layer.cornerRadius = 20
+        avatar.tintColor = Theme.secondaryText
+        avatar.setImage(Icons.image(.person, size: 18), for: .normal)
+        avatar.addTarget(self, action: #selector(openSettings), for: .touchUpInside)
+        avatar.translatesAutoresizingMaskIntoConstraints = false
+        scrollView.addSubview(avatar)
+
         titleLabel.text = "Explore"
         titleLabel.font = Theme.font(34, weight: .bold)
         titleLabel.textColor = Theme.primaryText
@@ -84,6 +95,9 @@ final class ExploreViewController: UIViewController {
             }
             let tile = MoodTileView(mood: mood.title, top: mood.top, bottom: mood.bottom)
             tile.addTarget(self, action: #selector(tileTapped(_:)), for: .touchUpInside)
+            tile.addTarget(self, action: #selector(tilePressIn(_:)), for: [.touchDown, .touchDragEnter])
+            tile.addTarget(self, action: #selector(tilePressOut(_:)),
+                           for: [.touchUpInside, .touchUpOutside, .touchCancel, .touchDragExit])
             row?.addArrangedSubview(tile)
             // The real tiles are photo collages, so each one borrows the first
             // cover the catalogue has for its mood.
@@ -100,7 +114,12 @@ final class ExploreViewController: UIViewController {
             scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
 
-            titleLabel.topAnchor.constraint(equalTo: scrollView.topAnchor, constant: 8),
+            avatar.topAnchor.constraint(equalTo: scrollView.topAnchor, constant: 8),
+            avatar.trailingAnchor.constraint(equalTo: scrollView.trailingAnchor, constant: -16),
+            avatar.widthAnchor.constraint(equalToConstant: 40),
+            avatar.heightAnchor.constraint(equalToConstant: 40),
+
+            titleLabel.topAnchor.constraint(equalTo: avatar.bottomAnchor, constant: 20),
             titleLabel.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor, constant: 16),
 
             grid.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 18),
@@ -109,6 +128,30 @@ final class ExploreViewController: UIViewController {
             grid.bottomAnchor.constraint(equalTo: scrollView.bottomAnchor, constant: -110),
             grid.widthAnchor.constraint(equalTo: scrollView.widthAnchor, constant: -32)
         ])
+    }
+
+    @objc private func openSettings() {
+        let settings = SettingsViewController()
+        let navigation = UINavigationController(rootViewController: settings)
+        navigation.navigationBar.barTintColor = Theme.background
+        navigation.navigationBar.tintColor = Theme.accent
+        navigation.navigationBar.isTranslucent = false
+        navigation.navigationBar.titleTextAttributes = [.foregroundColor: UIColor.white]
+        settings.modalPresentationStyle = .fullScreen
+        present(navigation, animated: true, completion: nil)
+    }
+
+    @objc private func tilePressIn(_ sender: UIControl) {
+        UIView.animate(withDuration: 0.16, delay: 0, options: [.allowUserInteraction]) {
+            sender.transform = CGAffineTransform(scaleX: 0.96, y: 0.96)
+        }
+    }
+
+    @objc private func tilePressOut(_ sender: UIControl) {
+        UIView.animate(withDuration: 0.24, delay: 0, usingSpringWithDamping: 0.7,
+                       initialSpringVelocity: 0.4, options: [.allowUserInteraction]) {
+            sender.transform = .identity
+        }
     }
 
     @objc private func tileTapped(_ sender: MoodTileView) {

@@ -9,7 +9,7 @@ final class RootViewController: UIViewController {
     private var miniBarHeight: NSLayoutConstraint!
     private var selectedIndex = 0
 
-    private let tabBarHeight: CGFloat = 64
+    private let tabBarHeight: CGFloat = 56
     private let miniBarShownHeight: CGFloat = 56
     private let overlayPadding: CGFloat = 8
     private let overlayInset: CGFloat = 16
@@ -75,6 +75,11 @@ final class RootViewController: UIViewController {
 
         for controller in tabs {
             let navigation = UINavigationController(rootViewController: controller)
+            // Tab roots are edge-to-edge: the real app has no navigation bar
+            // chrome above Home, Library, Explore or Search. Pushed screens
+            // get the bar back through the delegate below.
+            navigation.delegate = self
+            navigation.setNavigationBarHidden(true, animated: false)
             navigation.navigationBar.barTintColor = Theme.background
             navigation.navigationBar.tintColor = Theme.accent
             navigation.navigationBar.isTranslucent = false
@@ -100,11 +105,33 @@ final class RootViewController: UIViewController {
     }
 
     private func install(_ index: Int) {
+        let previous = selectedIndex
         selectedIndex = index
-        for (position, navigation) in navigations.enumerated() {
-            navigation.view.isHidden = position != index
-        }
         tabBar.setSelectedIndex(index)
+        guard previous != index, navigations.indices.contains(index) else {
+            for (position, navigation) in navigations.enumerated() {
+                navigation.view.isHidden = position != index
+            }
+            return
+        }
+        let outgoing = navigations[previous]
+        let incoming = navigations[index]
+        incoming.view.isHidden = false
+        incoming.view.alpha = 0
+        // A short crossfade, the way the real tab host swaps pages; sliding the
+        // whole page would fight the floating bar's own motion.
+        UIView.animate(withDuration: 0.22, delay: 0, options: [.beginFromCurrentState, .curveEaseOut],
+                       animations: {
+            outgoing.view.alpha = 0
+            incoming.view.alpha = 1
+        }, completion: { _ in
+            // A second tab tap can land before this fade ends; only hide the
+            // page we actually left if the fade still owns the screen.
+            if self.selectedIndex == index {
+                outgoing.view.isHidden = true
+            }
+            outgoing.view.alpha = 1
+        })
     }
 
     private func buildOverlays() {
@@ -139,9 +166,10 @@ final class RootViewController: UIViewController {
 
     @objc private func playerChanged() {
         let visible = PlayerService.shared.currentTrack != nil
-        miniBar.isHidden = !visible
-        miniBarHeight.constant = visible ? miniBarShownHeight : 0
         miniBar.refresh()
+        if visible {
+            miniBar.isHidden = false
+        }
 
         var inset = tabBarHeight + overlayPadding * 2
         if visible {
@@ -150,6 +178,17 @@ final class RootViewController: UIViewController {
         for navigation in navigations {
             navigation.additionalSafeAreaInsets = UIEdgeInsets(top: 0, left: 0, bottom: inset, right: 0)
         }
+
+        // The bar grows out of the tab bar instead of appearing whole.
+        UIView.animate(withDuration: 0.30, delay: 0,
+                       usingSpringWithDamping: 0.9, initialSpringVelocity: 0.2,
+                       options: [.beginFromCurrentState, .allowUserInteraction]) {
+            self.miniBarHeight.constant = visible ? self.miniBarShownHeight : 0
+            self.miniBar.alpha = visible ? 1 : 0
+            self.view.layoutIfNeeded()
+        }, completion: { _ in
+            if !visible { self.miniBar.isHidden = true }
+        })
     }
 
     /// Drives the tabs for the screenshot harness.
@@ -188,5 +227,14 @@ final class RootViewController: UIViewController {
         let controller = NowPlayingViewController()
         controller.modalPresentationStyle = .fullScreen
         present(controller, animated: true, completion: nil)
+    }
+}
+
+extension RootViewController: UINavigationControllerDelegate {
+    func navigationController(_ navigationController: UINavigationController,
+                              willShow viewController: UIViewController,
+                              animated: Bool) {
+        let isRoot = viewController === navigationController.viewControllers.first
+        navigationController.setNavigationBarHidden(isRoot, animated: animated)
     }
 }
