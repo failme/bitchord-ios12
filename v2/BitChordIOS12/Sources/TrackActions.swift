@@ -95,8 +95,7 @@ enum TrackActions {
         }
         infoRows.append(TrackMenuAction(title: "Song info", icon: .info) {
             let info = SongInfoViewController(track: track)
-            info.modalPresentationStyle = .pageSheet
-            topController()?.present(info, animated: true, completion: nil)
+            topController()?.present(info, animated: false, completion: nil)
         })
 
         let menu = TrackActionsMenuViewController(quickActions: quick,

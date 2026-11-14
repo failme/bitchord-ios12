@@ -175,6 +175,7 @@ final class SearchViewController: UIViewController {
         tableView.tableFooterView = UIView()
         tableView.register(TrackCell.self, forCellReuseIdentifier: TrackCell.reuseIdentifier)
         tableView.register(CatalogueRowCell.self, forCellReuseIdentifier: CatalogueRowCell.reuseIdentifier)
+        tableView.register(RecentSearchCell.self, forCellReuseIdentifier: RecentSearchCell.reuseIdentifier)
         view.addSubview(tableView)
 
         emptyLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -454,9 +455,15 @@ extension SearchViewController: UITableViewDataSource, UITableViewDelegate {
             }
             return cell
         case .recent(let track):
-            let cell = tableView.dequeueReusableCell(withIdentifier: TrackCell.reuseIdentifier, for: indexPath)
-            if let trackCell = cell as? TrackCell {
-                trackCell.configure(with: track)
+            let cell = tableView.dequeueReusableCell(withIdentifier: RecentSearchCell.reuseIdentifier,
+                                                     for: indexPath)
+            if let recent = cell as? RecentSearchCell {
+                recent.configure(with: track)
+                recent.onRemove = { [weak self] in
+                    LibraryStore.shared.removeRecentSearch(track)
+                    self?.tableView.reloadData()
+                    self?.refresh()
+                }
             }
             return cell
         }
@@ -486,6 +493,102 @@ extension SearchViewController: UITableViewDataSource, UITableViewDelegate {
             run(track.title)
             LibraryStore.shared.addRecentSearch(track)
         }
+    }
+}
+
+/// A recent search: the sleeve and title on the left, the artist under it, and
+/// an × that forgets just this search. The real list does not show a duration
+/// or an overflow here.
+final class RecentSearchCell: UITableViewCell {
+    static let reuseIdentifier = "RecentSearchCell"
+
+    var onRemove: (() -> Void)?
+    private let artworkView = UIImageView()
+    private let titleLabel = UILabel()
+    private let artistLabel = UILabel()
+    private let removeButton = UIButton(type: .system)
+    private var artworkTask: URLSessionDataTask?
+    private var currentURL: URL?
+
+    override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
+        super.init(style: style, reuseIdentifier: reuseIdentifier)
+        backgroundColor = .clear
+        selectionStyle = .default
+        let selected = UIView()
+        selected.backgroundColor = Theme.surface
+        selectedBackgroundView = selected
+
+        artworkView.translatesAutoresizingMaskIntoConstraints = false
+        artworkView.contentMode = .scaleAspectFill
+        artworkView.clipsToBounds = true
+        artworkView.backgroundColor = Theme.surfaceVariant
+        artworkView.layer.cornerRadius = 5
+        contentView.addSubview(artworkView)
+
+        titleLabel.translatesAutoresizingMaskIntoConstraints = false
+        titleLabel.font = Theme.font(16)
+        titleLabel.textColor = Theme.primaryText
+        titleLabel.lineBreakMode = .byTruncatingTail
+        contentView.addSubview(titleLabel)
+
+        artistLabel.translatesAutoresizingMaskIntoConstraints = false
+        artistLabel.font = Theme.font(14)
+        artistLabel.textColor = Theme.secondaryText
+        artistLabel.lineBreakMode = .byTruncatingTail
+        contentView.addSubview(artistLabel)
+
+        removeButton.translatesAutoresizingMaskIntoConstraints = false
+        removeButton.tintColor = Theme.secondaryText
+        removeButton.setImage(Icons.image(.close, size: 15), for: .normal)
+        removeButton.addTarget(self, action: #selector(removeTapped), for: .touchUpInside)
+        contentView.addSubview(removeButton)
+
+        NSLayoutConstraint.activate([
+            artworkView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
+            artworkView.centerYAnchor.constraint(equalTo: contentView.centerYAnchor),
+            artworkView.widthAnchor.constraint(equalToConstant: 48),
+            artworkView.heightAnchor.constraint(equalToConstant: 48),
+
+            titleLabel.leadingAnchor.constraint(equalTo: artworkView.trailingAnchor, constant: 12),
+            titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: removeButton.leadingAnchor, constant: -8),
+            titleLabel.bottomAnchor.constraint(equalTo: contentView.centerYAnchor, constant: -1),
+
+            artistLabel.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
+            artistLabel.trailingAnchor.constraint(equalTo: titleLabel.trailingAnchor),
+            artistLabel.topAnchor.constraint(equalTo: contentView.centerYAnchor, constant: 2),
+
+            removeButton.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -14),
+            removeButton.centerYAnchor.constraint(equalTo: contentView.centerYAnchor),
+            removeButton.widthAnchor.constraint(equalToConstant: 32),
+            removeButton.heightAnchor.constraint(equalToConstant: 44)
+        ])
+    }
+
+    required init?(coder: NSCoder) { return nil }
+
+    func configure(with track: Track) {
+        titleLabel.text = track.title
+        artistLabel.text = track.artist
+        artworkTask?.cancel()
+        currentURL = track.artworkURL
+        if let cached = ArtworkLoader.shared.cached(track.artworkURL) {
+            artworkView.image = cached
+            return
+        }
+        artworkView.image = nil
+        artworkTask = ArtworkLoader.shared.load(track.artworkURL) { [weak self] image in
+            guard let self = self, self.currentURL == track.artworkURL else { return }
+            self.artworkView.image = image
+        }
+    }
+
+    @objc private func removeTapped() { onRemove?() }
+
+    override func prepareForReuse() {
+        super.prepareForReuse()
+        artworkTask?.cancel()
+        artworkTask = nil
+        artworkView.image = nil
     }
 }
 

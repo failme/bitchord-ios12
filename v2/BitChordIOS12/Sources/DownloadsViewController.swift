@@ -150,7 +150,7 @@ final class DownloadsViewController: UIViewController {
 
             heroBar.topAnchor.constraint(equalTo: hero.centerYAnchor, constant: 32),
             heroBar.centerXAnchor.constraint(equalTo: hero.centerXAnchor),
-            heroBar.widthAnchor.constraint(equalToConstant: 56),
+            heroBar.widthAnchor.constraint(equalToConstant: 60),
             heroBar.heightAnchor.constraint(equalToConstant: 8),
 
             titleLabel.topAnchor.constraint(equalTo: hero.bottomAnchor, constant: 25),

@@ -76,8 +76,8 @@ final class HistoryViewController: UIViewController {
             accountButton.widthAnchor.constraint(equalToConstant: 44),
             accountButton.heightAnchor.constraint(equalToConstant: 44),
 
-            clearButton.topAnchor.constraint(equalTo: backButton.bottomAnchor, constant: 4),
-            clearButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
+            clearButton.centerYAnchor.constraint(equalTo: backButton.centerYAnchor),
+            clearButton.trailingAnchor.constraint(equalTo: accountButton.leadingAnchor, constant: -8),
 
             tableView.topAnchor.constraint(equalTo: backButton.bottomAnchor, constant: 8),
             tableView.leadingAnchor.constraint(equalTo: view.leadingAnchor),

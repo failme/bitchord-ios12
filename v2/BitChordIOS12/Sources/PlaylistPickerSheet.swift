@@ -29,6 +29,7 @@ final class PlaylistPickerSheetViewController: UIViewController {
     private var creating = false
     private var placed = false
     private var closing = false
+    private var opened = false
 
     init(track: Track, playlists: [Playlist],
          onAdd: @escaping (Set<String>) -> Void,
@@ -121,7 +122,8 @@ final class PlaylistPickerSheetViewController: UIViewController {
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
-        guard content.transform != .identity else { return }
+        guard !opened else { return }
+        opened = true
         let animator = UIViewPropertyAnimator(duration: 0.34, dampingRatio: 0.92) {
             self.content.transform = .identity
         }
@@ -225,7 +227,8 @@ final class PlaylistPickerSheetViewController: UIViewController {
         }
         guard !selected.isEmpty else { return }
         let chosen = selected
-        close { [onAdd] in onAdd(chosen) }
+        let add = onAdd
+        close { add(chosen) }
     }
 
     // MARK: - Create form
@@ -309,7 +312,8 @@ final class PlaylistPickerSheetViewController: UIViewController {
         let name = (field.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { return }
         field.resignFirstResponder()
-        close { [onCreate] in onCreate(name) }
+        let create = onCreate
+        close { create(name) }
     }
 
     private func close(then completion: (() -> Void)? = nil) {

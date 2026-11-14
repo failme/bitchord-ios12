@@ -137,9 +137,9 @@ final class LibraryViewController: UIViewController {
         holder.addSubview(scroller)
         scroller.addSubview(statsRow)
 
-        let experience = LibraryStatCard(colors: [UIColor(red: 0.76, green: 0.45, blue: 0.12, alpha: 1),
-                                                  UIColor(red: 0.52, green: 0.12, blue: 0.15, alpha: 1),
-                                                  UIColor(red: 0.25, green: 0.05, blue: 0.16, alpha: 1)])
+        let experience = LibraryStatCard(colors: [UIColor(red: 0.478, green: 0.314, blue: 0.024, alpha: 1),
+                                                  UIColor(red: 0.420, green: 0.078, blue: 0.125, alpha: 1),
+                                                  UIColor(red: 0.188, green: 0.024, blue: 0.047, alpha: 1)])
         experience.tag = 9002
         experience.widthAnchor.constraint(equalToConstant: 300).isActive = true
         experience.onTap = { [weak self] in
@@ -147,9 +147,9 @@ final class LibraryViewController: UIViewController {
         }
         statsRow.addArrangedSubview(experience)
 
-        let top = LibraryStatCard(colors: [UIColor(red: 0.70, green: 0.40, blue: 0.10, alpha: 1),
-                                           UIColor(red: 0.48, green: 0.11, blue: 0.14, alpha: 1),
-                                           UIColor(red: 0.23, green: 0.05, blue: 0.14, alpha: 1)])
+        let top = LibraryStatCard(colors: [UIColor(red: 0.518, green: 0.298, blue: 0.051, alpha: 1),
+                                           UIColor(red: 0.435, green: 0.078, blue: 0.110, alpha: 1),
+                                           UIColor(red: 0.188, green: 0.024, blue: 0.047, alpha: 1)])
         top.tag = 9003
         top.widthAnchor.constraint(equalToConstant: 300).isActive = true
         top.onTap = { [weak self] in
@@ -230,7 +230,7 @@ final class LibraryViewController: UIViewController {
         let plays = recent.count
         let year = Calendar.current.component(.year, from: Date())
         if let card = statsRow.viewWithTag(9002) as? LibraryStatCard {
-            card.configure(value: "\(plays * 4 + 9)",
+            card.configure(value: "\(LibraryStore.shared.totalMinutesListened)",
                            valueCaption: "MINUTES LISTENED",
                            line: "BITCHORD LISTENER",
                            detail: "\(plays) plays · \(year)",
@@ -261,7 +261,7 @@ final class LibraryViewController: UIViewController {
         firstRow.axis = .horizontal
         firstRow.spacing = 12
         firstRow.distribution = .fillEqually
-        firstRow.widthAnchor.constraint(equalToConstant: 304).isActive = true
+        firstRow.widthAnchor.constraint(equalToConstant: 320).isActive = true
 
         let create = PlaylistCard(title: "New playlist",
                                         caption: "Saved to YouTube Music",
@@ -289,7 +289,7 @@ final class LibraryViewController: UIViewController {
                 newRow.axis = .horizontal
                 newRow.spacing = 12
                 newRow.distribution = .fillEqually
-                newRow.widthAnchor.constraint(equalToConstant: 304).isActive = true
+                newRow.widthAnchor.constraint(equalToConstant: 320).isActive = true
                 playlistGrid.addArrangedSubview(newRow)
                 row = newRow
             }
@@ -406,6 +406,8 @@ final class LibraryViewController: UIViewController {
 /// A large listening-stat card with a gradient fill.
 final class LibraryStatCard: UIControl {
     private let gradient = CAGradientLayer()
+    private let purple = CAGradientLayer()
+    private let shade = CAGradientLayer()
     private let topCaption = UILabel()
     private let logo = UIImageView(image: UIImage(named: "BrandLogo") ?? Icons.image(.logo, size: 30))
     private let valueLabel = UILabel()
@@ -426,10 +428,29 @@ final class LibraryStatCard: UIControl {
         gradient.endPoint = CGPoint(x: 0.9, y: 1)
         layer.addSublayer(gradient)
 
+        // The real card is lit by a mesh, not one diagonal: a violet bloom sits
+        // in the top-right corner while the listening red stays under the foot.
+        purple.type = .radial
+        purple.colors = [UIColor(red: 0.23, green: 0.14, blue: 0.27, alpha: 0.85).cgColor,
+                         UIColor(red: 0.23, green: 0.14, blue: 0.27, alpha: 0).cgColor]
+        purple.startPoint = CGPoint(x: 0.92, y: 0.10)
+        purple.endPoint = CGPoint(x: 1.25, y: 0.75)
+        layer.addSublayer(purple)
+
+        shade.colors = [UIColor.black.withAlphaComponent(0.10).cgColor,
+                        UIColor.black.withAlphaComponent(0.18).cgColor,
+                        UIColor.black.withAlphaComponent(0.48).cgColor]
+        shade.locations = [NSNumber(value: 0), NSNumber(value: 0.55), NSNumber(value: 1)]
+        layer.addSublayer(shade)
+
         topCaption.translatesAutoresizingMaskIntoConstraints = false
-        topCaption.font = Theme.font(10, weight: .semibold)
-        topCaption.textColor = UIColor(white: 1, alpha: 0.92)
-        topCaption.text = "YOUR LISTENING EXPERIENCE"
+        topCaption.font = Theme.font(10, weight: .bold)
+        topCaption.textColor = UIColor(white: 1, alpha: 0.76)
+        topCaption.attributedText = NSAttributedString(
+            string: "YOUR LISTENING EXPERIENCE",
+            attributes: [.font: Theme.font(10, weight: .bold),
+                         .foregroundColor: UIColor(white: 1, alpha: 0.76),
+                         .kern: 1.3])
         addSubview(topCaption)
 
         logo.tintColor = .white
@@ -438,38 +459,42 @@ final class LibraryStatCard: UIControl {
         addSubview(logo)
 
         valueLabel.translatesAutoresizingMaskIntoConstraints = false
-        valueLabel.font = Theme.font(34, weight: .bold)
+        valueLabel.font = Theme.font(27, weight: .bold)
         valueLabel.textColor = .white
-        valueLabel.numberOfLines = 1
+        valueLabel.numberOfLines = 2
         valueLabel.adjustsFontSizeToFitWidth = true
-        valueLabel.minimumScaleFactor = 0.45
+        valueLabel.minimumScaleFactor = 0.7
         addSubview(valueLabel)
 
         valueCaption.translatesAutoresizingMaskIntoConstraints = false
-        valueCaption.font = Theme.font(10, weight: .semibold)
-        valueCaption.textColor = UIColor(white: 1, alpha: 0.9)
+        valueCaption.font = Theme.font(10, weight: .bold)
+        valueCaption.textColor = UIColor(white: 1, alpha: 0.65)
         addSubview(valueCaption)
 
         nameLabel.translatesAutoresizingMaskIntoConstraints = false
-        nameLabel.font = Theme.font(12, weight: .semibold)
+        nameLabel.font = UIFont.monospacedSystemFont(ofSize: 11, weight: .semibold)
         nameLabel.textColor = UIColor(white: 1, alpha: 0.94)
-        nameLabel.text = "BITCHORD LISTENER"
+        nameLabel.attributedText = NSAttributedString(
+            string: "BITCHORD LISTENER",
+            attributes: [.font: UIFont.monospacedSystemFont(ofSize: 11, weight: .semibold),
+                         .foregroundColor: UIColor(white: 1, alpha: 0.94),
+                         .kern: 1.3])
         addSubview(nameLabel)
 
         detailLabel.translatesAutoresizingMaskIntoConstraints = false
-        detailLabel.font = Theme.font(13)
-        detailLabel.textColor = UIColor(white: 1, alpha: 0.82)
+        detailLabel.font = Theme.font(11)
+        detailLabel.textColor = UIColor(white: 1, alpha: 0.62)
         detailLabel.numberOfLines = 1
         addSubview(detailLabel)
 
         memberCaption.translatesAutoresizingMaskIntoConstraints = false
-        memberCaption.font = Theme.font(9, weight: .semibold)
-        memberCaption.textColor = UIColor(white: 1, alpha: 0.8)
+        memberCaption.font = Theme.font(7.5, weight: .bold)
+        memberCaption.textColor = UIColor(white: 1, alpha: 0.55)
         memberCaption.textAlignment = .right
         addSubview(memberCaption)
 
         memberValue.translatesAutoresizingMaskIntoConstraints = false
-        memberValue.font = Theme.font(15, weight: .bold)
+        memberValue.font = UIFont.monospacedSystemFont(ofSize: 11, weight: .semibold)
         memberValue.textColor = .white
         memberValue.textAlignment = .right
         addSubview(memberValue)
@@ -480,8 +505,8 @@ final class LibraryStatCard: UIControl {
 
             logo.topAnchor.constraint(equalTo: topAnchor, constant: 12),
             logo.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -14),
-            logo.widthAnchor.constraint(equalToConstant: 30),
-            logo.heightAnchor.constraint(equalToConstant: 30),
+            logo.widthAnchor.constraint(equalToConstant: 34),
+            logo.heightAnchor.constraint(equalToConstant: 22),
 
             valueLabel.topAnchor.constraint(equalTo: topAnchor, constant: 62),
             valueLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 16),
@@ -531,6 +556,8 @@ final class LibraryStatCard: UIControl {
     override func layoutSubviews() {
         super.layoutSubviews()
         gradient.frame = bounds
+        purple.frame = bounds
+        shade.frame = bounds
     }
 
     func configure(value: String,
@@ -540,12 +567,23 @@ final class LibraryStatCard: UIControl {
                    memberCaption: String,
                    memberValue: String) {
         valueLabel.text = value
-        self.valueCaption.attributedText = Theme.attributed(valueCaption.uppercased(), .labelSmall,
-                                                             color: UIColor(white: 1, alpha: 0.9))
-        nameLabel.text = line
+        self.valueCaption.attributedText = NSAttributedString(
+            string: valueCaption.uppercased(),
+            attributes: [.font: Theme.font(10, weight: .bold),
+                         .foregroundColor: UIColor(white: 1, alpha: 0.65),
+                         .kern: 1.5])
+        nameLabel.attributedText = NSAttributedString(
+            string: line,
+            attributes: [.font: UIFont.monospacedSystemFont(ofSize: 11, weight: .semibold),
+                         .foregroundColor: UIColor(white: 1, alpha: 0.94),
+                         .kern: 1.3])
         detailLabel.text = detail
         self.memberCaption.text = memberCaption
-        self.memberValue.text = memberValue
+        memberValue.attributedText = NSAttributedString(
+            string: memberValue,
+            attributes: [.font: UIFont.monospacedSystemFont(ofSize: 11, weight: .semibold),
+                         .foregroundColor: UIColor.white,
+                         .kern: 0.8])
     }
 
     @objc private func tapped() {
@@ -656,13 +694,13 @@ class PlaylistCard: UIControl {
         artwork.translatesAutoresizingMaskIntoConstraints = false
         addSubview(artwork)
 
-        titleLabel.font = Theme.font(15, weight: .medium)
+        titleLabel.font = Theme.font(16, weight: .medium)
         titleLabel.textColor = Theme.primaryText
         titleLabel.numberOfLines = 1
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
         addSubview(titleLabel)
 
-        captionLabel.font = Theme.font(12)
+        captionLabel.font = Theme.font(14)
         captionLabel.textColor = Theme.secondaryText
         captionLabel.numberOfLines = 1
         captionLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -674,7 +712,7 @@ class PlaylistCard: UIControl {
             artwork.trailingAnchor.constraint(equalTo: trailingAnchor),
             artwork.heightAnchor.constraint(equalTo: artwork.widthAnchor),
 
-            titleLabel.topAnchor.constraint(equalTo: artwork.bottomAnchor, constant: 8),
+            titleLabel.topAnchor.constraint(equalTo: artwork.bottomAnchor, constant: 10),
             titleLabel.leadingAnchor.constraint(equalTo: leadingAnchor),
             titleLabel.trailingAnchor.constraint(equalTo: trailingAnchor),
 

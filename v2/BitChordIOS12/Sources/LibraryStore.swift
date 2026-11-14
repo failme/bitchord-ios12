@@ -216,6 +216,12 @@ final class LibraryStore {
         announce()
     }
 
+    func removeRecentSearch(_ track: Track) {
+        recentSearches.removeAll { $0.videoID == track.videoID }
+        save(recentSearches, key: searchesKey)
+        announce()
+    }
+
     func clearRecentSearches() {
         recentSearches.removeAll()
         save(recentSearches, key: searchesKey)

@@ -240,7 +240,7 @@ enum Icons {
             can.addLine(to: pt(0.68, 0.82))
             can.addLine(to: pt(0.72, 0.36))
             stroke(can)
-            for x: CGFloat in [0.44, 0.56] {
+            for x in [CGFloat(0.44), CGFloat(0.56)] {
                 let line = UIBezierPath()
                 line.move(to: pt(x, 0.46))
                 line.addLine(to: pt(x, 0.70))
@@ -515,12 +515,12 @@ enum Icons {
             }
         case .downloadArrow:
             // The solid download glyph in the Downloads empty-state hero: a
-            // wide head and short shaft, not the small tray used in rows.
-            UIBezierPath(roundedRect: CGRect(x: 0.43 * s, y: 0.24 * s,
-                                             width: 0.14 * s, height: 0.30 * s),
-                         cornerRadius: 0.04 * s).fill()
-            roundedTriangle(pt(0.09, 0.48), pt(0.50, 0.76), pt(0.91, 0.48),
-                            radius: 0.045 * s).fill()
+            // broad stem under a wide head, not the small tray used in rows.
+            UIBezierPath(roundedRect: CGRect(x: 0.35 * s, y: 0.24 * s,
+                                             width: 0.30 * s, height: 0.32 * s),
+                         cornerRadius: 0.02 * s).fill()
+            roundedTriangle(pt(0.08, 0.50), pt(0.50, 0.78), pt(0.92, 0.50),
+                            radius: 0.02 * s).fill()
         case .person:
             UIBezierPath(ovalIn: CGRect(x: 0.36 * s, y: 0.20 * s, width: 0.28 * s, height: 0.28 * s)).fill()
             let shoulders = UIBezierPath()
