@@ -142,7 +142,7 @@ final class RootViewController: UIViewController {
         view.addSubview(tabBar)
 
         miniBar.translatesAutoresizingMaskIntoConstraints = false
-        miniBar.layer.cornerRadius = 12
+        miniBar.layer.cornerRadius = 28
         miniBar.onTap = { [weak self] in
             self?.presentNowPlaying()
         }

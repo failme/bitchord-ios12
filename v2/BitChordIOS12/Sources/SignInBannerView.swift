@@ -1,7 +1,7 @@
 import UIKit
 
-/// The signed-out card the real Home opens with: a blue-to-violet panel with
-/// "Sign in to YouTube Music" and the white Google pill button.
+/// The signed-out card the real Home opens with: a violet-to-crimson panel
+/// with "Sign in to YouTube Music" and the white Google pill button.
 final class SignInBannerView: UIView {
     static let bannerHeight: CGFloat = 119
 
@@ -27,12 +27,13 @@ final class SignInBannerView: UIView {
         layer.cornerRadius = 16
         layer.masksToBounds = true
 
-        // The real card is a violet-to-rose wash, sampled from the running app.
-        gradient.colors = [UIColor(red: 0.42, green: 0.17, blue: 0.71, alpha: 1).cgColor,
-                           UIColor(red: 0.51, green: 0.18, blue: 0.59, alpha: 1).cgColor,
-                           UIColor(red: 0.65, green: 0.20, blue: 0.34, alpha: 1).cgColor]
-        gradient.startPoint = CGPoint(x: 0, y: 0.1)
-        gradient.endPoint = CGPoint(x: 1, y: 0.9)
+        // Sampled from the running app: deep violet on the left, bright
+        // crimson at the top right, then darker toward the bottom edge.
+        gradient.colors = [UIColor(red: 0.45, green: 0.04, blue: 0.44, alpha: 1).cgColor,
+                           UIColor(red: 0.66, green: 0.09, blue: 0.35, alpha: 1).cgColor,
+                           UIColor(red: 0.80, green: 0.11, blue: 0.23, alpha: 1).cgColor]
+        gradient.startPoint = CGPoint(x: 0, y: 0)
+        gradient.endPoint = CGPoint(x: 1, y: 0.25)
         layer.addSublayer(gradient)
 
         let title = UILabel()

@@ -210,6 +210,12 @@ final class DownloadsViewController: UIViewController {
         ])
     }
 
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        // The screen has its own circled back button, so no system bar above it.
+        navigationController?.setNavigationBarHidden(true, animated: false)
+    }
+
     @objc private func close() {
         if let nav = navigationController, nav.viewControllers.count > 1 {
             nav.popViewController(animated: true)

@@ -113,8 +113,19 @@ final class SettingsViewController: UIViewController {
         ])
     }
 
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        // Settings draws its own back button and 34pt heading, so the system
+        // bar must not add a second 44pt band above them.
+        navigationController?.setNavigationBarHidden(true, animated: false)
+    }
+
     @objc private func close() {
-        dismiss(animated: true, completion: nil)
+        if let nav = navigationController, nav.viewControllers.count > 1 {
+            nav.popViewController(animated: true)
+        } else {
+            dismiss(animated: true, completion: nil)
+        }
     }
 
     @objc private func toggleChanged(_ sender: UISwitch) {

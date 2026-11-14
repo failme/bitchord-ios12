@@ -103,7 +103,7 @@ final class SearchViewController: UIViewController {
         view.addSubview(avatarButton)
 
         NSLayoutConstraint.activate([
-            fieldContainer.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
+            fieldContainer.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 4),
             fieldContainer.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
             fieldContainer.trailingAnchor.constraint(equalTo: avatarButton.leadingAnchor, constant: -10),
             fieldContainer.heightAnchor.constraint(equalToConstant: 50),
@@ -148,7 +148,7 @@ final class SearchViewController: UIViewController {
         }
         view.addSubview(sourceSelector)
         NSLayoutConstraint.activate([
-            sourceSelector.topAnchor.constraint(equalTo: fieldContainer.bottomAnchor, constant: 10),
+            sourceSelector.topAnchor.constraint(equalTo: fieldContainer.bottomAnchor, constant: 6),
             sourceSelector.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: Theme.gutter),
             sourceSelector.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -Theme.gutter),
             sourceSelector.heightAnchor.constraint(equalToConstant: 40)

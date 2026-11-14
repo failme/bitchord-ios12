@@ -119,7 +119,7 @@ final class ExploreViewController: UIViewController {
             avatar.widthAnchor.constraint(equalToConstant: 40),
             avatar.heightAnchor.constraint(equalToConstant: 40),
 
-            titleLabel.topAnchor.constraint(equalTo: avatar.bottomAnchor, constant: 20),
+            titleLabel.topAnchor.constraint(equalTo: avatar.bottomAnchor, constant: 30),
             titleLabel.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor, constant: 16),
 
             grid.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 18),

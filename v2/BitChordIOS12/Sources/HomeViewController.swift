@@ -46,7 +46,7 @@ final class HomeViewController: UIViewController {
 
         let avatar = UIButton(type: .system)
         avatar.backgroundColor = Theme.surfaceVariant
-        avatar.layer.cornerRadius = 19
+        avatar.layer.cornerRadius = 22
         avatar.tintColor = Theme.secondaryText
         avatar.setImage(Icons.image(.person, size: 20), for: .normal)
         avatar.addTarget(self, action: #selector(openSettings), for: .touchUpInside)
@@ -54,17 +54,17 @@ final class HomeViewController: UIViewController {
         header.addSubview(avatar)
 
         NSLayoutConstraint.activate([
-            // Upstream's HomeTitle: the wordmark is 0.9x the 34pt display size,
-            // 730:484, with 14pt under it.
-            header.heightAnchor.constraint(equalToConstant: 46),
+            // The real header is two rows: the avatar at the very top right,
+            // then the wordmark lower on the left, with the banner beneath.
+            header.heightAnchor.constraint(equalToConstant: 96),
             logo.leadingAnchor.constraint(equalTo: header.leadingAnchor, constant: Theme.gutter),
-            logo.centerYAnchor.constraint(equalTo: header.centerYAnchor),
-            logo.widthAnchor.constraint(equalToConstant: 56),
-            logo.heightAnchor.constraint(equalToConstant: 37),
+            logo.bottomAnchor.constraint(equalTo: header.bottomAnchor, constant: -22),
+            logo.widthAnchor.constraint(equalToConstant: 46),
+            logo.heightAnchor.constraint(equalToConstant: 30),
             avatar.trailingAnchor.constraint(equalTo: header.trailingAnchor, constant: -Theme.gutter),
-            avatar.centerYAnchor.constraint(equalTo: header.centerYAnchor),
-            avatar.widthAnchor.constraint(equalToConstant: 46),
-            avatar.heightAnchor.constraint(equalToConstant: 46)
+            avatar.topAnchor.constraint(equalTo: header.topAnchor, constant: 8),
+            avatar.widthAnchor.constraint(equalToConstant: 44),
+            avatar.heightAnchor.constraint(equalToConstant: 44)
         ])
         stack.addArrangedSubview(header)
 
