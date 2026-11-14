@@ -1533,18 +1533,30 @@ enum ScreenshotHarness {
         SettingsStore.shared.set(DownloadQuality.high.rawValue, for: "BitChord.Download.Quality")
         SettingsStore.shared.set("Unlimited", for: DownloadStore.storageLimitKey)
         SettingsStore.shared.set(false, for: "BitChord.Download.WifiOnly")
-        CatalogueSearch.shared.songs("Save Your Tears The Weeknd") { tracks in
+        CatalogueSearch.shared.songs("Can't Feel My Face The Weeknd") { tracks in
             // Anything already on disk would short-circuit, so take a fresh one.
             var fresh = tracks.filter { !DownloadStore.shared.isDownloaded($0.videoID) }
             if fresh.isEmpty {
                 // The live search occasionally returns nothing; the transfer
-                // fixture still has a known catalogue id to fall back on.
-                let known = Track(videoID: "XXYlFuWEuKI", title: "Save Your Tears",
-                                  artist: "The Weeknd", album: "After Hours",
-                                  durationSeconds: 215)
-                if !DownloadStore.shared.isDownloaded(known.videoID) {
-                    fresh = [known]
-                }
+                // fixture still has known catalogue songs to fall back on.
+                let known = [
+                    Track(videoID: "saavn:fW-Mxsnu", title: "Blinding Lights",
+                          artist: "The Weeknd", album: "After Hours",
+                          durationSeconds: 200),
+                    Track(videoID: "XXYlFuWEuKI", title: "Save Your Tears",
+                          artist: "The Weeknd", album: "After Hours",
+                          durationSeconds: 215),
+                    Track(videoID: "34Na4j8AVgA", title: "Starboy",
+                          artist: "The Weeknd", album: "Starboy",
+                          durationSeconds: 230),
+                    Track(videoID: "KEI4qSrkPAs", title: "Can't Feel My Face",
+                          artist: "The Weeknd", album: "Beauty Behind the Madness",
+                          durationSeconds: 215),
+                    Track(videoID: "qFLhGq0060w", title: "I Feel It Coming",
+                          artist: "The Weeknd", album: "Starboy",
+                          durationSeconds: 269),
+                ]
+                fresh = known.filter { !DownloadStore.shared.isDownloaded($0.videoID) }
             }
             tryBackgroundStart(fresh, index: 0, base: base, directory: directory, keep: keep)
         }
