@@ -387,7 +387,7 @@ final class NowPlayingViewController: UIViewController {
         }
 
         configureTransportButton(shuffleButton, icon: .shuffle, size: 20, action: #selector(goShuffle))
-        configureTransportButton(previousButton, icon: .previous, size: 46, action: #selector(goPrevious))
+        configureTransportButton(previousButton, icon: .previous, size: 52, action: #selector(goPrevious))
         configureTransportButton(playButton, icon: .play, size: 26, action: #selector(togglePlay))
         playButton.backgroundColor = .white
         playButton.layer.cornerRadius = 32
@@ -396,7 +396,7 @@ final class NowPlayingViewController: UIViewController {
         playButton.layer.shadowOpacity = 0.35
         playButton.layer.shadowRadius = 12
         playButton.layer.shadowOffset = CGSize(width: 0, height: 6)
-        configureTransportButton(nextButton, icon: .next, size: 46, action: #selector(goNext))
+        configureTransportButton(nextButton, icon: .next, size: 52, action: #selector(goNext))
         configureTransportButton(repeatButton, icon: .repeatAll, size: 20, action: #selector(goRepeat))
 
         configureTransportButton(likeButton, icon: .heart, size: 22, action: #selector(toggleLike))
@@ -509,8 +509,6 @@ final class NowPlayingViewController: UIViewController {
             volumeSlider.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
             volumeSlider.heightAnchor.constraint(equalToConstant: 18),
 
-            playButton.bottomAnchor.constraint(equalTo: volumeSlider.topAnchor, constant: squat ? -14 : -22),
-
             modeButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 56),
             modeButton.centerYAnchor.constraint(equalTo: likeButton.centerYAnchor),
             modeButton.widthAnchor.constraint(equalToConstant: 32),
@@ -521,7 +519,7 @@ final class NowPlayingViewController: UIViewController {
             outputButton.widthAnchor.constraint(equalToConstant: 44),
             outputButton.heightAnchor.constraint(equalToConstant: 44),
 
-            outputLabel.topAnchor.constraint(equalTo: outputButton.bottomAnchor, constant: -6),
+            outputLabel.topAnchor.constraint(equalTo: outputButton.bottomAnchor, constant: 12),
             outputLabel.centerXAnchor.constraint(equalTo: outputButton.centerXAnchor),
 
             volumeLow.centerYAnchor.constraint(equalTo: volumeSlider.centerYAnchor),
@@ -578,7 +576,7 @@ final class NowPlayingViewController: UIViewController {
             repeatButton.widthAnchor.constraint(equalToConstant: 44),
             repeatButton.heightAnchor.constraint(equalToConstant: 44),
 
-            likeButton.bottomAnchor.constraint(equalTo: safe.bottomAnchor, constant: -18),
+            likeButton.bottomAnchor.constraint(equalTo: safe.bottomAnchor, constant: -8),
             likeButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 40),
             likeButton.widthAnchor.constraint(equalToConstant: 44),
             likeButton.heightAnchor.constraint(equalToConstant: 44),
@@ -616,7 +614,7 @@ final class NowPlayingViewController: UIViewController {
         playButton.layer.shadowOpacity = 0
         playButton.tintColor = Theme.primaryText
         playButton.imageEdgeInsets = .zero
-        playButton.setImage(Icons.image(PlayerService.shared.isPlaying ? .pause : .play, size: 48), for: .normal)
+        playButton.setImage(Icons.image(PlayerService.shared.isPlaying ? .pause : .play, size: 56), for: .normal)
         // In lyrics mode the cover itself is the backdrop: the dark blur
         // effect above it softens it exactly the way the real panel does.
         backdropView.alpha = lyrics ? 0.9 : 0
@@ -713,7 +711,7 @@ final class NowPlayingViewController: UIViewController {
             badgeLabel.text = nil
         }
         statusLabel.text = service.statusText.isEmpty ? nil : service.statusText
-        let glyph = Icons.image(service.isPlaying ? .pause : .play, size: 48)
+        let glyph = Icons.image(service.isPlaying ? .pause : .play, size: 56)
         UIView.transition(with: playButton, duration: 0.18,
                           options: [.transitionCrossDissolve, .allowUserInteraction]) {
             self.playButton.setImage(glyph, for: .normal)

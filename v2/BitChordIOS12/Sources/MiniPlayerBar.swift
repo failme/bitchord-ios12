@@ -32,6 +32,8 @@ final class MiniPlayerBar: UIView {
 
         progressView.translatesAutoresizingMaskIntoConstraints = false
         progressView.backgroundColor = Theme.accent
+        // The real mini bar has no accent progress line on its top edge.
+        progressView.isHidden = true
         addSubview(progressView)
 
         artworkView.translatesAutoresizingMaskIntoConstraints = false
