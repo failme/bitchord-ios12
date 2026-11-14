@@ -25,8 +25,8 @@ final class ExploreViewController: UIViewController {
              bottom: UIColor(red: 0.64, green: 0.49, blue: 0.31, alpha: 1)),
         Mood(title: "Feel good", top: UIColor(red: 0.31, green: 0.64, blue: 0.37, alpha: 1),
              bottom: UIColor(red: 0.20, green: 0.48, blue: 0.26, alpha: 1)),
-        Mood(title: "Focus", top: UIColor(red: 0.62, green: 0.64, blue: 0.66, alpha: 1),
-             bottom: UIColor(red: 0.45, green: 0.47, blue: 0.49, alpha: 1)),
+        Mood(title: "Focus", top: UIColor(red: 0.43, green: 0.44, blue: 0.46, alpha: 1),
+             bottom: UIColor(red: 0.30, green: 0.31, blue: 0.33, alpha: 1)),
         Mood(title: "Gaming", top: UIColor(red: 0.36, green: 0.37, blue: 0.48, alpha: 1),
              bottom: UIColor(red: 0.23, green: 0.24, blue: 0.33, alpha: 1)),
         Mood(title: "Party", top: UIColor(red: 0.61, green: 0.42, blue: 0.84, alpha: 1),
@@ -258,7 +258,7 @@ final class MoodTileView: UIButton {
         layer.addSublayer(shade)
 
         label.text = mood
-        label.font = Theme.font(16, weight: .bold)
+        label.font = Theme.font(15, weight: .bold)
         label.textColor = .white
         label.numberOfLines = 2
         label.layer.shadowColor = UIColor.black.cgColor
@@ -281,7 +281,9 @@ final class MoodTileView: UIButton {
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        let stripe = bounds.width * 0.28
+        // The real sleeves give the colour band roughly a fifth of the card,
+        // leaving the duotone picture the rest.
+        let stripe = bounds.width * 0.20
         artContainer.frame = CGRect(x: stripe, y: 0,
                                     width: max(0, bounds.width - stripe), height: bounds.height)
         photo.frame = artContainer.bounds

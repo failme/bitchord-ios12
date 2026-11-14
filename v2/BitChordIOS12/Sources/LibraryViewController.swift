@@ -195,7 +195,7 @@ final class LibraryViewController: UIViewController {
     private func buildPlaylists() {
         let heading = UILabel()
         heading.text = "Playlists"
-        heading.font = Theme.font(17, weight: .bold)
+        heading.font = Theme.font(15, weight: .bold)
         heading.textColor = Theme.primaryText
         let holder = UIView()
         holder.addSubview(heading)
@@ -572,13 +572,13 @@ final class LibraryRowButton: UIControl {
 
         let label = UILabel()
         label.text = title
-        label.font = Theme.font(17)
+        label.font = Theme.font(16)
         label.textColor = Theme.primaryText
         label.translatesAutoresizingMaskIntoConstraints = false
         addSubview(label)
 
         // Both real rows end in a small grey chevron.
-        let chevron = UIImageView(image: Icons.image(.chevronRight, size: 15))
+        let chevron = UIImageView(image: Icons.image(.chevronRight, size: 20))
         chevron.tintColor = Theme.secondaryText
         chevron.contentMode = .scaleAspectFit
         chevron.translatesAutoresizingMaskIntoConstraints = false
@@ -600,8 +600,8 @@ final class LibraryRowButton: UIControl {
 
             chevron.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -16),
             chevron.centerYAnchor.constraint(equalTo: centerYAnchor),
-            chevron.widthAnchor.constraint(equalToConstant: 9),
-            chevron.heightAnchor.constraint(equalToConstant: 15),
+            chevron.widthAnchor.constraint(equalToConstant: 12),
+            chevron.heightAnchor.constraint(equalToConstant: 20),
 
             hairline.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 56),
             hairline.trailingAnchor.constraint(equalTo: trailingAnchor),

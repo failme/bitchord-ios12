@@ -1,10 +1,10 @@
 import UIKit
 
-/// The per-track action sheet. iOS 12 has no context-menu API, so a long press
-/// plus an action sheet is what the real app's track menu becomes here.
+/// The per-track menu. iOS 12 has no context-menu API, so a long press opens the
+/// same kind of floating iOS panel upstream draws for Android.
 ///
 /// One builder serves the rows and the capture harness, so what the screenshots
-/// show is the sheet the app really presents — not a mock of it.
+/// show is the menu the app really presents — not a mock of it.
 enum TrackActions {
     /// The rows this track offers, in the order upstream's menu shows them.
     /// The harness asserts against this list, so a removed action cannot pass
@@ -33,38 +33,50 @@ enum TrackActions {
 
     static func present(for track: Track, from host: UIViewController, sourceView: UIView?) {
         let store = DownloadStore.shared
-        let sheet = UIAlertController(title: track.title, message: track.artist,
-                                      preferredStyle: .actionSheet)
-        sheet.addAction(UIAlertAction(title: "Play next", style: .default) { _ in
-            PlayerService.shared.playNext(track)
-        })
-        sheet.addAction(UIAlertAction(title: "Add to queue", style: .default) { _ in
-            PlayerService.shared.addToQueue(track)
-        })
-        sheet.addAction(UIAlertAction(title: "Add to playlist", style: .default) { _ in
-            PlaylistPicker.present(for: track, from: host)
-        })
         let liked = LibraryStore.shared.isLiked(track)
-        sheet.addAction(UIAlertAction(title: liked ? "Unlike" : "Like", style: .default) { _ in
-            LibraryStore.shared.toggleLike(track)
-        })
-        if canOpenArtist(track) {
-            sheet.addAction(UIAlertAction(title: "Go to artist", style: .default) { _ in
-                openArtist(for: track, from: host)
+
+        // The two the real menu lifts to the top as tiles: rating and sharing.
+        let quick = [
+            TrackMenuAction(title: liked ? "Unlike" : "Like",
+                            icon: liked ? .heartFilled : .heart) {
+                LibraryStore.shared.toggleLike(track)
+            },
+            TrackMenuAction(title: "Share", icon: .share) {
+                share(track, from: host)
+            },
+        ]
+
+        let playlistRows = [
+            TrackMenuAction(title: "Add to playlist", icon: .plus) {
+                PlaylistPicker.present(for: track, from: host)
+            },
+        ]
+
+        var transportRows = [TrackMenuAction]()
+        // Upstream's menu starts a radio from any song; a local file has no
+        // catalogue id to seed one, so the row only appears for catalogue songs.
+        if !track.videoID.hasPrefix(LocalMusicStore.idPrefix) {
+            transportRows.append(TrackMenuAction(title: "Start radio", icon: .radio) {
+                RadioService.start(from: track, host: topController())
             })
         }
+        transportRows.append(TrackMenuAction(title: "Play next", icon: .next) {
+            PlayerService.shared.playNext(track)
+        })
+        transportRows.append(TrackMenuAction(title: "Add to queue", icon: .queue) {
+            PlayerService.shared.addToQueue(track)
+        })
         if store.isDownloaded(track.videoID) {
-            sheet.addAction(UIAlertAction(title: "Delete download", style: .destructive) { _ in
+            transportRows.append(TrackMenuAction(title: "Delete download", icon: .trash,
+                                                 destructive: true) {
                 store.remove(track.videoID)
             })
         } else if store.isDownloading(track.videoID) {
-            // Cannot be `.cancel` style: the sheet already ends with a Cancel
-            // action, and UIKit asserts when two share that style.
-            sheet.addAction(UIAlertAction(title: "Cancel download", style: .default) { _ in
+            transportRows.append(TrackMenuAction(title: "Cancel download", icon: .close) {
                 store.cancel(track.videoID)
             })
         } else {
-            sheet.addAction(UIAlertAction(title: "Download", style: .default) { _ in
+            transportRows.append(TrackMenuAction(title: "Download", icon: .download) {
                 store.download(track) { ok, message in
                     guard !ok, let presenter = topController() else { return }
                     let alert = UIAlertController(title: "Download", message: message,
@@ -74,27 +86,23 @@ enum TrackActions {
                 }
             })
         }
-        // Upstream's menu starts a radio from any song; a local file has no
-        // catalogue id to seed one, so the row only appears for catalogue songs.
-        if !track.videoID.hasPrefix(LocalMusicStore.idPrefix) {
-            sheet.addAction(UIAlertAction(title: "Start radio", style: .default) { _ in
-                RadioService.start(from: track, host: topController())
+
+        var infoRows = [TrackMenuAction]()
+        if canOpenArtist(track) {
+            infoRows.append(TrackMenuAction(title: "Go to artist", icon: .personOutline) {
+                openArtist(for: track, from: host)
             })
         }
-        sheet.addAction(UIAlertAction(title: "Share", style: .default) { _ in
-            share(track, from: host)
-        })
-        sheet.addAction(UIAlertAction(title: "Song info", style: .default) { _ in
+        infoRows.append(TrackMenuAction(title: "Song info", icon: .info) {
             let info = SongInfoViewController(track: track)
             info.modalPresentationStyle = .pageSheet
             topController()?.present(info, animated: true, completion: nil)
         })
-        sheet.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        if let pop = sheet.popoverPresentationController {
-            pop.sourceView = sourceView ?? host.view
-            pop.sourceRect = sourceView?.bounds ?? host.view.bounds
-        }
-        host.present(sheet, animated: true)
+
+        let menu = TrackActionsMenuViewController(quickActions: quick,
+                                                  groups: [playlistRows, transportRows, infoRows],
+                                                  anchorView: sourceView)
+        host.present(menu, animated: false)
     }
 
     /// Upstream shares a lyrics card; iOS shares through the system sheet,
@@ -153,22 +161,19 @@ enum TrackActions {
 /// plus a new one. Adding is the same store call the library buttons use.
 enum PlaylistPicker {
     static func present(for track: Track, from host: UIViewController) {
-        let sheet = UIAlertController(title: "Add to playlist", message: track.title,
-                                      preferredStyle: .actionSheet)
-        for playlist in LibraryStore.shared.playlists {
-            sheet.addAction(UIAlertAction(title: playlist.title, style: .default) { _ in
+        let sheet = PlaylistPickerSheetViewController(
+            track: track,
+            playlists: LibraryStore.shared.playlists,
+            onAdd: { ids in
+                for id in ids {
+                    PlaylistPicker.add(track, to: id)
+                }
+            },
+            onCreate: { name in
+                let playlist = LibraryStore.shared.createPlaylist(title: name)
                 PlaylistPicker.add(track, to: playlist.id)
             })
-        }
-        sheet.addAction(UIAlertAction(title: "New playlist…", style: .default) { _ in
-            createAndAdd(track: track, from: host)
-        })
-        sheet.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        if let pop = sheet.popoverPresentationController {
-            pop.sourceView = host.view
-            pop.sourceRect = host.view.bounds
-        }
-        host.present(sheet, animated: true)
+        host.present(sheet, animated: false)
     }
 
     /// The store work behind a playlist row. The sheet and the harness both go
@@ -179,19 +184,4 @@ enum PlaylistPicker {
         return LibraryStore.shared.playlists.first { $0.id == playlistID }?.tracks.count ?? 0
     }
 
-    private static func createAndAdd(track: Track, from host: UIViewController) {
-        let alert = UIAlertController(title: "New playlist", message: nil, preferredStyle: .alert)
-        alert.addTextField { field in
-            field.placeholder = "Name"
-            field.autocapitalizationType = .words
-        }
-        alert.addAction(UIAlertAction(title: "Create", style: .default) { _ in
-            let name = (alert.textFields?.first?.text ?? "").trimmingCharacters(in: .whitespaces)
-            guard !name.isEmpty else { return }
-            let playlist = LibraryStore.shared.createPlaylist(title: name)
-            PlaylistPicker.add(track, to: playlist.id)
-        })
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        host.present(alert, animated: true)
-    }
 }

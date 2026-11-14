@@ -65,7 +65,7 @@ final class LocalMusicViewController: UIViewController {
         hero.layer.cornerRadius = 16
         view.addSubview(hero)
 
-        let folder = UIImageView(image: Icons.image(.folder, size: 160))
+        let folder = UIImageView(image: Icons.image(.folder, size: 128))
         folder.tintColor = UIColor(white: 0.46, alpha: 1)
         folder.translatesAutoresizingMaskIntoConstraints = false
         hero.addSubview(folder)
@@ -76,7 +76,7 @@ final class LocalMusicViewController: UIViewController {
         pill.layer.cornerRadius = 22
         view.addSubview(pill)
 
-        let filter = UIImageView(image: Icons.image(.list, size: 20))
+        let filter = UIImageView(image: Icons.image(.sliders, size: 20))
         filter.tintColor = Theme.secondaryText
         filter.translatesAutoresizingMaskIntoConstraints = false
         pill.addSubview(filter)
@@ -130,8 +130,8 @@ final class LocalMusicViewController: UIViewController {
 
             folder.centerXAnchor.constraint(equalTo: hero.centerXAnchor),
             folder.centerYAnchor.constraint(equalTo: hero.centerYAnchor),
-            folder.widthAnchor.constraint(equalToConstant: 160),
-            folder.heightAnchor.constraint(equalToConstant: 160),
+            folder.widthAnchor.constraint(equalToConstant: 128),
+            folder.heightAnchor.constraint(equalToConstant: 128),
 
             titleLabel.topAnchor.constraint(equalTo: hero.bottomAnchor, constant: 25),
             titleLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),

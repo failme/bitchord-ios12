@@ -87,7 +87,7 @@ final class DownloadsViewController: UIViewController {
         view.addSubview(hero)
 
         heroIcon.translatesAutoresizingMaskIntoConstraints = false
-        heroIcon.image = Icons.image(.downloadArrow, size: 72)
+        heroIcon.image = Icons.image(.downloadArrow, size: 108)
         heroIcon.tintColor = UIColor(white: 0.62, alpha: 1)
         heroIcon.contentMode = .scaleAspectFit
         hero.addSubview(heroIcon)
@@ -103,7 +103,7 @@ final class DownloadsViewController: UIViewController {
         pill.layer.cornerRadius = 22
         view.addSubview(pill)
 
-        let filter = UIImageView(image: Icons.image(.list, size: 20))
+        let filter = UIImageView(image: Icons.image(.sliders, size: 20))
         filter.tintColor = Theme.secondaryText
         filter.translatesAutoresizingMaskIntoConstraints = false
         pill.addSubview(filter)
@@ -144,11 +144,11 @@ final class DownloadsViewController: UIViewController {
             hero.heightAnchor.constraint(equalTo: hero.widthAnchor),
 
             heroIcon.centerXAnchor.constraint(equalTo: hero.centerXAnchor),
-            heroIcon.centerYAnchor.constraint(equalTo: hero.centerYAnchor, constant: -8),
-            heroIcon.widthAnchor.constraint(equalToConstant: 72),
-            heroIcon.heightAnchor.constraint(equalToConstant: 72),
+            heroIcon.centerYAnchor.constraint(equalTo: hero.centerYAnchor, constant: -2),
+            heroIcon.widthAnchor.constraint(equalToConstant: 108),
+            heroIcon.heightAnchor.constraint(equalToConstant: 108),
 
-            heroBar.topAnchor.constraint(equalTo: heroIcon.bottomAnchor, constant: 4),
+            heroBar.topAnchor.constraint(equalTo: hero.centerYAnchor, constant: 32),
             heroBar.centerXAnchor.constraint(equalTo: hero.centerXAnchor),
             heroBar.widthAnchor.constraint(equalToConstant: 56),
             heroBar.heightAnchor.constraint(equalToConstant: 8),

@@ -7,11 +7,36 @@ final class HistoryViewController: UIViewController {
     private let tableView = UITableView(frame: .zero, style: .plain)
     private let emptyLabel = UILabel()
     private let clearButton = UIButton(type: .system)
+    private let backButton = UIButton(type: .system)
+    private let accountButton = UIButton(type: .system)
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        // Like Downloads and Local Music, this route draws its own round
+        // header instead of the navigation bar's large title.
+        navigationController?.setNavigationBarHidden(true, animated: false)
+    }
 
     override func viewDidLoad() {
         super.viewDidLoad()
         title = "History"
         view.backgroundColor = Theme.background
+
+        backButton.translatesAutoresizingMaskIntoConstraints = false
+        backButton.backgroundColor = UIColor(white: 1, alpha: 0.06)
+        backButton.layer.cornerRadius = 22
+        backButton.tintColor = Theme.primaryText
+        backButton.setImage(Icons.image(.chevronLeft, size: 20), for: .normal)
+        backButton.addTarget(self, action: #selector(closeTapped), for: .touchUpInside)
+        view.addSubview(backButton)
+
+        accountButton.translatesAutoresizingMaskIntoConstraints = false
+        accountButton.backgroundColor = UIColor(white: 1, alpha: 0.06)
+        accountButton.layer.cornerRadius = 22
+        accountButton.tintColor = Theme.secondaryText
+        accountButton.setImage(Icons.image(.personOutline, size: 20), for: .normal)
+        accountButton.addTarget(self, action: #selector(openSettings), for: .touchUpInside)
+        view.addSubview(accountButton)
 
         clearButton.translatesAutoresizingMaskIntoConstraints = false
         clearButton.setTitle("Clear", for: .normal)
@@ -34,24 +59,43 @@ final class HistoryViewController: UIViewController {
 
         emptyLabel.translatesAutoresizingMaskIntoConstraints = false
         emptyLabel.text = "Nothing played yet"
-        emptyLabel.font = Theme.font(.bodyMedium)
+        emptyLabel.font = Theme.font(17)
         emptyLabel.textColor = Theme.secondaryText
         emptyLabel.textAlignment = .center
         emptyLabel.isHidden = !PlaybackHistoryStore.shared.items.isEmpty
         view.addSubview(emptyLabel)
 
         NSLayoutConstraint.activate([
-            clearButton.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
+            backButton.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: -10),
+            backButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
+            backButton.widthAnchor.constraint(equalToConstant: 44),
+            backButton.heightAnchor.constraint(equalToConstant: 44),
+
+            accountButton.topAnchor.constraint(equalTo: backButton.topAnchor),
+            accountButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
+            accountButton.widthAnchor.constraint(equalToConstant: 44),
+            accountButton.heightAnchor.constraint(equalToConstant: 44),
+
+            clearButton.topAnchor.constraint(equalTo: backButton.bottomAnchor, constant: 4),
             clearButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
 
-            tableView.topAnchor.constraint(equalTo: clearButton.bottomAnchor, constant: 8),
+            tableView.topAnchor.constraint(equalTo: backButton.bottomAnchor, constant: 8),
             tableView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             tableView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             tableView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
 
             emptyLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            emptyLabel.centerYAnchor.constraint(equalTo: view.centerYAnchor)
+            emptyLabel.topAnchor.constraint(equalTo: backButton.bottomAnchor, constant: 84)
         ])
+        reload()
+    }
+
+    @objc private func closeTapped() {
+        navigationController?.popViewController(animated: true)
+    }
+
+    @objc private func openSettings() {
+        navigationController?.pushViewController(SettingsViewController(), animated: true)
     }
 
     @objc private func clearTapped() {
@@ -60,8 +104,11 @@ final class HistoryViewController: UIViewController {
     }
 
     func reload() {
+        let empty = PlaybackHistoryStore.shared.items.isEmpty
         tableView.reloadData()
-        emptyLabel.isHidden = !PlaybackHistoryStore.shared.items.isEmpty
+        tableView.isHidden = empty
+        emptyLabel.isHidden = !empty
+        clearButton.isHidden = empty
     }
 
     /// What the screen is showing; the capture harness asserts on it.

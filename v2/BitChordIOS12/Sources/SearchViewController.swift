@@ -160,7 +160,7 @@ final class SearchViewController: UIViewController {
             sourceSelector.topAnchor.constraint(equalTo: fieldContainer.bottomAnchor, constant: 0),
             sourceSelector.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: Theme.gutter),
             sourceSelector.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -Theme.gutter),
-            sourceSelector.heightAnchor.constraint(equalToConstant: 40)
+            sourceSelector.heightAnchor.constraint(equalToConstant: 36)
         ])
     }
 

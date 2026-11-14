@@ -322,7 +322,7 @@ final class SettingsCell: UITableViewCell {
         // The real subtitles are set to fit the row rather than truncate, and
         // the icon inset costs just enough width to clip them otherwise.
         detailLabel.adjustsFontSizeToFitWidth = true
-        detailLabel.minimumScaleFactor = 0.8
+        detailLabel.minimumScaleFactor = 0.76
         cardView.addSubview(detailLabel)
 
         iconView.translatesAutoresizingMaskIntoConstraints = false
@@ -431,6 +431,9 @@ final class SettingsCell: UITableViewCell {
             titleLeadingIcon.isActive = false
             titleLeadingPlain.isActive = true
         }
+        // Only Dolby's explanation needs a second line; every other detail
+        // stays on one line and shrinks slightly to fit, as in the real card.
+        detailLabel.numberOfLines = item.key == "BitChord.Audio.DolbyAtmos" ? 2 : 1
         if let badge = item.badge {
             badgeLabel.text = "  \(badge)  "
             badgeLabel.isHidden = false

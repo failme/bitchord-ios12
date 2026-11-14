@@ -19,7 +19,9 @@ enum Icons {
         case people, peopleOutline, plug, wifi, mobileData, dolby
         case history, folder, spotify
         case downloadArrow
-        case globe, cast, bubble, speaker
+        case globe, cast, bubble, speaker, sliders
+        case share, radio, trash, info
+        case check, checkCircle, circle
         case lyricsQuote, queue
     }
 
@@ -155,17 +157,19 @@ enum Icons {
             flag.addCurve(to: pt(0.60, 0.44), controlPoint1: pt(0.64, 0.26), controlPoint2: pt(0.68, 0.34))
             stroke(flag, width: w * 1.15)
         case .house:
-            let p = UIBezierPath()
-            p.move(to: pt(0.22, 0.50))
-            p.addLine(to: pt(0.50, 0.24))
-            p.addLine(to: pt(0.78, 0.50))
-            stroke(p)
-            let b = UIBezierPath()
-            b.move(to: pt(0.32, 0.46))
-            b.addLine(to: pt(0.32, 0.74))
-            b.addLine(to: pt(0.68, 0.74))
-            b.addLine(to: pt(0.68, 0.46))
-            stroke(b)
+            // The real tab is a solid house with the door knocked out, not an
+            // outline. Clear-blending the door leaves the bar showing through.
+            UIBezierPath(roundedRect: CGRect(x: 0.20 * s, y: 0.43 * s,
+                                             width: 0.60 * s, height: 0.41 * s),
+                         cornerRadius: 0.05 * s).fill()
+            roundedTriangle(pt(0.10, 0.52), pt(0.50, 0.14), pt(0.90, 0.52),
+                            radius: 0.07 * s).fill()
+            cg.saveGState()
+            cg.setBlendMode(.clear)
+            UIBezierPath(roundedRect: CGRect(x: 0.43 * s, y: 0.61 * s,
+                                             width: 0.14 * s, height: 0.23 * s),
+                         cornerRadius: 0.025 * s).fill()
+            cg.restoreGState()
         case .compass:
             stroke(UIBezierPath(ovalIn: CGRect(x: 0.23 * s, y: 0.23 * s, width: 0.54 * s, height: 0.54 * s)))
             let n = UIBezierPath()
@@ -176,32 +180,114 @@ enum Icons {
             n.close()
             n.fill()
         case .grid:
-            // The real Explore tab is four rounded tiles, not a compass.
-            let side = 0.30 * s
-            for (x, y) in [(0.19, 0.19), (0.51, 0.19), (0.19, 0.51), (0.51, 0.51)] {
-                let tile = UIBezierPath(roundedRect: CGRect(x: x * s, y: y * s, width: side, height: side),
-                                        cornerRadius: 0.10 * s)
+            // Four solid tiles with a narrow gutters, exactly the tab glyph's
+            // proportions from the 512-unit source path.
+            let side = 0.35 * s
+            for (x, y) in [(0.115, 0.115), (0.535, 0.115),
+                           (0.115, 0.535), (0.535, 0.535)] {
+                let tile = UIBezierPath(roundedRect: CGRect(x: x * s, y: y * s,
+                                                            width: side, height: side),
+                                        cornerRadius: 0.045 * s)
                 tile.fill()
             }
         case .books:
-            // Standing books on a shelf, the shape the real Library tab draws.
-            let spine = UIBezierPath(roundedRect: CGRect(x: 0.20 * s, y: 0.24 * s, width: 0.13 * s, height: 0.48 * s),
-                                     cornerRadius: 0.04 * s)
-            spine.fill()
-            let wide = UIBezierPath(roundedRect: CGRect(x: 0.38 * s, y: 0.20 * s, width: 0.20 * s, height: 0.52 * s),
-                                    cornerRadius: 0.04 * s)
-            wide.fill()
-            let mid = UIBezierPath()
-            mid.move(to: pt(0.52, 0.32))
-            mid.addLine(to: pt(0.52, 0.60))
-            stroke(mid, width: 0.035 * s)
-            let lean = UIBezierPath()
-            lean.move(to: pt(0.66, 0.28))
-            lean.addLine(to: pt(0.74, 0.70))
-            lean.addLine(to: pt(0.84, 0.66))
-            lean.addLine(to: pt(0.78, 0.25))
-            lean.close()
-            lean.fill()
+            // The real Library tab is one solid book with two pages above it,
+            // not the three spines the first pass drew.
+            UIBezierPath(roundedRect: CGRect(x: 0.30 * s, y: 0.08 * s,
+                                             width: 0.40 * s, height: 0.07 * s),
+                         cornerRadius: 0.035 * s).fill()
+            UIBezierPath(roundedRect: CGRect(x: 0.22 * s, y: 0.19 * s,
+                                             width: 0.56 * s, height: 0.09 * s),
+                         cornerRadius: 0.045 * s).fill()
+            UIBezierPath(roundedRect: CGRect(x: 0.13 * s, y: 0.32 * s,
+                                             width: 0.74 * s, height: 0.60 * s),
+                         cornerRadius: 0.13 * s).fill()
+        case .share:
+            let box = UIBezierPath()
+            box.move(to: pt(0.30, 0.44))
+            box.addLine(to: pt(0.30, 0.82))
+            box.addLine(to: pt(0.70, 0.82))
+            box.addLine(to: pt(0.70, 0.44))
+            stroke(box)
+            let arrow = UIBezierPath()
+            arrow.move(to: pt(0.50, 0.16))
+            arrow.addLine(to: pt(0.50, 0.58))
+            arrow.move(to: pt(0.36, 0.30))
+            arrow.addLine(to: pt(0.50, 0.16))
+            arrow.addLine(to: pt(0.64, 0.30))
+            stroke(arrow)
+        case .radio:
+            UIBezierPath(ovalIn: CGRect(x: 0.43 * s, y: 0.43 * s,
+                                        width: 0.14 * s, height: 0.14 * s)).fill()
+            for radius in [0.18, 0.32] {
+                let arc = UIBezierPath(arcCenter: pt(0.50, 0.50), radius: CGFloat(radius) * s,
+                                       startAngle: -0.75, endAngle: 0.75, clockwise: true)
+                stroke(arc, width: w * 0.8)
+                let back = UIBezierPath(arcCenter: pt(0.50, 0.50), radius: CGFloat(radius) * s,
+                                        startAngle: .pi - 0.75, endAngle: .pi + 0.75, clockwise: true)
+                stroke(back, width: w * 0.8)
+            }
+        case .trash:
+            let lid = UIBezierPath()
+            lid.move(to: pt(0.20, 0.28))
+            lid.addLine(to: pt(0.80, 0.28))
+            lid.move(to: pt(0.38, 0.20))
+            lid.addLine(to: pt(0.62, 0.20))
+            stroke(lid)
+            let can = UIBezierPath()
+            can.move(to: pt(0.28, 0.36))
+            can.addLine(to: pt(0.32, 0.82))
+            can.addLine(to: pt(0.68, 0.82))
+            can.addLine(to: pt(0.72, 0.36))
+            stroke(can)
+            for x: CGFloat in [0.44, 0.56] {
+                let line = UIBezierPath()
+                line.move(to: pt(x, 0.46))
+                line.addLine(to: pt(x, 0.70))
+                stroke(line, width: w * 0.7)
+            }
+        case .check:
+            let check = UIBezierPath()
+            check.move(to: pt(0.22, 0.52))
+            check.addLine(to: pt(0.42, 0.72))
+            check.addLine(to: pt(0.79, 0.30))
+            stroke(check, width: w * 1.15)
+        case .circle:
+            stroke(UIBezierPath(ovalIn: CGRect(x: 0.12 * s, y: 0.12 * s,
+                                               width: 0.76 * s, height: 0.76 * s)))
+        case .checkCircle:
+            UIBezierPath(ovalIn: CGRect(x: 0.10 * s, y: 0.10 * s,
+                                        width: 0.80 * s, height: 0.80 * s)).fill()
+            cg.saveGState()
+            cg.setBlendMode(.clear)
+            let check = UIBezierPath()
+            check.move(to: pt(0.29, 0.52))
+            check.addLine(to: pt(0.44, 0.67))
+            check.addLine(to: pt(0.72, 0.36))
+            check.lineWidth = w * 1.2
+            check.lineCapStyle = .round
+            check.lineJoinStyle = .round
+            check.stroke()
+            cg.restoreGState()
+        case .info:
+            stroke(UIBezierPath(ovalIn: CGRect(x: 0.18 * s, y: 0.18 * s,
+                                               width: 0.64 * s, height: 0.64 * s)))
+            let i = UIBezierPath()
+            i.move(to: pt(0.50, 0.46))
+            i.addLine(to: pt(0.50, 0.68))
+            stroke(i)
+            UIBezierPath(ovalIn: CGRect(x: 0.46 * s, y: 0.30 * s,
+                                        width: 0.08 * s, height: 0.08 * s)).fill()
+        case .sliders:
+            for (y, knobX) in [(0.30, 0.36), (0.50, 0.64), (0.70, 0.44)] {
+                let line = UIBezierPath()
+                line.move(to: pt(0.18, CGFloat(y)))
+                line.addLine(to: pt(0.82, CGFloat(y)))
+                stroke(line, width: w * 0.8)
+                UIBezierPath(ovalIn: CGRect(x: (CGFloat(knobX) - 0.075) * s,
+                                            y: (CGFloat(y) - 0.075) * s,
+                                            width: 0.15 * s, height: 0.15 * s)).fill()
+            }
         case .globe:
             stroke(UIBezierPath(ovalIn: CGRect(x: 0.18 * s, y: 0.18 * s, width: 0.64 * s, height: 0.64 * s)))
             let meridian = UIBezierPath(ovalIn: CGRect(x: 0.34 * s, y: 0.18 * s, width: 0.32 * s, height: 0.64 * s))
@@ -430,10 +516,10 @@ enum Icons {
         case .downloadArrow:
             // The solid download glyph in the Downloads empty-state hero: a
             // wide head and short shaft, not the small tray used in rows.
-            UIBezierPath(roundedRect: CGRect(x: 0.44 * s, y: 0.22 * s,
-                                             width: 0.12 * s, height: 0.32 * s),
+            UIBezierPath(roundedRect: CGRect(x: 0.43 * s, y: 0.24 * s,
+                                             width: 0.14 * s, height: 0.30 * s),
                          cornerRadius: 0.04 * s).fill()
-            roundedTriangle(pt(0.14, 0.48), pt(0.50, 0.80), pt(0.86, 0.48),
+            roundedTriangle(pt(0.09, 0.48), pt(0.50, 0.76), pt(0.91, 0.48),
                             radius: 0.045 * s).fill()
         case .person:
             UIBezierPath(ovalIn: CGRect(x: 0.36 * s, y: 0.20 * s, width: 0.28 * s, height: 0.28 * s)).fill()

@@ -31,8 +31,8 @@ final class SignInBannerView: UIView {
 
         // Sampled from the real signed-out card: royal blue at the left edge
         // into indigo at the right, with the lower half pressed darker.
-        gradient.colors = [UIColor(red: 0.01, green: 0.31, blue: 0.63, alpha: 1).cgColor,
-                           UIColor(red: 0.23, green: 0.15, blue: 0.55, alpha: 1).cgColor]
+        gradient.colors = [UIColor(red: 0.004, green: 0.255, blue: 0.545, alpha: 1).cgColor,
+                           UIColor(red: 0.188, green: 0.192, blue: 0.557, alpha: 1).cgColor]
         gradient.startPoint = CGPoint(x: 0, y: 0.35)
         gradient.endPoint = CGPoint(x: 1, y: 0.35)
         layer.addSublayer(gradient)
