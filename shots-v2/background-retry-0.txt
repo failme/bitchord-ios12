@@ -1,0 +1,5 @@
+background.started=true
+background.mode=quit
+background.track=saavn:XaFAVKX2
+background.title=Save Your Tears
+background.retry=0 failure=

@@ -1,13 +1,13 @@
 background.started=true
-background.mode=quit
-background.track=saavn:XaFAVKX2
+background.mode=keep
+background.track=saavn:tvxo4Jm0
 background.title=Save Your Tears
 background.live=true
 background.transport=foreground (start)
 background.pending=1
 background.progress=0.0
 background.failure=
-background.saved=4
+background.saved=3
 background.limit=0
 background.wifiOnly=false
 background.playing=false

@@ -1,0 +1,4 @@
+jellyfin.window=320x568
+jellyfin.listed=true
+jellyfin.items=Music
+jellyfin.tableVisible=true

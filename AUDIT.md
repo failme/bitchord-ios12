@@ -12,8 +12,8 @@ screenshot), **Ported** (implemented and reachable, exercised indirectly by the
 flows CI asserts), **iOS 12 block**, **Account/credential** (needs an account or
 third-party keys this build cannot ship), **Android-only**.
 
-Latest full run: commit `c36dede`, all three jobs green (`43447826276`). Both
-root IPAs are that build: 17,017,034 bytes, sha256 `178f8402...`, bundle
+Latest full run: commit `32c0fee`, all three jobs green (`43536015686`). Both
+root IPAs are that build: 17,060,582 bytes, sha256 `e146410d...`, bundle
 `com.bitchord.ios12v2` 2.0.0, `MinimumOSVersion 12.0`, `UIDeviceFamily [1,2]`,
 a thin `arm64` executable (`cputype 0x100000c`) and a registered `bitchord`
 URL scheme - verified inside CI by unzipping the packaged IPA and again on the
@@ -49,7 +49,7 @@ committed file, with both copies byte-identical.
 | `ListenTogetherScreen.kt`, `PartySync.kt` | Absent | Account/credential - needs a party server |
 | `DiscordScreen.kt`, `data/discord` | Disabled row | Android-only - Discord RPC uses local Android IPC |
 | `SpotifyLibraryScreen.kt`, `SpotifyCanvasAuthScreen.kt` | Disabled row; sync by public YT Music link | Account/credential - Spotify OAuth client |
-| `SourcesScreen.kt`, `data/sources`, `data/webdav` | `AddonService`, `WebDAVClient`, `WebDAVStore`, `SourcesViewController` | Asserted - `webdav-tree.png`, `webdav-playing.png`, `webdav-error.png`; PROPFIND list, folder browse, streamed `track.m4a`, bad-password message. SMB/Jellyfin not shipped (see Remaining) |
+| `SourcesScreen.kt`, `data/sources`, `data/webdav`, `data/remote` | `AddonService`, `WebDAVClient`, `WebDAVStore`, `JellyfinClient`, `JellyfinStore`, `JellyfinViewController`, `SourcesViewController` | Asserted - WebDAV: `webdav-tree.png`, `webdav-playing.png`, `webdav-error.png`; PROPFIND list, folder browse, streamed `track.m4a`, bad-password message. Jellyfin: native API sign-in, library/folder/album browse, streamed `track.m4a` with `isPlaying=true`, expired/wrong-password/unreachable messages, `jellyfin-tree/playing/error/small.png`. SMB not shipped (see Remaining) |
 | `WearOsSettings.kt`, `ui/widget`, `wearos/`, `tv/` | Absent | Android-only - separate apps/surfaces |
 
 ## Song menu and library actions
@@ -112,7 +112,7 @@ Named rather than hidden:
 
 | Item | Why it is not here | What exists instead |
 | --- | --- | --- |
-| SMB and Jellyfin sources (`data/smb`, `data/remote`) | Each needs its own protocol client; only WebDAV was in this pass | WebDAV browser plus the addon stream and local locker |
+| SMB source (`data/smb`) | Needs its own protocol client; WebDAV and Jellyfin were the two built in this pass | WebDAV and Jellyfin browsers plus the addon stream and local locker |
 | Universal links (`applinks:`) | Associated-domains entitlement and iOS 13-era handling | The `bitchord://` scheme is the iOS 12 substitute; SpringBoard confirms it before opening |
 | Listen Together, Spotify import, scrobbling, Discord, Cast | Accounts, OAuth clients or servers this build does not ship | Disabled rows naming the missing piece |
 
@@ -145,6 +145,14 @@ reports), with the run above:
   `folder=Nested|track.m4a`, `hasTrack=true`, `playing=true`,
   `title=track.m4a`, `isPlaying=true`, and `authError=Wrong username or
   password.` for the wrong-password request.
+- Jellyfin: `listed=true`, `libraries=Music`, `folder=true` with
+  `Album One|Loose Track.m4a`, `album=true` with `track.m4a`, `playing=true`,
+  `title=track.m4a`, `isPlaying=true`; `expiredError=Your Jellyfin session
+  expired. Sign in again.`, `authError=Wrong username or password.`, and
+  `unreachable=Couldn't reach 127.0.0.1 (-1004).` The 320x568 launch reports
+  `jellyfin.window=320x568`, `items=Music` and `tableVisible=true`; the fixture
+  logged the real `AuthenticateByName` POST and the ranged `Audio/.../stream`
+  GET.
 
 Also measured in the same run: relaunch, offline playback, deletion, two quality renditions measured
 with `afinfo`, Wi-Fi HELD, storage cap, background resumed and force-quit, addon
@@ -154,7 +162,8 @@ queue edits and reorder, autoplay past the queue end, radio and its failure,
 artist page, moods, song info, karaoke syllables, downloaded badges, cache
 freeing a created megabyte, the first-run flow at full size and at 320x568, six
 deep-link destinations from cold launches, a WebDAV listing/browse/stream with
-its auth failure, and the packaged IPA's plist, scheme and architecture.
+its auth failure, the same browse/stream flow over Jellyfin's own API with its
+three failure messages, and the packaged IPA's plist, scheme and architecture.
 
 Not measured here: lock-screen controls, `SCNetworkReachability`, the real
 background transfer daemon, audio routing and DAC behaviour, and a real addon
