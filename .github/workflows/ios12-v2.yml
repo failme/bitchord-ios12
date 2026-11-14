@@ -772,8 +772,16 @@ jobs:
           HOME_Y=$(sed -n 's/^motion.geometry.homeArt=[0-9]*,//p' "$MOTION" | cut -d, -f1 | head -1)
           TILE_Y=$(sed -n 's/^motion.geometry.exploreTile=[0-9]*,//p' "$MOTION" | cut -d, -f1 | head -1)
           echo "home artwork y=$HOME_Y explore tile y=$TILE_Y"
-          test -n "$HOME_Y" && test "$HOME_Y" -ge 329 && test "$HOME_Y" -le 333
-          test -n "$TILE_Y" && test "$TILE_Y" -ge 166 && test "$TILE_Y" -le 170
+          case "$HOME_Y" in ''|*[!0-9]*) echo "::error ::no Home artwork geometry"; exit 1;; esac
+          case "$TILE_Y" in ''|*[!0-9]*) echo "::error ::no Explore tile geometry"; exit 1;; esac
+          if [ "$HOME_Y" -lt 318 ] || [ "$HOME_Y" -gt 322 ]; then
+            echo "::error ::Home artwork y=$HOME_Y is outside 318..322"
+            exit 1
+          fi
+          if [ "$TILE_Y" -lt 166 ] || [ "$TILE_Y" -gt 170 ]; then
+            echo "::error ::Explore tile y=$TILE_Y is outside 166..170"
+            exit 1
+          fi
           for FRAME in motion-tab-0 motion-tab-1 motion-tab-2 motion-tab-3 \
                        motion-mini-0 motion-mini-1 motion-mini-2 motion-mini-3 \
                        motion-player-open-0 motion-player-open-1 motion-player-open-2 \

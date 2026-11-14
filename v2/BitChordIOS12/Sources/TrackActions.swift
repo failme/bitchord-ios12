@@ -92,7 +92,7 @@ enum TrackActions {
 
         var infoRows = [TrackMenuAction]()
         if canOpenAlbum(track) {
-            infoRows.append(TrackMenuAction(title: "Open album", icon: .list,
+            infoRows.append(TrackMenuAction(title: "Open album", icon: .album,
                                             subtitle: track.album) {
                 openAlbum(for: track, from: host)
             })

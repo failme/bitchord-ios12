@@ -106,6 +106,9 @@ final class HomeViewController: UIViewController {
             self.presentNowPlayingFromRoot()
         }
         stack.addArrangedSubview(topPicks)
+        // The shelf already ends with its own 20pt foot; upstream puts the next
+        // section header 16pt after it rather than at the feed's 28pt rhythm.
+        stack.setCustomSpacing(16, after: topPicks)
 
         NSLayoutConstraint.activate([
             scrollView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),

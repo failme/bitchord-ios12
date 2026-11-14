@@ -14,7 +14,7 @@ enum Icons {
         case chevronDown, chevronRight, chevronLeft
         case search, close, plus
         case musicNote, headphones, download
-        case house, compass, library, list, gear
+        case house, compass, library, list, album, gear
         case grid, books, person, personOutline, logo
         case people, peopleOutline, plug, wifi, mobileData, dolby
         case history, folder, spotify
@@ -269,6 +269,16 @@ enum Icons {
             check.lineJoinStyle = .round
             check.stroke()
             cg.restoreGState()
+        case .album:
+            let sleeve = UIBezierPath(roundedRect: CGRect(x: 0.13 * s, y: 0.13 * s,
+                                                          width: 0.74 * s, height: 0.74 * s),
+                                       cornerRadius: 0.08 * s)
+            stroke(sleeve)
+            stroke(UIBezierPath(ovalIn: CGRect(x: 0.32 * s, y: 0.32 * s,
+                                               width: 0.36 * s, height: 0.36 * s)),
+                   width: w * 0.9)
+            UIBezierPath(ovalIn: CGRect(x: 0.465 * s, y: 0.465 * s,
+                                        width: 0.07 * s, height: 0.07 * s)).fill()
         case .info:
             stroke(UIBezierPath(ovalIn: CGRect(x: 0.18 * s, y: 0.18 * s,
                                                width: 0.64 * s, height: 0.64 * s)))
