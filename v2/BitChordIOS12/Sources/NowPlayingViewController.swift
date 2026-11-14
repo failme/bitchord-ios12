@@ -147,7 +147,11 @@ final class NowPlayingViewController: UIViewController {
         // The player is presented edge to edge, so its own bounds are the
         // reliable screen size — `UIScreen.main` stays the simulator's size
         // even when the capture harness runs the app in a 320x568 window.
-        let compact = view.bounds.height < 650 || view.bounds.width < 350
+        // The capture harness also passes -BCSmallScreen, because a view made
+        // before it joins the shrunken window can still report the simulator's
+        // full screen size once, even though its final bounds are 320x568.
+        let forcedSmall = ProcessInfo.processInfo.arguments.contains("-BCSmallScreen")
+        let compact = forcedSmall || view.bounds.height < 650 || view.bounds.width < 350
         let squat = compact || view.bounds.height < 700
         let headerGap: CGFloat = squat ? 8 : 12
         let headerHeight: CGFloat = squat ? 52 : 56

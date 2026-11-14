@@ -58,7 +58,8 @@ final class GoogleAccountStore {
     var email: String { return session?.email ?? "" }
 
     var avatarURL: URL? {
-        guard let raw = session?.avatar, !raw.isEmpty else { return nil }
+        guard var raw = session?.avatar, !raw.isEmpty else { return nil }
+        if raw.hasPrefix("//") { raw = "https:" + raw }
         return URL(string: raw)
     }
 

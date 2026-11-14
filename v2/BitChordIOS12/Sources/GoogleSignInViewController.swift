@@ -205,15 +205,26 @@ final class GoogleSignInViewController: UIViewController {
         for cookie in cookies {
             guard cookie.expiresDate == nil || cookie.expiresDate! > now else { continue }
             let youtube = cookie.domain == "youtube.com" || cookie.domain.hasSuffix(".youtube.com")
-            let googleSID = (cookie.domain == "google.com" || cookie.domain.hasSuffix(".google.com"))
-                && apiNames.contains(cookie.name)
-            guard youtube || googleSID else { continue }
+            guard youtube else { continue }
             if values[cookie.name] == nil || cookie.path.count > 1 {
                 values[cookie.name] = cookie.value
             }
         }
-        guard !values.isEmpty else { return nil }
-        return values.map { "\($0.key)=\($0.value)" }.sorted().joined(separator: "; ")
+        var header = values.map { "\($0.key)=\($0.value)" }.sorted().joined(separator: "; ")
+        // A partitioned login can leave the signing secret only on Google's
+        // own domain. YouTube reads the cookie by name, so that one value is
+        // enough to make the captured session usable.
+        if GoogleAccountStore.apiSID(in: header) == nil {
+            if let googleSID = cookies.first(where: {
+                let domain = $0.domain
+                return (domain == "google.com" || domain.hasSuffix(".google.com"))
+                    && apiNames.contains($0.name)
+                    && ($0.expiresDate == nil || $0.expiresDate! > now)
+            }) {
+                header += (header.isEmpty ? "" : "; ") + "\(googleSID.name)=\(googleSID.value)"
+            }
+        }
+        return header.isEmpty ? nil : header
     }
 
     /// Google's cookies only, so signing out of BitChord never signs the
