@@ -111,7 +111,7 @@ final class HomeViewController: UIViewController {
             scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
 
-            stack.topAnchor.constraint(equalTo: scrollView.topAnchor, constant: -14),
+            stack.topAnchor.constraint(equalTo: scrollView.topAnchor, constant: -18),
             stack.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor),
             stack.trailingAnchor.constraint(equalTo: scrollView.trailingAnchor),
             stack.bottomAnchor.constraint(equalTo: scrollView.bottomAnchor, constant: -28),

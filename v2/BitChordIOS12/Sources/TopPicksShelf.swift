@@ -1,10 +1,11 @@
 import UIKit
 
-/// Home's "Top Picks for You" row as the real app draws it: 300pt cards whose
-/// artwork fills the card, a small grey source line above the title, then the
-/// title and its "Single · 2026" style detail.
+/// Home's "Top Picks for You" row as the real app draws it: 248pt-wide 3:4
+/// portrait cards, a small grey source line below the artwork, then the title
+/// and its "Single · 2026" style detail.
 final class TopPicksShelfView: UIView {
     static let cardWidth: CGFloat = 248
+    // Section height: title, 6pt gap, the 3:4 card, then bottom padding.
     static let rowHeight: CGFloat = 393
 
     private let titleLabel = UILabel()
@@ -17,8 +18,8 @@ final class TopPicksShelfView: UIView {
         let layout = UICollectionViewFlowLayout()
         layout.scrollDirection = .horizontal
         layout.itemSize = CGSize(width: TopPicksShelfView.cardWidth,
-                                 height: TopPicksShelfView.rowHeight - 59)
-        layout.minimumLineSpacing = 12
+                                 height: TopPicksShelfView.cardWidth * 4.0 / 3.0)
+        layout.minimumLineSpacing = 14
         layout.sectionInset = UIEdgeInsets(top: 0, left: 16, bottom: 0, right: 16)
         collectionView = UICollectionView(frame: .zero, collectionViewLayout: layout)
         super.init(frame: frame)
@@ -49,7 +50,7 @@ final class TopPicksShelfView: UIView {
             titleLabel.topAnchor.constraint(equalTo: topAnchor),
             titleLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 16),
 
-            collectionView.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 16),
+            collectionView.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 6),
             collectionView.leadingAnchor.constraint(equalTo: leadingAnchor),
             collectionView.trailingAnchor.constraint(equalTo: trailingAnchor),
             collectionView.bottomAnchor.constraint(equalTo: bottomAnchor)
@@ -92,49 +93,69 @@ final class TopPickCell: UICollectionViewCell {
     static let reuseIdentifier = "TopPickCell"
 
     private let artwork = UIImageView()
+    private let captionShade = CAGradientLayer()
     private let sourceLabel = UILabel()
     private let titleLabel = UILabel()
     private let detailLabel = UILabel()
 
     override init(frame: CGRect) {
         super.init(frame: frame)
+        // The real card is one 3:4 picture with its caption sitting on the
+        // picture's darkened foot. The first pass put a square cover above a
+        // separate text block, which is why the cards read short and boxy.
+        contentView.layer.cornerRadius = 12
+        contentView.clipsToBounds = true
+        contentView.backgroundColor = Theme.surfaceVariant
+
         artwork.contentMode = .scaleAspectFill
         artwork.clipsToBounds = true
-        artwork.layer.cornerRadius = 12
-        artwork.backgroundColor = Theme.surfaceVariant
         artwork.translatesAutoresizingMaskIntoConstraints = false
         contentView.addSubview(artwork)
+
+        captionShade.colors = [UIColor.clear.cgColor,
+                               UIColor(white: 0, alpha: 0.45).cgColor,
+                               UIColor(white: 0, alpha: 0.82).cgColor]
+        captionShade.locations = [0.45, 0.72, 1]
+        captionShade.startPoint = CGPoint(x: 0.5, y: 0)
+        captionShade.endPoint = CGPoint(x: 0.5, y: 1)
+        contentView.layer.addSublayer(captionShade)
 
         for label in [sourceLabel, titleLabel, detailLabel] {
             label.translatesAutoresizingMaskIntoConstraints = false
             contentView.addSubview(label)
         }
-        sourceLabel.font = Theme.font(12)
-        sourceLabel.textColor = Theme.secondaryText
-        titleLabel.font = Theme.font(16, weight: .semibold)
-        titleLabel.textColor = Theme.primaryText
+        sourceLabel.font = Theme.font(13)
+        sourceLabel.textColor = UIColor(white: 1, alpha: 0.62)
+        titleLabel.font = Theme.font(17, weight: .semibold)
+        titleLabel.textColor = .white
         titleLabel.numberOfLines = 2
         detailLabel.font = Theme.font(13)
-        detailLabel.textColor = Theme.secondaryText
+        detailLabel.textColor = UIColor(white: 1, alpha: 0.86)
+        detailLabel.numberOfLines = 2
 
         NSLayoutConstraint.activate([
             artwork.topAnchor.constraint(equalTo: contentView.topAnchor),
             artwork.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
             artwork.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
-            artwork.heightAnchor.constraint(equalToConstant: 248),
+            artwork.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
 
-            sourceLabel.topAnchor.constraint(equalTo: artwork.bottomAnchor, constant: 10),
-            sourceLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
-            sourceLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+            detailLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
+            detailLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
+            detailLabel.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -16),
 
-            titleLabel.topAnchor.constraint(equalTo: sourceLabel.bottomAnchor, constant: 2),
-            titleLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
-            titleLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+            titleLabel.leadingAnchor.constraint(equalTo: detailLabel.leadingAnchor),
+            titleLabel.trailingAnchor.constraint(equalTo: detailLabel.trailingAnchor),
+            titleLabel.bottomAnchor.constraint(equalTo: detailLabel.topAnchor),
 
-            detailLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 2),
-            detailLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
-            detailLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor)
+            sourceLabel.leadingAnchor.constraint(equalTo: detailLabel.leadingAnchor),
+            sourceLabel.trailingAnchor.constraint(equalTo: detailLabel.trailingAnchor),
+            sourceLabel.bottomAnchor.constraint(equalTo: titleLabel.topAnchor)
         ])
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        captionShade.frame = contentView.bounds
     }
 
     required init?(coder: NSCoder) {
@@ -152,7 +173,7 @@ final class TopPickCell: UICollectionViewCell {
     }
 
     func configure(track: Track) {
-        sourceLabel.text = track.album.isEmpty ? "Top pick" : track.album
+        sourceLabel.text = track.album.isEmpty ? "Top pick" : "New from \(track.artist)"
         titleLabel.text = track.title
         detailLabel.text = track.artist
         artwork.image = nil
@@ -166,6 +187,6 @@ final class TopPickCell: UICollectionViewCell {
     }
 
     func motionArtworkFrame(in view: UIView) -> CGRect {
-        return artwork.convert(artwork.bounds, to: view)
+        return contentView.convert(contentView.bounds, to: view)
     }
 }

@@ -129,7 +129,7 @@ enum SettingsCatalog {
                         kind: .page("Google, Spotify and Discord accounts are not wired into this build.")),
             SettingItem(key: "BitChord.Misc.ListenTogether", title: "Listen together",
                         detail: "Share a code and play the same music, in time",
-                        icon: .bubble,
+                        icon: .people,
                         kind: .page("Listening together needs a signed-in account on every device, so the party can tell who is in it."))
         ]),
 
@@ -138,17 +138,20 @@ enum SettingsCatalog {
         SettingSection(title: "Audio quality", items: [
             SettingItem(key: "BitChord.Audio.Sources", title: "Sources",
                         detail: "Where audio comes from and the order used",
-                        icon: .speaker,
+                        icon: .plug,
                         kind: .page("Streams come from YouTube Music and JioSaavn. A lossless addon can be pointed at below.")),
             SettingItem(key: "BitChord.Audio.DirectSourceStream", title: "Direct Source Stream",
                         kind: .toggle(false)),
             SettingItem(key: "BitChord.Audio.WifiQuality", title: "On Wi-Fi",
+                        icon: .wifi,
                         badge: "IN USE",
                         kind: .choice("Lossless", ["Lossless", "High", "Normal", "Data saver"])),
             SettingItem(key: "BitChord.Audio.CellularQuality", title: "On mobile data",
+                        icon: .mobileData,
                         kind: .choice("Lossless", ["Lossless", "High", "Normal", "Data saver"])),
             SettingItem(key: "BitChord.Audio.DolbyAtmos", title: "Dolby Atmos",
                         detail: "This device can't play Atmos, so these songs play in their usual version",
+                        icon: .dolby,
                         kind: .unavailable("")),
             // Port-only row, kept after the real section's rows so the visible
             // order still matches upstream.

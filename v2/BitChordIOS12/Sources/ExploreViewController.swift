@@ -1,7 +1,9 @@
 import UIKit
+import CoreImage
 
 /// Explore as the real app draws it: no shelves, just a two-column grid of
-/// 110pt mood tiles, each a tinted gradient with its name in the top-left.
+/// 104pt mood sleeves. Each sleeve is a solid 28% colour stripe beside a
+/// duotone crop of its artwork, with the name at the top-left.
 final class ExploreViewController: UIViewController {
     private struct Mood {
         let title: String
@@ -77,7 +79,7 @@ final class ExploreViewController: UIViewController {
         scrollView.addSubview(titleLabel)
 
         grid.axis = .vertical
-        grid.spacing = 10
+        grid.spacing = 12
         grid.distribution = .fillEqually
         grid.translatesAutoresizingMaskIntoConstraints = false
         scrollView.addSubview(grid)
@@ -87,10 +89,10 @@ final class ExploreViewController: UIViewController {
             if index % 2 == 0 {
                 let newRow = UIStackView()
                 newRow.axis = .horizontal
-                newRow.spacing = 10
+                newRow.spacing = 12
                 newRow.distribution = .fillEqually
                 grid.addArrangedSubview(newRow)
-                newRow.heightAnchor.constraint(equalToConstant: 110).isActive = true
+                newRow.heightAnchor.constraint(equalToConstant: 104).isActive = true
                 row = newRow
             }
             let tile = MoodTileView(mood: mood.title, top: mood.top, bottom: mood.bottom)
@@ -114,12 +116,14 @@ final class ExploreViewController: UIViewController {
             scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
 
-            avatar.topAnchor.constraint(equalTo: scrollView.topAnchor, constant: -19),
+            // The avatar is part of the page's top row. The first pass put it
+            // above the scroll view's bounds, where it was clipped away.
+            avatar.topAnchor.constraint(equalTo: scrollView.topAnchor, constant: 8),
             avatar.trailingAnchor.constraint(equalTo: scrollView.trailingAnchor, constant: -16),
             avatar.widthAnchor.constraint(equalToConstant: 40),
             avatar.heightAnchor.constraint(equalToConstant: 40),
 
-            titleLabel.topAnchor.constraint(equalTo: avatar.bottomAnchor, constant: 30),
+            titleLabel.topAnchor.constraint(equalTo: avatar.bottomAnchor, constant: 8),
             titleLabel.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor, constant: 16),
 
             grid.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 22),
@@ -203,52 +207,71 @@ final class ExploreViewController: UIViewController {
     }
 }
 
-/// One gradient mood tile with its name in the top-left corner.
+/// One mood sleeve: the solid colour band, the duotone artwork and the name.
+///
+/// Upstream tints every cover through a two-colour ramp derived from the
+/// category's stripe, so the sleeve reads as one object. A plain photo with a
+/// dark gradient, which the first pass drew, looks like a different component.
 final class MoodTileView: UIButton {
     let moodTitle: String
-    private let gradient = CAGradientLayer()
+
+    private let artContainer = UIView()
     private let photo = UIImageView()
     private let shade = CAGradientLayer()
     private let label = UILabel()
+    private let baseColor: UIColor
+    private let shadowColor: UIColor
+    private let highlightColor: UIColor
+
+    /// Compose's gradient offsets are 0..255; Core Image vectors work in 0..1.
+    private static let ciContext = CIContext(options: nil)
 
     init(mood: String, top: UIColor, bottom: UIColor) {
         moodTitle = mood
+        baseColor = top
+        let shadow = MoodTileView.lerp(top, .black, 0.68)
+        let highlight = MoodTileView.lerp(top, .white, 0.32)
+        shadowColor = shadow
+        highlightColor = highlight
         super.init(frame: .zero)
-        layer.cornerRadius = 12
-        layer.masksToBounds = true
 
-        gradient.colors = [top.cgColor, bottom.cgColor]
-        gradient.startPoint = CGPoint(x: 0, y: 0)
-        gradient.endPoint = CGPoint(x: 1, y: 1)
-        layer.addSublayer(gradient)
+        layer.cornerRadius = 18
+        layer.masksToBounds = true
+        backgroundColor = MoodTileView.lerp(top, .black, 0.08)
+
+        // A card is a 28% solid stripe and a 72% artwork pane. The placeholder
+        // keeps the pane's tone before the cover arrives.
+        artContainer.frame = .zero
+        artContainer.backgroundColor = MoodTileView.lerp(shadow, highlight, 0.45)
+        artContainer.clipsToBounds = true
+        addSubview(artContainer)
 
         photo.contentMode = .scaleAspectFill
         photo.clipsToBounds = true
-        photo.alpha = 0.85
-        photo.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(photo)
-        NSLayoutConstraint.activate([
-            photo.topAnchor.constraint(equalTo: topAnchor),
-            photo.leadingAnchor.constraint(equalTo: leadingAnchor),
-            photo.trailingAnchor.constraint(equalTo: trailingAnchor),
-            photo.bottomAnchor.constraint(equalTo: bottomAnchor)
-        ])
-        // Darken the photo at the top-left so the mood name stays readable.
-        shade.colors = [UIColor(white: 0, alpha: 0.45).cgColor,
-                        UIColor(white: 0, alpha: 0.05).cgColor]
-        shade.startPoint = CGPoint(x: 0, y: 0)
-        shade.endPoint = CGPoint(x: 1, y: 1)
-        photo.layer.addSublayer(shade)
+        artContainer.addSubview(photo)
+
+        shade.colors = [UIColor(white: 0, alpha: 0.24).cgColor,
+                        UIColor.clear.cgColor]
+        shade.locations = [0, 0.62]
+        shade.startPoint = CGPoint(x: 0.5, y: 0)
+        shade.endPoint = CGPoint(x: 0.5, y: 1)
+        layer.addSublayer(shade)
 
         label.text = mood
-        label.font = Theme.font(16, weight: .semibold)
+        label.font = Theme.font(16, weight: .bold)
         label.textColor = .white
+        label.numberOfLines = 2
+        label.layer.shadowColor = UIColor.black.cgColor
+        label.layer.shadowOpacity = 0.35
+        label.layer.shadowRadius = 4
+        label.layer.shadowOffset = CGSize(width: 0, height: 1)
         label.translatesAutoresizingMaskIntoConstraints = false
         addSubview(label)
 
         NSLayoutConstraint.activate([
-            label.topAnchor.constraint(equalTo: topAnchor, constant: 10),
-            label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12)
+            label.topAnchor.constraint(equalTo: topAnchor, constant: 12),
+            label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 14),
+            label.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -10)
         ])
     }
 
@@ -258,13 +281,56 @@ final class MoodTileView: UIButton {
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        gradient.frame = bounds
-        shade.frame = photo.bounds
+        let stripe = bounds.width * 0.28
+        artContainer.frame = CGRect(x: stripe, y: 0,
+                                    width: max(0, bounds.width - stripe), height: bounds.height)
+        photo.frame = artContainer.bounds
+        shade.frame = bounds
     }
 
     func setArtwork(_ url: URL) {
         ArtworkLoader.shared.load(url) { [weak self] image in
-            self?.photo.image = image
+            guard let self = self, let image = image else { return }
+            let tinted = MoodTileView.duotone(image,
+                                              shadow: self.shadowColor,
+                                              highlight: self.highlightColor)
+            self.photo.image = tinted ?? image
         }
+    }
+
+    private static func lerp(_ from: UIColor, _ to: UIColor, _ amount: CGFloat) -> UIColor {
+        var fr: CGFloat = 0, fg: CGFloat = 0, fb: CGFloat = 0, fa: CGFloat = 0
+        var tr: CGFloat = 0, tg: CGFloat = 0, tb: CGFloat = 0, ta: CGFloat = 0
+        from.getRed(&fr, green: &fg, blue: &fb, alpha: &fa)
+        to.getRed(&tr, green: &tg, blue: &tb, alpha: &ta)
+        return UIColor(red: fr + (tr - fr) * amount,
+                       green: fg + (tg - fg) * amount,
+                       blue: fb + (tb - fb) * amount,
+                       alpha: fa + (ta - fa) * amount)
+    }
+
+    /// Maps luminance onto the shadow-to-highlight ramp, same as Compose's
+    /// colour matrix. The result is cached by the image loader, not re-rendered
+    /// on every layout pass.
+    private static func duotone(_ image: UIImage, shadow: UIColor, highlight: UIColor) -> UIImage? {
+        guard let source = CIImage(image: image),
+              let filter = CIFilter(name: "CIColorMatrix") else { return nil }
+        var sr: CGFloat = 0, sg: CGFloat = 0, sb: CGFloat = 0, sa: CGFloat = 0
+        var hr: CGFloat = 0, hg: CGFloat = 0, hb: CGFloat = 0, ha: CGFloat = 0
+        shadow.getRed(&sr, green: &sg, blue: &sb, alpha: &sa)
+        highlight.getRed(&hr, green: &hg, blue: &hb, alpha: &ha)
+        let spanR = hr - sr, spanG = hg - sg, spanB = hb - sb
+        filter.setValue(source, forKey: kCIInputImageKey)
+        filter.setValue(CIVector(x: spanR * 0.299, y: spanR * 0.587, z: spanR * 0.114, w: 0),
+                        forKey: "inputRVector")
+        filter.setValue(CIVector(x: spanG * 0.299, y: spanG * 0.587, z: spanG * 0.114, w: 0),
+                        forKey: "inputGVector")
+        filter.setValue(CIVector(x: spanB * 0.299, y: spanB * 0.587, z: spanB * 0.114, w: 0),
+                        forKey: "inputBVector")
+        filter.setValue(CIVector(x: 0, y: 0, z: 0, w: 1), forKey: "inputAVector")
+        filter.setValue(CIVector(x: sr, y: sg, z: sb, w: 0), forKey: "inputBiasVector")
+        guard let output = filter.outputImage,
+              let rendered = ciContext.createCGImage(output, from: source.extent) else { return nil }
+        return UIImage(cgImage: rendered, scale: image.scale, orientation: image.imageOrientation)
     }
 }

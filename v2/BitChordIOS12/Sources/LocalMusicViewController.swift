@@ -62,11 +62,11 @@ final class LocalMusicViewController: UIViewController {
 
         hero.translatesAutoresizingMaskIntoConstraints = false
         hero.backgroundColor = Theme.surfaceVariant
-        hero.layer.cornerRadius = 24
+        hero.layer.cornerRadius = 16
         view.addSubview(hero)
 
         let folder = UIImageView(image: Icons.image(.folder, size: 120))
-        folder.tintColor = UIColor(white: 0.62, alpha: 1)
+        folder.tintColor = UIColor(white: 0.46, alpha: 1)
         folder.translatesAutoresizingMaskIntoConstraints = false
         hero.addSubview(folder)
 

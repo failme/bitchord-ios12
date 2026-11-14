@@ -137,9 +137,9 @@ final class LibraryViewController: UIViewController {
         holder.addSubview(scroller)
         scroller.addSubview(statsRow)
 
-        let experience = LibraryStatCard(colors: [UIColor(red: 0.58, green: 0.36, blue: 0.10, alpha: 1),
-                                                  UIColor(red: 0.42, green: 0.11, blue: 0.16, alpha: 1),
-                                                  UIColor(red: 0.23, green: 0.06, blue: 0.15, alpha: 1)])
+        let experience = LibraryStatCard(colors: [UIColor(red: 0.76, green: 0.45, blue: 0.12, alpha: 1),
+                                                  UIColor(red: 0.52, green: 0.12, blue: 0.15, alpha: 1),
+                                                  UIColor(red: 0.25, green: 0.05, blue: 0.16, alpha: 1)])
         experience.tag = 9002
         experience.widthAnchor.constraint(equalToConstant: 300).isActive = true
         experience.onTap = { [weak self] in
@@ -147,9 +147,9 @@ final class LibraryViewController: UIViewController {
         }
         statsRow.addArrangedSubview(experience)
 
-        let top = LibraryStatCard(colors: [UIColor(red: 0.52, green: 0.31, blue: 0.08, alpha: 1),
-                                           UIColor(red: 0.38, green: 0.10, blue: 0.14, alpha: 1),
-                                           UIColor(red: 0.21, green: 0.05, blue: 0.13, alpha: 1)])
+        let top = LibraryStatCard(colors: [UIColor(red: 0.70, green: 0.40, blue: 0.10, alpha: 1),
+                                           UIColor(red: 0.48, green: 0.11, blue: 0.14, alpha: 1),
+                                           UIColor(red: 0.23, green: 0.05, blue: 0.14, alpha: 1)])
         top.tag = 9003
         top.widthAnchor.constraint(equalToConstant: 300).isActive = true
         top.onTap = { [weak self] in
@@ -193,7 +193,7 @@ final class LibraryViewController: UIViewController {
     private func buildPlaylists() {
         let heading = UILabel()
         heading.text = "Playlists"
-        heading.font = Theme.font(20, weight: .bold)
+        heading.font = Theme.font(18, weight: .bold)
         heading.textColor = Theme.primaryText
         let holder = UIView()
         holder.addSubview(heading)
@@ -257,9 +257,9 @@ final class LibraryViewController: UIViewController {
 
         let firstRow = UIStackView()
         firstRow.axis = .horizontal
-        firstRow.spacing = 10
+        firstRow.spacing = 12
         firstRow.distribution = .fillEqually
-        firstRow.widthAnchor.constraint(equalToConstant: 310).isActive = true
+        firstRow.widthAnchor.constraint(equalToConstant: 304).isActive = true
 
         let create = PlaylistCard(title: "New playlist",
                                         caption: "Saved to YouTube Music",
@@ -285,9 +285,9 @@ final class LibraryViewController: UIViewController {
             if index % 2 == 0 {
                 let newRow = UIStackView()
                 newRow.axis = .horizontal
-                newRow.spacing = 10
+                newRow.spacing = 12
                 newRow.distribution = .fillEqually
-                newRow.widthAnchor.constraint(equalToConstant: 310).isActive = true
+                newRow.widthAnchor.constraint(equalToConstant: 304).isActive = true
                 playlistGrid.addArrangedSubview(newRow)
                 row = newRow
             }
@@ -405,7 +405,7 @@ final class LibraryViewController: UIViewController {
 final class LibraryStatCard: UIControl {
     private let gradient = CAGradientLayer()
     private let topCaption = UILabel()
-    private let logo = UIImageView(image: Icons.image(.logo, size: 30))
+    private let logo = UIImageView(image: UIImage(named: "BrandLogo") ?? Icons.image(.logo, size: 30))
     private let valueLabel = UILabel()
     private let valueCaption = UILabel()
     private let nameLabel = UILabel()
@@ -570,10 +570,17 @@ final class LibraryRowButton: UIControl {
 
         let label = UILabel()
         label.text = title
-        label.font = Theme.font(20)
+        label.font = Theme.font(18)
         label.textColor = Theme.primaryText
         label.translatesAutoresizingMaskIntoConstraints = false
         addSubview(label)
+
+        // Both real rows end in a small grey chevron.
+        let chevron = UIImageView(image: Icons.image(.chevronRight, size: 15))
+        chevron.tintColor = Theme.secondaryText
+        chevron.contentMode = .scaleAspectFit
+        chevron.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(chevron)
 
         let hairline = UIView()
         hairline.backgroundColor = UIColor.white.withAlphaComponent(0.08)
@@ -585,8 +592,14 @@ final class LibraryRowButton: UIControl {
             glyph.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 16),
             glyph.centerYAnchor.constraint(equalTo: centerYAnchor),
 
-            label.leadingAnchor.constraint(equalTo: glyph.trailingAnchor, constant: 18),
+            label.leadingAnchor.constraint(equalTo: glyph.trailingAnchor, constant: 14),
             label.centerYAnchor.constraint(equalTo: centerYAnchor),
+            label.trailingAnchor.constraint(lessThanOrEqualTo: chevron.leadingAnchor, constant: -8),
+
+            chevron.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -16),
+            chevron.centerYAnchor.constraint(equalTo: centerYAnchor),
+            chevron.widthAnchor.constraint(equalToConstant: 9),
+            chevron.heightAnchor.constraint(equalToConstant: 15),
 
             hairline.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 56),
             hairline.trailingAnchor.constraint(equalTo: trailingAnchor),
@@ -641,13 +654,13 @@ class PlaylistCard: UIControl {
         artwork.translatesAutoresizingMaskIntoConstraints = false
         addSubview(artwork)
 
-        titleLabel.font = Theme.font(19, weight: .medium)
+        titleLabel.font = Theme.font(15, weight: .medium)
         titleLabel.textColor = Theme.primaryText
         titleLabel.numberOfLines = 1
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
         addSubview(titleLabel)
 
-        captionLabel.font = Theme.font(14)
+        captionLabel.font = Theme.font(12)
         captionLabel.textColor = Theme.secondaryText
         captionLabel.numberOfLines = 1
         captionLabel.translatesAutoresizingMaskIntoConstraints = false

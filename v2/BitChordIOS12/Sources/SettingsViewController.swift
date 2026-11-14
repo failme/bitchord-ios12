@@ -50,7 +50,9 @@ final class SettingsViewController: UIViewController {
         tableView.separatorInset = UIEdgeInsets(top: 0, left: 52, bottom: 0, right: 16)
         tableView.dataSource = self
         tableView.delegate = self
-        tableView.rowHeight = 60
+        // Upstream's rows are 48pt. At 60 the grouped card ran 120pt instead
+        // of 96, pushing AUDIO QUALITY a third of a row down the page.
+        tableView.rowHeight = 48
         tableView.sectionHeaderHeight = 26
         tableView.tableFooterView = UIView()
         tableView.contentInset = UIEdgeInsets(top: 0, left: 0, bottom: 40, right: 0)
@@ -58,7 +60,7 @@ final class SettingsViewController: UIViewController {
         view.addSubview(tableView)
 
         NSLayoutConstraint.activate([
-            tableView.topAnchor.constraint(equalTo: searchField.bottomAnchor, constant: 10),
+            tableView.topAnchor.constraint(equalTo: searchField.bottomAnchor, constant: 18),
             tableView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             tableView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             tableView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
@@ -215,7 +217,7 @@ extension SettingsViewController: UITableViewDataSource, UITableViewDelegate {
                          .kern: 0.6])
         holder.addSubview(label)
         NSLayoutConstraint.activate([
-            label.leadingAnchor.constraint(equalTo: holder.leadingAnchor, constant: 24),
+            label.leadingAnchor.constraint(equalTo: holder.leadingAnchor, constant: 20),
             label.bottomAnchor.constraint(equalTo: holder.bottomAnchor, constant: -8)
         ])
         return holder
@@ -302,12 +304,12 @@ final class SettingsCell: UITableViewCell {
         contentView.addSubview(cardView)
 
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
-        titleLabel.font = Theme.font(18)
+        titleLabel.font = Theme.font(17)
         titleLabel.textColor = Theme.primaryText
         cardView.addSubview(titleLabel)
 
         detailLabel.translatesAutoresizingMaskIntoConstraints = false
-        detailLabel.font = Theme.font(14)
+        detailLabel.font = Theme.font(13)
         detailLabel.textColor = Theme.secondaryText
         detailLabel.numberOfLines = 1
         // The real subtitles are set to fit the row rather than truncate, and
@@ -343,7 +345,7 @@ final class SettingsCell: UITableViewCell {
         chevron.contentMode = .scaleAspectFit
         cardView.addSubview(chevron)
 
-        titleTop = titleLabel.topAnchor.constraint(equalTo: cardView.topAnchor, constant: 14)
+        titleTop = titleLabel.topAnchor.constraint(equalTo: cardView.topAnchor, constant: 8)
         titleCentered = titleLabel.centerYAnchor.constraint(equalTo: cardView.centerYAnchor)
         titleLeadingPlain = titleLabel.leadingAnchor.constraint(equalTo: cardView.leadingAnchor, constant: 20)
         titleLeadingIcon = titleLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 12)
@@ -370,7 +372,7 @@ final class SettingsCell: UITableViewCell {
             detailLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 2),
             detailLabel.trailingAnchor.constraint(equalTo: titleLabel.trailingAnchor),
 
-            cardView.heightAnchor.constraint(greaterThanOrEqualToConstant: 56),
+            cardView.heightAnchor.constraint(greaterThanOrEqualToConstant: 48),
 
             valueLabel.trailingAnchor.constraint(equalTo: chevron.leadingAnchor, constant: -8),
             valueLabel.centerYAnchor.constraint(equalTo: cardView.centerYAnchor),
@@ -464,8 +466,11 @@ final class SettingsCell: UITableViewCell {
         }
         valueLabel.isHidden = !trailingValue
         if trailingValue { detailLabel.text = nil }
-        titleTop.isActive = !trailingValue
-        titleCentered.isActive = trailingValue
+        // A row with no subtitle is one centred line; a two-line row starts
+        // at the 8pt top inset so both lines fit a 48pt card.
+        let singleLine = trailingValue || (detailLabel.text ?? "").isEmpty
+        titleTop.isActive = !singleLine
+        titleCentered.isActive = singleLine
         chevron.isHidden = !showsChevron
         titleLabel.textColor = available ? Theme.primaryText : Theme.secondaryText
         cardView.backgroundColor = card

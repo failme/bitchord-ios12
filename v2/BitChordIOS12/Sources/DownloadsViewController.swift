@@ -83,11 +83,11 @@ final class DownloadsViewController: UIViewController {
         // then the title and its subtitle centred under it.
         hero.translatesAutoresizingMaskIntoConstraints = false
         hero.backgroundColor = Theme.surfaceVariant
-        hero.layer.cornerRadius = 24
+        hero.layer.cornerRadius = 16
         view.addSubview(hero)
 
         heroIcon.translatesAutoresizingMaskIntoConstraints = false
-        heroIcon.image = Icons.image(.download, size: 64)
+        heroIcon.image = Icons.image(.downloadArrow, size: 64)
         heroIcon.tintColor = UIColor(white: 0.62, alpha: 1)
         heroIcon.contentMode = .scaleAspectFit
         hero.addSubview(heroIcon)

@@ -3,7 +3,7 @@ import UIKit
 /// The signed-out card the real Home opens with: a violet-to-crimson panel
 /// with "Sign in to YouTube Music" and the white Google pill button.
 final class SignInBannerView: UIView {
-    static let bannerHeight: CGFloat = 119
+    static let bannerHeight: CGFloat = 114
 
     private let gradient = CAGradientLayer()
     private let shade = CAGradientLayer()
@@ -29,16 +29,16 @@ final class SignInBannerView: UIView {
         layer.cornerRadius = 16
         layer.masksToBounds = true
 
-        // Sampled from the running app: deep violet on the left, bright
-        // crimson at the top right, then darker toward the bottom edge.
-        gradient.colors = [UIColor(red: 0.45, green: 0.04, blue: 0.44, alpha: 1).cgColor,
-                           UIColor(red: 0.80, green: 0.11, blue: 0.23, alpha: 1).cgColor]
-        gradient.startPoint = CGPoint(x: 0, y: 0.2)
-        gradient.endPoint = CGPoint(x: 1, y: 0.2)
+        // Sampled from the real signed-out card: royal blue at the left edge
+        // into indigo at the right, with the lower half pressed darker.
+        gradient.colors = [UIColor(red: 0.01, green: 0.31, blue: 0.63, alpha: 1).cgColor,
+                           UIColor(red: 0.23, green: 0.15, blue: 0.55, alpha: 1).cgColor]
+        gradient.startPoint = CGPoint(x: 0, y: 0.35)
+        gradient.endPoint = CGPoint(x: 1, y: 0.35)
         layer.addSublayer(gradient)
 
         shade.colors = [UIColor.clear.cgColor,
-                        UIColor(white: 0, alpha: 0.28).cgColor]
+                        UIColor(white: 0, alpha: 0.22).cgColor]
         shade.startPoint = CGPoint(x: 0.5, y: 0)
         shade.endPoint = CGPoint(x: 0.5, y: 1)
         layer.addSublayer(shade)
@@ -52,7 +52,7 @@ final class SignInBannerView: UIView {
 
         let button = UIButton(type: .custom)
         button.backgroundColor = .white
-        button.layer.cornerRadius = 23
+        button.layer.cornerRadius = 19
         button.addTarget(self, action: #selector(signInTapped), for: .touchUpInside)
         button.translatesAutoresizingMaskIntoConstraints = false
         addSubview(button)
@@ -64,7 +64,7 @@ final class SignInBannerView: UIView {
 
         let buttonTitle = UILabel()
         buttonTitle.text = "Sign in with Google"
-        buttonTitle.font = Theme.font(15, weight: .semibold)
+        buttonTitle.font = Theme.font(14, weight: .semibold)
         buttonTitle.textColor = UIColor(white: 0.15, alpha: 1)
         buttonTitle.isUserInteractionEnabled = false
         buttonTitle.translatesAutoresizingMaskIntoConstraints = false
@@ -76,13 +76,13 @@ final class SignInBannerView: UIView {
 
             button.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 14),
             button.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
-            button.heightAnchor.constraint(equalToConstant: 46),
-            button.widthAnchor.constraint(equalToConstant: 232),
+            button.heightAnchor.constraint(equalToConstant: 38),
+            button.widthAnchor.constraint(equalToConstant: 208),
 
-            mark.leadingAnchor.constraint(equalTo: button.leadingAnchor, constant: 18),
+            mark.leadingAnchor.constraint(equalTo: button.leadingAnchor, constant: 17),
             mark.centerYAnchor.constraint(equalTo: button.centerYAnchor),
-            mark.widthAnchor.constraint(equalToConstant: 18),
-            mark.heightAnchor.constraint(equalToConstant: 18),
+            mark.widthAnchor.constraint(equalToConstant: 17),
+            mark.heightAnchor.constraint(equalToConstant: 17),
 
             buttonTitle.leadingAnchor.constraint(equalTo: mark.trailingAnchor, constant: 10),
             buttonTitle.centerYAnchor.constraint(equalTo: button.centerYAnchor)

@@ -31,18 +31,20 @@ final class CapsuleTabBar: UIView {
     }
 
     private func build() {
-        backgroundColor = UIColor(red: 0.11, green: 0.11, blue: 0.13, alpha: 0.96)
+        // The real bar is nearly black glass; the old 0.11 grey read as a
+        // separate panel instead of the floating capsule over the page.
+        backgroundColor = UIColor(red: 0.055, green: 0.055, blue: 0.065, alpha: 0.97)
         layer.cornerRadius = 28
         layer.borderWidth = 1
-        layer.borderColor = UIColor(white: 1, alpha: 0.14).cgColor
+        layer.borderColor = UIColor(white: 1, alpha: 0.07).cgColor
         layer.shadowColor = UIColor.black.cgColor
         layer.shadowOpacity = 0.45
         layer.shadowRadius = 16
         layer.shadowOffset = CGSize(width: 0, height: 6)
 
-        // The white selection pill lives under the controls and slides
-        // between them with the real bar's spring rather than jumping.
-        selectionPill.backgroundColor = .white
+        // The selection is a lifted charcoal capsule with white contents,
+        // not the white pill with black contents the first pass drew.
+        selectionPill.backgroundColor = UIColor(red: 0.20, green: 0.20, blue: 0.22, alpha: 1)
         selectionPill.layer.cornerRadius = 28
         selectionPill.isUserInteractionEnabled = false
         addSubview(selectionPill)
@@ -117,8 +119,8 @@ final class CapsuleTabBar: UIView {
                           options: [.transitionCrossDissolve, .allowUserInteraction]) {
             for (position, _) in self.controls.enumerated() {
                 let active = position == index
-                self.iconViews[position].tintColor = active ? UIColor.black : UIColor(white: 1, alpha: 0.6)
-                self.labels[position].textColor = active ? UIColor.black : UIColor(white: 1, alpha: 0.6)
+                self.iconViews[position].tintColor = active ? UIColor.white : UIColor(white: 1, alpha: 0.52)
+                self.labels[position].textColor = active ? UIColor.white : UIColor(white: 1, alpha: 0.52)
             }
         }
         setNeedsLayout()

@@ -16,7 +16,9 @@ enum Icons {
         case musicNote, headphones, download
         case house, compass, library, list, gear
         case grid, books, person, logo
+        case people, plug, wifi, mobileData, dolby
         case history, folder, spotify
+        case downloadArrow
         case globe, cast, bubble, speaker
         case lyricsQuote, queue
     }
@@ -338,6 +340,72 @@ enum Icons {
                                         startAngle: -0.9, endAngle: 0.9, clockwise: true)
                 stroke(wave, width: w * 0.85)
             }
+        case .people:
+            // Two overlapping listeners: the back head and shoulders, then the
+            // front silhouette, matching the Listen together row's glyph.
+            UIBezierPath(ovalIn: CGRect(x: 0.22 * s, y: 0.22 * s, width: 0.24 * s, height: 0.24 * s)).fill()
+            let back = UIBezierPath()
+            back.move(to: pt(0.10, 0.78))
+            back.addCurve(to: pt(0.58, 0.78), controlPoint1: pt(0.10, 0.48), controlPoint2: pt(0.58, 0.48))
+            back.close()
+            back.fill()
+            UIBezierPath(ovalIn: CGRect(x: 0.50 * s, y: 0.30 * s, width: 0.26 * s, height: 0.26 * s)).fill()
+            let front = UIBezierPath()
+            front.move(to: pt(0.38, 0.82))
+            front.addCurve(to: pt(0.90, 0.82), controlPoint1: pt(0.38, 0.56), controlPoint2: pt(0.90, 0.56))
+            front.close()
+            front.fill()
+        case .plug:
+            // A power plug, for Sources.
+            let body = UIBezierPath(roundedRect: CGRect(x: 0.16 * s, y: 0.34 * s,
+                                                        width: 0.42 * s, height: 0.32 * s),
+                                    cornerRadius: 0.10 * s)
+            stroke(body, width: w * 0.95)
+            let prongs = UIBezierPath()
+            prongs.move(to: pt(0.58, 0.42))
+            prongs.addLine(to: pt(0.80, 0.42))
+            prongs.move(to: pt(0.58, 0.58))
+            prongs.addLine(to: pt(0.80, 0.58))
+            prongs.move(to: pt(0.16, 0.50))
+            prongs.addLine(to: pt(0.06, 0.50))
+            stroke(prongs, width: w * 0.95)
+        case .wifi:
+            let centre = pt(0.50, 0.76)
+            for radius in [0.16, 0.30, 0.44] {
+                let arc = UIBezierPath(arcCenter: centre, radius: radius * s,
+                                       startAngle: -3 * .pi / 4, endAngle: -.pi / 4,
+                                       clockwise: true)
+                stroke(arc, width: w * 0.9)
+            }
+            UIBezierPath(ovalIn: CGRect(x: 0.44 * s, y: 0.70 * s,
+                                        width: 0.12 * s, height: 0.12 * s)).fill()
+        case .mobileData:
+            for (index, height) in [0.16, 0.28, 0.40, 0.52].enumerated() {
+                let bar = UIBezierPath(roundedRect: CGRect(x: (0.18 + CGFloat(index) * 0.17) * s,
+                                                           y: (0.78 - CGFloat(height)) * s,
+                                                           width: 0.10 * s,
+                                                           height: CGFloat(height) * s),
+                                       cornerRadius: 0.03 * s)
+                bar.fill()
+            }
+        case .dolby:
+            // The double-D mark beside Dolby Atmos.
+            for x: CGFloat in [0.18, 0.50] {
+                let d = UIBezierPath()
+                d.move(to: pt(x, 0.30))
+                d.addLine(to: pt(x + 0.10, 0.30))
+                d.addArc(withCenter: pt(x + 0.10, 0.50), radius: 0.20 * s,
+                         startAngle: -.pi / 2, endAngle: .pi / 2, clockwise: true)
+                d.addLine(to: pt(x, 0.70))
+                stroke(d, width: w * 0.85)
+            }
+        case .downloadArrow:
+            // The solid download glyph in the Downloads empty-state hero.
+            UIBezierPath(roundedRect: CGRect(x: 0.42 * s, y: 0.12 * s,
+                                             width: 0.16 * s, height: 0.44 * s),
+                         cornerRadius: 0.05 * s).fill()
+            roundedTriangle(pt(0.20, 0.44), pt(0.50, 0.76), pt(0.80, 0.44),
+                            radius: 0.035 * s).fill()
         case .person:
             UIBezierPath(ovalIn: CGRect(x: 0.36 * s, y: 0.20 * s, width: 0.28 * s, height: 0.28 * s)).fill()
             let shoulders = UIBezierPath()
@@ -363,15 +431,23 @@ enum Icons {
                                     cornerRadius: 0.06 * s)
             body.fill()
         case .spotify:
-            // The three curved bars of the Spotify mark, drawn at tile size.
+            // A filled disc with the three wave bars knocked out, so the tile
+            // behind shows through them exactly as on the real import card.
+            UIBezierPath(ovalIn: CGRect(x: 0.08 * s, y: 0.08 * s,
+                                        width: 0.84 * s, height: 0.84 * s)).fill()
+            cg.saveGState()
+            cg.setBlendMode(.clear)
             for (index, y) in [0.38, 0.50, 0.62].enumerated() {
                 let arc = UIBezierPath()
                 arc.move(to: pt(0.26, CGFloat(y) + 0.03))
                 arc.addCurve(to: pt(0.74, CGFloat(y) - 0.02),
                              controlPoint1: pt(0.42, CGFloat(y) - 0.05),
                              controlPoint2: pt(0.60, CGFloat(y) - 0.06))
-                stroke(arc, width: (0.075 - CGFloat(index) * 0.012) * s)
+                arc.lineWidth = (0.075 - CGFloat(index) * 0.012) * s
+                arc.lineCapStyle = .round
+                arc.stroke()
             }
+            cg.restoreGState()
         case .logo:
             // The three stacked arcs the real app uses as its mark.
             for (index, radius) in [0.20, 0.34, 0.48].enumerated() {

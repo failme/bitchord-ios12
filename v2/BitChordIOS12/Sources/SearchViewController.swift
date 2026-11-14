@@ -56,12 +56,22 @@ final class SearchViewController: UIViewController {
         refresh()
     }
 
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        // The real Search opens with the field already active, keyboard up.
+        // Only when no query is underway, so returning from a result does not
+        // cover the list the user came back to read.
+        if query.isEmpty, (field.text ?? "").isEmpty, presentedViewController == nil {
+            field.becomeFirstResponder()
+        }
+    }
+
     // MARK: - Chrome
 
     private func buildField() {
         fieldContainer.translatesAutoresizingMaskIntoConstraints = false
         fieldContainer.backgroundColor = Theme.surfaceVariant
-        fieldContainer.layer.cornerRadius = 25
+        fieldContainer.layer.cornerRadius = 23
         view.addSubview(fieldContainer)
 
         fieldIcon.translatesAutoresizingMaskIntoConstraints = false
@@ -97,16 +107,16 @@ final class SearchViewController: UIViewController {
         // The real search bar pairs the field with a round account avatar.
         avatarButton.translatesAutoresizingMaskIntoConstraints = false
         avatarButton.backgroundColor = Theme.surfaceVariant
-        avatarButton.layer.cornerRadius = 20
+        avatarButton.layer.cornerRadius = 22
         avatarButton.tintColor = Theme.secondaryText
-        avatarButton.setImage(Icons.image(.person, size: 18), for: .normal)
+        avatarButton.setImage(Icons.image(.person, size: 20), for: .normal)
         view.addSubview(avatarButton)
 
         NSLayoutConstraint.activate([
             fieldContainer.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: -14),
             fieldContainer.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
             fieldContainer.trailingAnchor.constraint(equalTo: avatarButton.leadingAnchor, constant: -10),
-            fieldContainer.heightAnchor.constraint(equalToConstant: 49),
+            fieldContainer.heightAnchor.constraint(equalToConstant: 46),
 
             fieldIcon.leadingAnchor.constraint(equalTo: fieldContainer.leadingAnchor, constant: 14),
             fieldIcon.centerYAnchor.constraint(equalTo: fieldContainer.centerYAnchor),
@@ -125,8 +135,8 @@ final class SearchViewController: UIViewController {
 
             avatarButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -Theme.gutter),
             avatarButton.centerYAnchor.constraint(equalTo: fieldContainer.centerYAnchor),
-            avatarButton.widthAnchor.constraint(equalToConstant: 40),
-            avatarButton.heightAnchor.constraint(equalToConstant: 40)
+            avatarButton.widthAnchor.constraint(equalToConstant: 44),
+            avatarButton.heightAnchor.constraint(equalToConstant: 44)
         ])
     }
 
