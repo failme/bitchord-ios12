@@ -12,9 +12,10 @@ screenshot), **Ported** (implemented and reachable, exercised indirectly by the
 flows CI asserts), **iOS 12 block**, **Account/credential** (needs an account or
 third-party keys this build cannot ship), **Android-only**.
 
-Latest full run: commit `949365c`, all three jobs green (`43546543740`); it
-retook all 59 screenshots in `shots-v2/` after the UI parity pass. Both root
-IPAs are that build: 17,083,987 bytes, sha256 `54439995...`, bundle
+Latest full run: commit `492c5c5`, all three jobs green (`43569045866`). It
+produced the 59 settled screenshots plus 46 origin/mid/settled motion frames in
+`shots-v2/`, and CI asserts every motion's partial state. Both root IPAs are
+that build: 17,114,890 bytes, sha256 `3ff9bd75...`, bundle
 `com.bitchord.ios12v2` 2.0.0, `MinimumOSVersion 12.0`, `UIDeviceFamily [1,2]`,
 a thin `arm64` executable (`cputype 0x100000c`) and a registered `bitchord`
 URL scheme - verified inside CI by unzipping the packaged IPA and again on the
@@ -32,6 +33,35 @@ captures. Motion is ported as well: the tab pill springs while the pages
 crossfade, the mini player expands and collapses, Now Playing rises and slides
 away with the play/pause glyph crossfading, artwork fades between tracks, cards
 scale on press, the stats carousel snaps and onboarding steps fade.
+
+## Motion evidence
+
+A separate `-BCMotion` launch drives every transition through the real control
+(`MotionHarness`). It writes an origin frame, at least one mid frame and the
+settled frame, and records presentation-layer values in
+`shots-v2/motion-report.txt`. CI fails if any flag is false or any of the 46
+frames is missing, so a transition that snapped cannot pass as animated. The
+tab pill's 0.42s spring was checked against an emulator screen recording of the
+Android bar, which settles in roughly 0.4s; the remaining durations follow the
+same Android motion vocabulary at 60fps.
+
+| Transition | Timing | Frames | Mid-state captured |
+| --- | --- | --- | --- |
+| Tab pill slide | 0.42s spring, damping 0.82 | `motion-tab-0..3` | pill x 4.0 -> 34.5 -> 93.1 -> 94.7pt |
+| Tab page crossfade | 0.22s ease-out | same frames | outgoing page alpha 1.00 -> 0.64 -> 0.03 -> 1.00 |
+| Mini-player expand | 0.30s spring, damping 0.90 | `motion-mini-0..3` | bar height 0 -> 25.3 -> 55.1 -> 56pt, alpha 0 -> 0.45 -> 0.98 -> 1; clipped while growing |
+| Mini-player to Now Playing | standard modal + 0.46s spring, damping 0.86, 0.02s delay | `motion-player-open-0..5`, `-4a`, `-4b` | `open-2` shows the panel partway over Home; cover scale 0.941 -> 0.969 -> 0.991 -> 1.000 |
+| Now Playing dismiss | 0.26s ease-in | `motion-close-0..3` | panel alpha 1.00 -> 0.94 -> 0.54 -> 0; translation 0 -> 52.4 -> 405.9 -> 874pt |
+| Play/pause glyph | 0.18s cross-dissolve | `motion-play-0..3` | `play-1`/`play-2` capture the blend, and CI asserts playback state changed |
+| Artwork change | 0.25s cover cross-dissolve (0.40s backdrop) | `motion-artwork-0..3` | track ID changes between frame 0 and frame 1; frame 1/2 catch the cover blend |
+| Card press scale | 0.16s down, 0.24s spring back (damping 0.70) | `motion-card-0..4`, `motion-tile-0..4` | presentation scale sampled between 0.90 and 0.99 while held |
+| Stats paging snap | 0.30s paging scroll | `motion-stats-0..3` | drag target 200pt snapped to 312pt; offset is partial at frame 1/2 and exactly 312 at frame 3 |
+| Onboarding step fade | 0.22s ease-out | `motion-onboarding-0..3` | title/body/features alpha partway between 0 and 1 at frame 1/2 |
+
+The live-frame report also sets the two residual geometries: Home's first
+artwork is at y331 against the reference y331, and Explore's first tile is at
+y175 against the reference y176 (one point, below the rasterization tolerance).
+`home.png` and `explore.png` carry the same measurements in the settled set.
 
 ## Shell and navigation
 
