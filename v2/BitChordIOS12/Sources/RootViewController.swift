@@ -142,6 +142,9 @@ final class RootViewController: UIViewController {
         view.addSubview(tabBar)
 
         miniBar.translatesAutoresizingMaskIntoConstraints = false
+        // The bar grows out of the capsule; without clipping its full contents
+        // are painted from the first frame and the spring cannot be seen.
+        miniBar.clipsToBounds = true
         miniBar.layer.cornerRadius = 28
         miniBar.onTap = { [weak self] in
             self?.presentNowPlaying()
@@ -274,6 +277,20 @@ final class RootViewController: UIViewController {
         controller.modalPresentationStyle = .fullScreen
         present(controller, animated: true, completion: nil)
     }
+
+    /// Presenter used by the motion capture. It hands back the controller so
+    /// the harness can sample the entrance before `presentedViewController` is
+    /// assigned at the end of the transition.
+    func presentNowPlayingForMotion() -> NowPlayingViewController? {
+        guard PlayerService.shared.currentTrack != nil else { return nil }
+        let controller = NowPlayingViewController()
+        controller.modalPresentationStyle = .fullScreen
+        motionPlayer = controller
+        present(controller, animated: true, completion: nil)
+        return controller
+    }
+
+    private(set) var motionPlayer: NowPlayingViewController?
 }
 
 extension RootViewController: UINavigationControllerDelegate {

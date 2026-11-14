@@ -41,6 +41,7 @@ private final class MotionRun {
     private var frames = 0
     private var startedAt = Date()
     private var tracks: [Track] = []
+    private var player: NowPlayingViewController?
     private var steps: [(delay: TimeInterval, name: String, action: () -> Void)] = []
     private var stepIndex = 0
 
@@ -181,36 +182,46 @@ private final class MotionRun {
             self.flag("mini.settled", self.miniFilled)
         }
         add(0.2, "player-origin") { self.snap("motion-player-open-0") }
-        add(0.02, "player-present") { self.root.presentNowPlaying() }
+        add(0.02, "player-present") { self.player = self.root.presentNowPlayingForMotion() }
         add(0.06, "player-open-1") {
             self.snap("motion-player-open-1")
-            if let player = self.root.motionPresentedPlayer {
-                let y = player.motionPanelTranslateY()
-                self.playerSlid = self.playerSlid || y > 1
+            if let player = self.player, player.isBeingPresented {
+                self.playerSlid = true
             }
         }
         add(0.09, "player-open-2") {
             self.snap("motion-player-open-2")
-            if let player = self.root.motionPresentedPlayer {
-                let y = player.motionPanelTranslateY()
-                self.playerSlid = self.playerSlid || y > 1
+            if let player = self.player, player.isBeingPresented {
+                self.playerSlid = true
             }
         }
         add(0.17, "player-open-3") {
             self.snap("motion-player-open-3")
-            if let player = self.root.motionPresentedPlayer {
+            if let player = self.player {
                 self.playerEntered = self.playerEntered || self.isEntrancePartial(player)
             }
         }
         add(0.14, "player-open-4") {
             self.snap("motion-player-open-4")
-            if let player = self.root.motionPresentedPlayer {
+            if let player = self.player {
                 self.playerEntered = self.playerEntered || self.isEntrancePartial(player)
             }
         }
-        add(0.55, "player-open-5") {
+        add(0.04, "player-open-4a") {
+            self.snap("motion-player-open-4a")
+            if let player = self.player {
+                self.playerEntered = self.playerEntered || self.isEntrancePartial(player)
+            }
+        }
+        add(0.04, "player-open-4b") {
+            self.snap("motion-player-open-4b")
+            if let player = self.player {
+                self.playerEntered = self.playerEntered || self.isEntrancePartial(player)
+            }
+        }
+        add(0.45, "player-open-5") {
             self.snap("motion-player-open-5")
-            if let player = self.root.motionPresentedPlayer {
+            if let player = self.player {
                 self.playerEntered = self.playerEntered || self.isEntrancePartial(player)
             }
             self.flag("player.slide", self.playerSlid)
@@ -242,23 +253,23 @@ private final class MotionRun {
         }
         add(0.12, "close-origin") {
             self.snap("motion-close-0")
-            self.root.motionDismissPlayer()
+            self.player?.motionCloseForCapture()
         }
         add(0.05, "close-mid-1") {
             self.snap("motion-close-1")
-            if let player = self.root.motionPresentedPlayer {
+            if let player = self.player {
                 self.closeMoved = self.closeMoved || player.motionPanelTranslateY() > 1
             }
         }
         add(0.08, "close-mid-2") {
             self.snap("motion-close-2")
-            if let player = self.root.motionPresentedPlayer {
+            if let player = self.player {
                 self.closeMoved = self.closeMoved || player.motionPanelTranslateY() > 1
             }
         }
         add(0.35, "close-settled") {
             self.snap("motion-close-3")
-            self.closeDismissed = self.root.motionPresentedPlayer == nil
+            self.closeDismissed = self.root.presentedViewController == nil
             self.flag("close.moved", self.closeMoved)
             self.flag("close.dismissed", self.closeDismissed)
         }
@@ -385,7 +396,9 @@ private final class MotionRun {
     private func isEntrancePartial(_ player: NowPlayingViewController) -> Bool {
         let alpha = player.motionArtworkAlpha()
         let scale = player.motionArtworkScale()
-        return (alpha > 0.01 && alpha < 0.99) || (scale > 0.945 && scale < 0.999)
+        // 0.94 is the cover's set scale when the entrance begins; anything
+        // below 1 and above the start is a genuinely in-flight frame.
+        return (alpha > 0.01 && alpha < 0.99) || (scale >= 0.93 && scale < 0.999)
     }
 
     private func add(_ delay: TimeInterval, _ name: String, _ action: @escaping () -> Void) {
@@ -411,8 +424,11 @@ private final class MotionRun {
 
     private func snap(_ name: String) {
         let elapsed = Date().timeIntervalSince(startedAt)
-        report.append(String(format: "motion.%@.t=%.3f %@",
-                             name, elapsed, root.motionSnapshot()))
+        var state = root.motionSnapshot()
+        if let player = player {
+            state += " " + player.motionSnapshot()
+        }
+        report.append(String(format: "motion.%@.t=%.3f %@", name, elapsed, state))
         let format = UIGraphicsImageRendererFormat()
         format.opaque = true
         format.scale = 1

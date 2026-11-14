@@ -757,7 +757,7 @@ jobs:
           test -s "$MOTION" || { echo "::error ::no motion report written"; exit 1; }
           grep -q "motion.done=true" "$MOTION"
           grep -q "motion.tracks=true" "$MOTION"
-          grep -q "motion.frames=44" "$MOTION"
+          grep -q "motion.frames=46" "$MOTION"
           for FLAG in tab.pillMoved tab.crossfade tab.settled mini.expanded mini.settled \
                       player.slide player.entrance play.changed artwork.changed artwork.fade \
                       close.moved close.dismissed card.scaled stats.moving stats.snapped \
@@ -771,7 +771,8 @@ jobs:
           for FRAME in motion-tab-0 motion-tab-1 motion-tab-2 motion-tab-3 \
                        motion-mini-0 motion-mini-1 motion-mini-2 motion-mini-3 \
                        motion-player-open-0 motion-player-open-1 motion-player-open-2 \
-                       motion-player-open-3 motion-player-open-4 motion-player-open-5 \
+                       motion-player-open-3 motion-player-open-4 motion-player-open-4a \
+                       motion-player-open-4b motion-player-open-5 \
                        motion-play-0 motion-play-1 motion-play-2 motion-play-3 \
                        motion-artwork-0 motion-artwork-1 motion-artwork-2 motion-artwork-3 \
                        motion-close-0 motion-close-1 motion-close-2 motion-close-3 \
