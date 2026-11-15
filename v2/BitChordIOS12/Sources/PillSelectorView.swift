@@ -10,10 +10,14 @@ import UIKit
 final class PillSelectorView: UIView {
     var onSelect: ((Int) -> Void)?
 
-    // Sampled from the running app: a near-black track with a lifted grey pill,
-    // not Apple's translucent segmented fill.
-    private let trackFill = UIColor(red: 0x1C / 255, green: 0x1C / 255, blue: 0x1E / 255, alpha: 1)
-    private let pillFill = UIColor(red: 0x3A / 255, green: 0x3A / 255, blue: 0x3C / 255, alpha: 1)
+    // Sampled from the running app: a surface track with a lifted pill in the
+    // matching palette, not Apple's translucent segmented fill.
+    private var trackFill: UIColor { Theme.surfaceVariant }
+    private var pillFill: UIColor {
+        return Theme.isDark
+            ? UIColor(red: 0x3A / 255, green: 0x3A / 255, blue: 0x3C / 255, alpha: 1)
+            : UIColor(red: 0.82, green: 0.82, blue: 0.84, alpha: 1)
+    }
     private let inset: CGFloat = 4
 
     private let pill = UIView()
@@ -49,7 +53,7 @@ final class PillSelectorView: UIView {
             let label = UILabel()
             label.text = title
             label.font = Theme.font(15, weight: .medium)
-            label.textColor = .white
+            label.textColor = Theme.primaryText
             label.textAlignment = .center
             labels.append(label)
 
@@ -78,7 +82,9 @@ final class PillSelectorView: UIView {
             apply()
         }
         for (position, label) in labels.enumerated() {
-            label.textColor = position == index ? .white : UIColor(white: 1, alpha: 0.65)
+            label.textColor = position == index
+                ? Theme.primaryText
+                : (Theme.isDark ? UIColor(white: 1, alpha: 0.65) : UIColor(white: 0, alpha: 0.55))
         }
     }
 

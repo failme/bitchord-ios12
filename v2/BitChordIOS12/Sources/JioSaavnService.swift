@@ -115,9 +115,10 @@ final class JioSaavnService {
             if !wantArtist.isEmpty, artists.contains(where: { $0.contains(wantArtist) || wantArtist.contains($0) }) {
                 score += 2
             }
-            if let want = durationSeconds, want > 0,
+            let tolerance = SettingsStore.shared.trackLengthTolerance
+            if tolerance > 0, let want = durationSeconds, want > 0,
                let raw = info["duration"] as? String, let got = Double(raw),
-               abs(got - want) <= 8 {
+               abs(got - want) <= tolerance {
                 score += 1
             }
             if score > bestScore {

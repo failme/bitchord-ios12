@@ -56,7 +56,7 @@ final class AccountViewController: UIViewController {
         view.addSubview(statusLabel)
 
         signInButton.translatesAutoresizingMaskIntoConstraints = false
-        signInButton.backgroundColor = .white
+        signInButton.backgroundColor = Theme.accent
         signInButton.layer.cornerRadius = 24
         signInButton.addTarget(self, action: #selector(signIn), for: .touchUpInside)
         view.addSubview(signInButton)
@@ -70,7 +70,7 @@ final class AccountViewController: UIViewController {
         buttonTitle.translatesAutoresizingMaskIntoConstraints = false
         buttonTitle.text = "Sign in with Google"
         buttonTitle.font = Theme.font(16, weight: .semibold)
-        buttonTitle.textColor = UIColor(white: 0.15, alpha: 1)
+        buttonTitle.textColor = Theme.background
         buttonTitle.isUserInteractionEnabled = false
         signInButton.addSubview(buttonTitle)
 

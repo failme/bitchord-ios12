@@ -12,11 +12,16 @@ enum DeepLinkRoute: Equatable {
     case artist(String)
     case playlist(String)
     case radio(String)
+    case search(String)
 }
 
 enum DeepLink {
     static func parse(_ url: URL) -> DeepLinkRoute? {
-        guard url.scheme?.lowercased() == "bitchord" else { return nil }
+        let scheme = url.scheme?.lowercased() ?? ""
+        if scheme == "http" || scheme == "https" {
+            return parseWeb(url)
+        }
+        guard scheme == "bitchord" else { return nil }
         let parts = url.pathComponents.filter { $0 != "/" && !$0.isEmpty }
         let query = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
         let queryValue = { (name: String) in query.first(where: { $0.name == name })?.value }
@@ -35,6 +40,52 @@ enum DeepLink {
         return route(type: host, id: id)
     }
 
+    /// The same YouTube/YouTube Music URLs upstream's `MusicLink` accepts from
+    /// Android intents. Universal-link association itself needs a domain the
+    /// app owns, but the parser and router are shared by the custom scheme and
+    /// by any `NSUserActivity` the system does hand over.
+    private static func parseWeb(_ url: URL) -> DeepLinkRoute? {
+        let host = (url.host ?? "").lowercased().replacingOccurrences(of: "www.", with: "")
+        let parts = url.pathComponents.filter { $0 != "/" && !$0.isEmpty }
+        let query = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+        let value = { (name: String) in query.first(where: { $0.name == name })?.value }
+        if host == "youtu.be" {
+            return parts.first.flatMap { track($0) }
+        }
+        guard host == "youtube.com" || host == "music.youtube.com" || host == "m.youtube.com" else {
+            return nil
+        }
+        let list = value("list")?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        switch parts.first ?? "" {
+        case "watch":
+            return value("v").flatMap { track($0) } ?? playlist(list)
+        case "playlist":
+            return playlist(list)
+        case "shorts", "embed", "v":
+            return parts.dropFirst().first.flatMap { track($0) }
+        case "channel":
+            return parts.dropFirst().first.flatMap { $0.isEmpty ? nil : .artist($0) }
+        case "browse":
+            return parts.dropFirst().first.flatMap { $0.isEmpty ? nil : .album($0) }
+        case "search":
+            return value("q")?.trimmingCharacters(in: .whitespacesAndNewlines)
+                .flatMap { $0.isEmpty ? nil : .search($0) }
+        default:
+            return playlist(list)
+        }
+    }
+
+    private static func track(_ id: String) -> DeepLinkRoute? {
+        let clean = id.trimmingCharacters(in: .whitespacesAndNewlines)
+        return clean.isEmpty ? nil : .track(clean)
+    }
+
+    private static func playlist(_ id: String) -> DeepLinkRoute? {
+        let clean = id.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clean.isEmpty else { return nil }
+        return .playlist(clean.hasPrefix("VL") ? clean : "VL" + clean)
+    }
+
     static func route(type: String, id: String) -> DeepLinkRoute? {
         switch type {
         case "track", "song": return .track(id)
@@ -43,6 +94,7 @@ enum DeepLink {
         case "playlist": return .playlist(id)
         case "radio": return .radio(id)
         case "home": return .home
+        case "search": return .search(id)
         default: return nil
         }
     }
@@ -88,6 +140,7 @@ enum DeepLinkRouter {
         case .artist(let id): return "route=artist id=\(id)"
         case .playlist(let id): return "route=playlist id=\(id)"
         case .radio(let id): return "route=radio id=\(id)"
+        case .search(let query): return "route=search q=\(query)"
         }
     }
 
@@ -136,6 +189,12 @@ enum DeepLinkRouter {
             let page = ArtistPage.make(artist: CatalogueArtist(id: id, name: "Artist", artwork: nil))
             push(page, on: root)
             record("route=artist id=\(id) screen=Artist \(suffix)")
+        case .search(let query):
+            root.showTab(3)
+            if let search = root.navigationForTab(3)?.viewControllers.first as? SearchViewController {
+                search.searchForDeepLink(query)
+            }
+            record("route=search q=\(query) screen=Search \(suffix)")
         }
     }
 

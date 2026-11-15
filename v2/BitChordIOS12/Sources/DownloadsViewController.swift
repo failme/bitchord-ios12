@@ -242,7 +242,7 @@ final class DownloadsViewController: UIViewController {
         navigation.navigationBar.barTintColor = Theme.background
         navigation.navigationBar.tintColor = Theme.accent
         navigation.navigationBar.isTranslucent = false
-        navigation.navigationBar.titleTextAttributes = [.foregroundColor: UIColor.white]
+        navigation.navigationBar.titleTextAttributes = [.foregroundColor: Theme.primaryText]
         settings.modalPresentationStyle = .fullScreen
         present(navigation, animated: true, completion: nil)
     }
@@ -400,7 +400,7 @@ final class DownloadCell: UITableViewCell {
         contentView.addSubview(trailingLabel)
 
         bar.translatesAutoresizingMaskIntoConstraints = false
-        bar.backgroundColor = .white
+        bar.backgroundColor = Theme.accent
         bar.layer.cornerRadius = 1.5
         bar.isHidden = true
         contentView.addSubview(bar)

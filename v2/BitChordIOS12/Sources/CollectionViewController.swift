@@ -130,6 +130,19 @@ extension CollectionViewController: UITableViewDataSource, UITableViewDelegate {
             self?.presentNowPlayingFromRoot()
         }
     }
+
+    func tableView(_ tableView: UITableView,
+                   trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath)
+        -> UISwipeActionsConfiguration? {
+        guard SettingsStore.shared.playNextOnSwipe else { return nil }
+        let track = tracks[indexPath.row]
+        let action = UIContextualAction(style: .normal, title: "Play next") { _, _, done in
+            PlayerService.shared.playNext(track)
+            done(true)
+        }
+        action.backgroundColor = Theme.surfaceVariant
+        return UISwipeActionsConfiguration(actions: [action])
+    }
 }
 
 /// Cover, title, subtitle and a Play pill.

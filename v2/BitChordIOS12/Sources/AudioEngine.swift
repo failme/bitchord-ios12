@@ -158,6 +158,13 @@ final class AudioEngine {
             native.playLocal(url: local, track: track, source: "Local Music")
             return
         }
+        // Upstream's Sources switch can take JioSaavn out of the resolver
+        // order; with it off, go straight to YouTube/InnerTube. Local, WebDAV
+        // and Jellyfin files above still play from their own source.
+        guard SettingsStore.shared.jioSaavnEnabled else {
+            resolveYouTube(track, position: 0)
+            return
+        }
         native.play(track: track) { [weak self] resolved in
             guard let self = self else { return }
             guard !resolved else { return }
@@ -168,6 +175,19 @@ final class AudioEngine {
             self.mode = .web
             self.native.stop()
             self.web.play(videoId: track.videoID)
+        }
+    }
+
+    private func resolveYouTube(_ track: Track, position: Double) {
+        InnerTube.shared.resolveStreamURL(videoID: track.videoID) { [weak self] url, reason in
+            guard let self = self else { return }
+            guard let url = url, let scheme = url.scheme, scheme.hasPrefix("http") else {
+                self.nativeFailure = reason.isEmpty ? "No stream URL was returned." : reason
+                self.mode = .web
+                self.web.play(videoId: track.videoID)
+                return
+            }
+            self.native.playResolved(url: url, track: track, at: position, source: "YouTube")
         }
     }
 

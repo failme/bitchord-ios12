@@ -800,7 +800,7 @@ final class NowPlayingViewController: UIViewController {
         // The source tag reads "JIOSAAVN 320KBPS" on every track. Useful when
         // something will not play, noise the rest of the time, so it is only
         // shown when the listener turns debug information on.
-        if SettingsStore.shared.showDebugInfo {
+        if SettingsStore.shared.showNerdStats {
             let source = AudioEngine.shared.currentSourceLabel
             let badge = (source.isEmpty ? track.displayAudioQualityBadge : source).uppercased()
             let styled = NSMutableAttributedString(string: badge)
@@ -906,7 +906,7 @@ final class NowPlayingViewController: UIViewController {
         if !slider.isTracking {
             slider.value = total > 0 ? Float(min(1, max(0, position / total))) : 0
         }
-        diagnosticsLabel.text = SettingsStore.shared.showDebugInfo
+        diagnosticsLabel.text = SettingsStore.shared.showNerdStats
             ? AudioEngine.shared.diagnosticsSummary
             : nil
         elapsedLabel.text = Theme.format(position)

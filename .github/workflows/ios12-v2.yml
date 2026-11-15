@@ -835,6 +835,18 @@ jobs:
           grep -q "route=radio id=$TRACK_ID screen=Radio" shots/deeplinks.txt
           grep -q "route=home screen=Home" shots/deeplinks.txt
           grep -q "cold=1" shots/deeplinks.txt
+
+          # The same router accepts the web forms upstream's Android intent
+          # filters expose: watch, short link, playlist and search URLs.
+          PLAYLIST_BARE=$(printf '%s' "$PLAYLIST_ID" | sed 's/^VL//')
+          launch_link "https://music.youtube.com/watch?v=$TRACK_ID"
+          launch_link "https://youtu.be/$TRACK_ID"
+          launch_link "https://music.youtube.com/playlist?list=$PLAYLIST_BARE"
+          launch_link "https://music.youtube.com/search?q=Blinding+Lights"
+          cp "$CONTAINER/Documents/shots/deeplinks.txt" shots/deeplinks.txt 2>/dev/null || true
+          grep -q "route=track id=$TRACK_ID screen=NowPlaying" shots/deeplinks.txt
+          grep -q "route=playlist id=VL$PLAYLIST_BARE screen=Playlist" shots/deeplinks.txt
+          grep -q "route=search q=Blinding Lights screen=Search" shots/deeplinks.txt
           test -s shots/deeplink-prompt.png
           test -s shots/deeplink-track.png
           test -s shots/deeplink-cold.png
@@ -882,6 +894,28 @@ jobs:
           grep -q "jellyfin.listed=true" shots/jellyfin-small-report.txt
           grep -q "jellyfin.items=Music" shots/jellyfin-small-report.txt
           test -s shots/jellyfin-small.png
+
+          # Light theme: a cold launch with the persisted choice, then the same
+          # Home/Settings/Account surfaces captured from the light palette.
+          xcrun simctl terminate "$UDID" "$BUNDLE" || true
+          sleep 1
+          xcrun simctl launch "$UDID" "$BUNDLE" -BCTheme light -BCThemeScreens "$CONTAINER/Documents/shots"
+          for i in $(seq 1 30); do
+            [ -f "$CONTAINER/Documents/shots/theme-done.txt" ] && break
+            sleep 2
+          done
+          cp -R "$CONTAINER/Documents/shots/." shots/ || true
+          echo "### Theme report"
+          cat shots/theme-report.txt 2>/dev/null || echo "(no theme report)"
+          grep -q "theme.mode=LIGHT" shots/theme-report.txt
+          grep -q "theme.dark=false" shots/theme-report.txt
+          grep -q "theme.backgroundLight=true" shots/theme-report.txt
+          grep -q "theme.textDark=true" shots/theme-report.txt
+          grep -q "theme.settingsBackgroundLight=true" shots/theme-report.txt
+          grep -q "theme.accountBackgroundLight=true" shots/theme-report.txt
+          test -s shots/theme-home-light.png
+          test -s shots/theme-settings-light.png
+          test -s shots/theme-account-light.png
 
           # Motion evidence: 44 origin/mid/settled frames plus the numeric
           # presentation values proving each captured middle is partial. A

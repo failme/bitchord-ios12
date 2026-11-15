@@ -55,6 +55,20 @@ enum ScreenshotHarness {
             }
             return
         }
+        // The light palette is a separate launch because the real Settings row
+        // rebuilds the root; this proves the persisted choice is honoured from
+        // a cold start and photographs the same screens in the other palette.
+        if let flag = arguments.firstIndex(of: "-BCThemeScreens"), flag + 1 < arguments.count {
+            let directory = URL(fileURLWithPath: arguments[flag + 1], isDirectory: true)
+            try? FileManager.default.createDirectory(at: directory,
+                                                     withIntermediateDirectories: true,
+                                                     attributes: nil)
+            OnboardingViewController.complete(path: "local")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
+                captureTheme(directory: directory)
+            }
+            return
+        }
         // A 320x568 pass over the live tabs and the player. This runs with
         // -BCSmallScreen, so the same code and constraints are exercised at the
         // width where the fixed-size Explore rows and player stack used to fail.
@@ -294,6 +308,51 @@ enum ScreenshotHarness {
             captureOnboarding(onboarding, capture: capture, completion: begin)
         } else {
             begin()
+        }
+    }
+
+    /// Cold-start capture of the persisted theme. The app was launched with
+    /// `-BCTheme light`, so every view here is built from the light palette.
+    private static func captureTheme(directory: URL) {
+        guard let window = UIApplication.shared.keyWindow,
+              let root = window.rootViewController as? RootViewController else {
+            writeText("theme.absent=true", name: "theme-report.txt", directory: directory)
+            exit(0)
+            return
+        }
+        var report: [String] = []
+        report.append("theme.mode=\(Theme.mode.rawValue)")
+        report.append("theme.dark=\(Theme.isDark)")
+        report.append("theme.backgroundLight=\(Theme.background == UIColor.white)")
+        report.append("theme.textDark=\(Theme.primaryText == UIColor.black)")
+        let writeShot = { (name: String) in write(window: window, name: name, directory: directory) }
+        root.showTab(0)
+        after(1.2) {
+            writeShot("theme-home-light")
+            let settings = SettingsViewController()
+            root.present(chrome(settings), animated: false) {
+                after(0.8) {
+                    writeShot("theme-settings-light")
+                    report.append("theme.settingsBackgroundLight=\(settings.view.backgroundColor == UIColor.white)")
+                    root.dismiss(animated: false) {
+                        let account = AccountViewController()
+                        root.present(chrome(account), animated: false) {
+                            after(0.8) {
+                                writeShot("theme-account-light")
+                                report.append("theme.accountBackgroundLight=\(account.view.backgroundColor == UIColor.white)")
+                                writeText(report.joined(separator: "\n"),
+                                          name: "theme-report.txt", directory: directory)
+                                writeText("done", name: "theme-done.txt", directory: directory)
+                                // Leave the next harness launch on the normal
+                                // Midnight palette rather than leaking this
+                                // test-only launch argument into it.
+                                UserDefaults.standard.set(Theme.Mode.dark.rawValue, forKey: Theme.modeKey)
+                                exit(0)
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -1864,8 +1923,8 @@ enum ScreenshotHarness {
         navigation.navigationBar.barTintColor = Theme.background
         navigation.navigationBar.tintColor = Theme.accent
         navigation.navigationBar.isTranslucent = false
-        navigation.navigationBar.titleTextAttributes = [.foregroundColor: UIColor.white]
-        navigation.navigationBar.largeTitleTextAttributes = [.foregroundColor: UIColor.white]
+        navigation.navigationBar.titleTextAttributes = [.foregroundColor: Theme.primaryText]
+        navigation.navigationBar.largeTitleTextAttributes = [.foregroundColor: Theme.primaryText]
         navigation.navigationBar.prefersLargeTitles = true
         return navigation
     }

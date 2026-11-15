@@ -75,6 +75,15 @@ final class SearchViewController: UIViewController {
         field.becomeFirstResponder()
     }
 
+    /// A search URL should land on results, not on an empty focused field.
+    func searchForDeepLink(_ text: String) {
+        field.text = text
+        clearButton.isHidden = text.isEmpty
+        pendingWork?.cancel()
+        requestToken += 1
+        run(text)
+    }
+
     // MARK: - Chrome
 
     private func buildField() {

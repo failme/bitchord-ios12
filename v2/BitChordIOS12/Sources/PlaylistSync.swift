@@ -3,6 +3,30 @@ import UIKit
 /// Turns whatever the user pasted into a playlist id: a bare id, a YouTube or
 /// YouTube Music link, or a link with the id in a `list` parameter.
 enum PlaylistSync {
+    /// Refreshes every saved remote playlist when the listener has asked for
+    /// downloads to stay current. Runs one at a time so a slow catalogue does
+    /// not stampede the network or replace the local array out of order.
+    static func autoUpdate(completion: (() -> Void)? = nil) {
+        guard SettingsStore.shared.keepDownloadsUpdated else {
+            completion?()
+            return
+        }
+        let remote = LibraryStore.shared.playlists
+            .map { $0.id }
+            .filter { $0.hasPrefix("remote:") }
+        func next(_ index: Int) {
+            guard index < remote.count else {
+                completion?()
+                return
+            }
+            let identifier = remote[index].replacingOccurrences(of: "remote:", with: "")
+            LibraryStore.shared.syncPlaylist(remoteID: identifier) { _, _ in
+                next(index + 1)
+            }
+        }
+        next(0)
+    }
+
     static func identifier(from text: String) -> String {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return "" }

@@ -148,6 +148,25 @@ final class NativeAudioPlayer: NSObject {
         }
     }
 
+    /// Starts a URL that another resolver already chose. Used when the
+    /// listener turns JioSaavn off and InnerTube is the only source in play.
+    func playResolved(url: URL, track: Track, at position: Double, source: String) {
+        currentVideoId = track.videoID
+        currentTrack = track
+        sourceLabel = source
+        isPlayingLocalFile = false
+        lastExplicit = false
+        isPausedByUser = false
+        isReady = false
+        lastKnownPosition = position
+        lastProgressDate = Date()
+        secondsSinceProgress = 0
+        requestTicket += 1
+        lastDiagnostic = ""
+        diagnosticsSummary = "native: resolved (" + source + ")"
+        start(url: url, at: position)
+    }
+
     private func start(url: URL, at position: Double, headers: [String: String] = [:]) {
         teardownItem()
 

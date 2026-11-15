@@ -242,7 +242,7 @@ final class GoogleAccountStore {
         navigation.navigationBar.barTintColor = Theme.background
         navigation.navigationBar.tintColor = Theme.accent
         navigation.navigationBar.isTranslucent = false
-        navigation.navigationBar.titleTextAttributes = [.foregroundColor: UIColor.white]
+        navigation.navigationBar.titleTextAttributes = [.foregroundColor: Theme.primaryText]
         host.present(navigation, animated: true, completion: nil)
     }
 

@@ -2,21 +2,110 @@ import UIKit
 
 /// BitChord's visual language, measured off the upstream app.
 ///
-/// Pure-black background, graphite surfaces, white ink, grey secondary text and
-/// the signature red accent — dark only, as upstream ships it.
+/// Upstream exposes System/Light/Dark in Settings. iOS 12 has no dynamic
+/// `UIColor` palette, so every token is resolved at draw time from the saved
+/// preference; changing the preference rebuilds the root so no view keeps a
+/// stale colour from the old palette.
 enum Theme {
+    enum Mode: String {
+        case system = "SYSTEM"
+        case light = "LIGHT"
+        case dark = "DARK"
+
+        var label: String {
+            switch self {
+            case .system: return "System"
+            case .light: return "Light"
+            case .dark: return "Dark"
+            }
+        }
+    }
+
+    static let modeKey = "BitChord.Appearance.Theme"
+
+    static var mode: Mode {
+        let raw = (UserDefaults.standard.string(forKey: modeKey) ?? Mode.dark.rawValue).uppercased()
+        return Mode(rawValue: raw) ?? .dark
+    }
+
+    /// System follows the device on iOS 13+, and is light on iOS 12, which has
+    /// no system dark appearance. Both other choices are explicit.
+    static var isDark: Bool {
+        switch mode {
+        case .dark: return true
+        case .light: return false
+        case .system:
+            if #available(iOS 13.0, *) {
+                return UIScreen.main.traitCollection.userInterfaceStyle == .dark
+            }
+            return false
+        }
+    }
+
     // MARK: - Palette
 
-    static let background = UIColor.black
-    static let surface = UIColor(red: 0x0D / 255.0, green: 0x0D / 255.0, blue: 0x0F / 255.0, alpha: 1)
-    static let surfaceVariant = UIColor(red: 0x1C / 255.0, green: 0x1C / 255.0, blue: 0x1E / 255.0, alpha: 1)
-    static let primaryText = UIColor.white
-    static let secondaryText = UIColor(red: 0x8E / 255.0, green: 0x8E / 255.0, blue: 0x93 / 255.0, alpha: 1)
-    static let outline = UIColor(red: 0x2C / 255.0, green: 0x2C / 255.0, blue: 0x2E / 255.0, alpha: 1)
-    /// Upstream's primary is white — playback controls, accents, the selected
-    /// tab. The red is Replay's rank badge and nothing else.
-    static let accent = UIColor.white
+    static var background: UIColor {
+        return isDark ? .black : .white
+    }
+
+    static var surface: UIColor {
+        return isDark
+            ? UIColor(red: 0x0D / 255.0, green: 0x0D / 255.0, blue: 0x0F / 255.0, alpha: 1)
+            : UIColor(red: 0xF7 / 255.0, green: 0xF7 / 255.0, blue: 0xF9 / 255.0, alpha: 1)
+    }
+
+    static var surfaceVariant: UIColor {
+        return isDark
+            ? UIColor(red: 0x1C / 255.0, green: 0x1C / 255.0, blue: 0x1E / 255.0, alpha: 1)
+            : UIColor(red: 0xF2 / 255.0, green: 0xF2 / 255.0, blue: 0xF7 / 255.0, alpha: 1)
+    }
+
+    static var primaryText: UIColor {
+        return isDark ? .white : .black
+    }
+
+    static var secondaryText: UIColor {
+        return isDark
+            ? UIColor(red: 0x8E / 255.0, green: 0x8E / 255.0, blue: 0x93 / 255.0, alpha: 1)
+            : UIColor(red: 0x6E / 255.0, green: 0x6E / 255.0, blue: 0x73 / 255.0, alpha: 1)
+    }
+
+    static var outline: UIColor {
+        return isDark
+            ? UIColor(red: 0x2C / 255.0, green: 0x2C / 255.0, blue: 0x2E / 255.0, alpha: 1)
+            : UIColor(red: 0xE5 / 255.0, green: 0xE5 / 255.0, blue: 0xEA / 255.0, alpha: 1)
+    }
+
+    /// Upstream's primary is the foreground colour — white on Midnight, black
+    /// on Light. The red is Replay's rank badge and nothing else.
+    static var accent: UIColor {
+        return primaryText
+    }
+
     static let replayRed = UIColor(red: 0xFA / 255.0, green: 0x2D / 255.0, blue: 0x48 / 255.0, alpha: 1)
+
+    static func configureBars() {
+        let bar = UINavigationBar.appearance()
+        bar.barTintColor = background
+        bar.tintColor = accent
+        bar.isTranslucent = false
+        bar.barStyle = isDark ? .black : .default
+        bar.titleTextAttributes = [.foregroundColor: primaryText]
+        bar.largeTitleTextAttributes = [.foregroundColor: primaryText]
+
+        let table = UITableView.appearance()
+        table.backgroundColor = background
+        table.separatorColor = surface
+    }
+
+    static func configure(_ bar: UINavigationBar) {
+        bar.barTintColor = background
+        bar.tintColor = accent
+        bar.isTranslucent = false
+        bar.barStyle = isDark ? .black : .default
+        bar.titleTextAttributes = [.foregroundColor: primaryText]
+        bar.largeTitleTextAttributes = [.foregroundColor: primaryText]
+    }
 
     /// The page inset every screen shares.
     static let gutter: CGFloat = 16

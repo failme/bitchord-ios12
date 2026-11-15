@@ -3,7 +3,7 @@ import UIKit
 final class MiniPlayerBar: UIView {
     var onTap: (() -> Void)?
 
-    private let blurView = UIVisualEffectView(effect: UIBlurEffect(style: .dark))
+    private let blurView = UIVisualEffectView(effect: UIBlurEffect(style: Theme.isDark ? .dark : .light))
     private let artworkView = UIImageView()
     private let progressView = UIView()
     private var progressWidth: NSLayoutConstraint!

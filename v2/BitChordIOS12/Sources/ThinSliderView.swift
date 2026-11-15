@@ -49,8 +49,8 @@ final class ThinSliderView: UIControl {
         accessibilityTraits = .adjustable
 
         bar.isUserInteractionEnabled = false
-        inactiveLayer.fillColor = UIColor.white.withAlphaComponent(0.26).cgColor
-        activeLayer.fillColor = UIColor.white.withAlphaComponent(0.92).cgColor
+        inactiveLayer.fillColor = Theme.primaryText.withAlphaComponent(0.26).cgColor
+        activeLayer.fillColor = Theme.primaryText.withAlphaComponent(0.92).cgColor
         bar.layer.addSublayer(inactiveLayer)
         bar.layer.addSublayer(activeLayer)
         addSubview(bar)

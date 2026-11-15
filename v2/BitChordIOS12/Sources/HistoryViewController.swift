@@ -72,9 +72,9 @@ final class HistoryViewController: UIViewController {
 
         retryButton.translatesAutoresizingMaskIntoConstraints = false
         retryButton.setTitle("Try Again", for: .normal)
-        retryButton.setTitleColor(.black, for: .normal)
+        retryButton.setTitleColor(Theme.background, for: .normal)
         retryButton.titleLabel?.font = Theme.font(15, weight: .semibold)
-        retryButton.backgroundColor = .white
+        retryButton.backgroundColor = Theme.accent
         retryButton.layer.cornerRadius = 20
         retryButton.isHidden = emptyLabel.isHidden
         retryButton.addTarget(self, action: #selector(retryTapped), for: .touchUpInside)

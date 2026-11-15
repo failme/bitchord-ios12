@@ -161,7 +161,7 @@ final class LocalMusicViewController: UIViewController {
         navigation.navigationBar.barTintColor = Theme.background
         navigation.navigationBar.tintColor = Theme.accent
         navigation.navigationBar.isTranslucent = false
-        navigation.navigationBar.titleTextAttributes = [.foregroundColor: UIColor.white]
+        navigation.navigationBar.titleTextAttributes = [.foregroundColor: Theme.primaryText]
         settings.modalPresentationStyle = .fullScreen
         present(navigation, animated: true, completion: nil)
     }

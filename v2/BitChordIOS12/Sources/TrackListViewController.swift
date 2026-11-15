@@ -117,6 +117,14 @@ extension TrackListViewController: UITableViewDataSource, UITableViewDelegate {
         like.backgroundColor = Theme.accent
 
         var actions: [UIContextualAction] = [like]
+        if SettingsStore.shared.playNextOnSwipe {
+            let playNext = UIContextualAction(style: .normal, title: "Play next") { _, _, done in
+                PlayerService.shared.playNext(track)
+                done(true)
+            }
+            playNext.backgroundColor = Theme.surfaceVariant
+            actions.insert(playNext, at: 0)
+        }
         if playlistID != nil {
             actions.insert(delete, at: 0)
         }

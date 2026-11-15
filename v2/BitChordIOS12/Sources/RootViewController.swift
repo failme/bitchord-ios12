@@ -80,11 +80,7 @@ final class RootViewController: UIViewController {
             // get the bar back through the delegate below.
             navigation.delegate = self
             navigation.setNavigationBarHidden(true, animated: false)
-            navigation.navigationBar.barTintColor = Theme.background
-            navigation.navigationBar.tintColor = Theme.accent
-            navigation.navigationBar.isTranslucent = false
-            navigation.navigationBar.titleTextAttributes = [.foregroundColor: UIColor.white]
-            navigation.navigationBar.largeTitleTextAttributes = [.foregroundColor: UIColor.white]
+            Theme.configure(navigation.navigationBar)
             navigation.navigationBar.prefersLargeTitles = true
             // Flat black bars: upstream draws no hairline under the header.
             navigation.navigationBar.shadowImage = UIImage()

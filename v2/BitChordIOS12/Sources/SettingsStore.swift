@@ -115,6 +115,43 @@ final class SettingsStore {
         get { return bool("BitChord.Misc.ShowDebugInfo", false) }
         set { set(newValue, for: "BitChord.Misc.ShowDebugInfo") }
     }
+
+    /// Upstream's "Stats for nerds" row; it is the same live engine summary the
+    /// debug row turns on, so a track's source, rate and stale counter can be
+    /// read from the player without opening Settings first.
+    var showNerdStats: Bool {
+        get { return bool("BitChord.Advanced.StatsForNerds", false) || showDebugInfo }
+        set {
+            set(newValue, for: "BitChord.Advanced.StatsForNerds")
+            if !newValue { set(false, for: "BitChord.Misc.ShowDebugInfo") }
+        }
+    }
+
+    /// JioSaavn is the primary playable catalogue on iOS 12; turning it off
+    /// leaves YouTube/InnerTube as the only resolver, exactly as upstream's
+    /// source switch does.
+    var jioSaavnEnabled: Bool {
+        get { return bool("BitChord.Source.JioSaavn", true) }
+        set { set(newValue, for: "BitChord.Source.JioSaavn") }
+    }
+
+    /// How far a JioSaavn result may differ from the requested track length.
+    /// Zero means "don't use duration as corroboration".
+    var trackLengthTolerance: Double {
+        let raw = string("BitChord.Source.TrackLengthTolerance", "8 s")
+        if raw.lowercased().hasPrefix("any") { return 0 }
+        return Double(String(raw.split(separator: " ").first ?? "8")) ?? 8
+    }
+
+    var keepDownloadsUpdated: Bool {
+        get { return bool("BitChord.Download.KeepUpdated", false) }
+        set { set(newValue, for: "BitChord.Download.KeepUpdated") }
+    }
+
+    var playNextOnSwipe: Bool {
+        get { return bool("BitChord.Misc.PlayNextOnSwipe", false) }
+        set { set(newValue, for: "BitChord.Misc.PlayNextOnSwipe") }
+    }
 }
 
 /// The upstream sections and keys, with an honest availability verdict for each.
@@ -230,7 +267,8 @@ enum SettingsCatalog {
             SettingItem(key: "BitChord.Download.Storage", title: "Storage used",
                         kind: .storage),
             SettingItem(key: "BitChord.Download.KeepUpdated", title: "Keep downloads updated",
-                        kind: .unavailable("Playlist sync is not ported.")),
+                        detail: "Refresh synced playlists on launch",
+                        kind: .toggle(false)),
             SettingItem(key: "BitChord.Download.ExportCompatible", title: "Export compatible files",
                         kind: .unavailable("Download manager is not ported.")),
             SettingItem(key: "BitChord.LocalMusic.SelectedFolder", title: "Local music folder",
@@ -258,9 +296,11 @@ enum SettingsCatalog {
                         detail: "WebDAV servers you can stream from",
                         kind: .sources),
             SettingItem(key: "BitChord.Source.JioSaavn", title: "JioSaavn",
-                        kind: .unavailable("Addon sources are not ported.")),
+                        detail: "Primary playable catalogue on this device",
+                        kind: .toggle(true)),
             SettingItem(key: "BitChord.Source.TrackLengthTolerance", title: "Track length tolerance",
-                        kind: .unavailable("Addon sources are not ported."))
+                        detail: "How closely a catalogue match may differ",
+                        kind: .choice("8 s", ["4 s", "8 s", "12 s", "Any"]))
         ]),
 
         SettingSection(title: "Integrations", items: [
@@ -313,8 +353,8 @@ enum SettingsCatalog {
 
         SettingSection(title: "Appearance", items: [
             SettingItem(key: "BitChord.Appearance.Theme", title: "Theme",
-                        detail: "Midnight is the only iOS 12 theme",
-                        kind: .unavailable("iOS 12 has no dynamic dark/light colour system; this port keeps the upstream Midnight palette.")),
+                        detail: "System, Light or Dark",
+                        kind: .choice("Dark", ["System", "Light", "Dark"])),
             SettingItem(key: "BitChord.Appearance.Font", title: "Font",
                         kind: .choice("System", ["System", "Rounded", "Serif"])),
             SettingItem(key: "BitChord.Appearance.AppIcon", title: "App icon",
@@ -345,7 +385,8 @@ enum SettingsCatalog {
             SettingItem(key: "BitChord.Misc.ShowQueueHistory", title: "Show queue history",
                         kind: .toggle(false)),
             SettingItem(key: "BitChord.Misc.PlayNextOnSwipe", title: "Swipe to play next",
-                        kind: .unavailable("Mini player gestures are not ported.")),
+                        detail: "Swipe a song row to put it after the current track",
+                        kind: .toggle(false)),
             SettingItem(key: "BitChord.Misc.DontRepeatInSession", title: "Don't repeat in session",
                         kind: .toggle(false)),
             SettingItem(key: "BitChord.Misc.StopOnCloseRecents", title: "Stop when recents close",
@@ -368,7 +409,8 @@ enum SettingsCatalog {
                         detail: "Stream source, quality and engine counters",
                         kind: .toggle(false)),
             SettingItem(key: "BitChord.Advanced.StatsForNerds", title: "Stats for nerds",
-                        kind: .unavailable("Telemetry overlay is not ported.")),
+                        detail: "Live source, rate and buffer counters on the player",
+                        kind: .toggle(false)),
             SettingItem(key: "BitChord.Performance.HighPerformanceMode", title: "High performance mode",
                         kind: .unavailable("Not ported.")),
             SettingItem(key: "BitChord.Performance.RefreshRate", title: "Refresh rate",

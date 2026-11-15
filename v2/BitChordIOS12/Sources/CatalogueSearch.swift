@@ -50,6 +50,12 @@ final class CatalogueSearch {
 
     /// Recordings matching `query`, ready to queue.
     func songs(_ query: String, completion: @escaping ([Track]) -> Void) {
+        guard SettingsStore.shared.jioSaavnEnabled else {
+            InnerTube.shared.search(query, filter: .songs) { tracks, _ in
+                completion(tracks ?? [])
+            }
+            return
+        }
         get(call: "search.getResults", params: ["q": query, "p": "1", "n": "30"]) { json in
             let rows = (json?["results"] as? [[String: Any]]) ?? []
             let tracks = rows.compactMap { self.track(from: $0) }
@@ -58,6 +64,12 @@ final class CatalogueSearch {
     }
 
     func artists(_ query: String, completion: @escaping ([CatalogueArtist]) -> Void) {
+        guard SettingsStore.shared.jioSaavnEnabled else {
+            InnerTube.shared.searchCollections(query, filter: .artists) { rows in
+                completion(rows.map { CatalogueArtist(id: $0.browseID, name: $0.title, artwork: $0.artworkURL) })
+            }
+            return
+        }
         get(call: "search.getArtistResults", params: ["q": query, "p": "1", "n": "20"]) { json in
             let rows = (json?["results"] as? [[String: Any]]) ?? []
             let artists = rows.compactMap { row -> CatalogueArtist? in
@@ -71,6 +83,15 @@ final class CatalogueSearch {
     }
 
     func albums(_ query: String, completion: @escaping ([CatalogueAlbum]) -> Void) {
+        guard SettingsStore.shared.jioSaavnEnabled else {
+            InnerTube.shared.searchCollections(query, filter: .albums) { rows in
+                completion(rows.map {
+                    CatalogueAlbum(id: $0.browseID, title: $0.title, artist: $0.subtitle,
+                                   year: "", artwork: $0.artworkURL, songCount: 0)
+                })
+            }
+            return
+        }
         get(call: "search.getAlbumResults", params: ["q": query, "p": "1", "n": "20"]) { json in
             let rows = (json?["results"] as? [[String: Any]]) ?? []
             let albums = rows.compactMap { row -> CatalogueAlbum? in
@@ -100,6 +121,10 @@ final class CatalogueSearch {
     /// is the operation that still returns the tracklist, and it puts the songs
     /// under `list`.
     func songs(inAlbum albumID: String, completion: @escaping ([Track]) -> Void) {
+        guard SettingsStore.shared.jioSaavnEnabled else {
+            InnerTube.shared.fetchCollection(albumID) { tracks, _ in completion(tracks ?? []) }
+            return
+        }
         get(call: "content.getAlbumDetails", params: ["albumid": albumID]) { json in
             guard let json = json else {
                 completion([])
@@ -125,6 +150,10 @@ final class CatalogueSearch {
 
     /// An artist's best-known songs.
     func songs(byArtist artistID: String, completion: @escaping ([Track]) -> Void) {
+        guard SettingsStore.shared.jioSaavnEnabled else {
+            InnerTube.shared.fetchCollection(artistID) { tracks, _ in completion(tracks ?? []) }
+            return
+        }
         get(call: "artist.getArtistPageDetails", params: ["artistId": artistID]) { json in
             guard let json = json else {
                 completion([])

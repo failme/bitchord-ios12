@@ -10,7 +10,7 @@ final class SettingsViewController: UIViewController {
     private let searchField = UITextField()
     private let sections = SettingsCatalog.sections
 
-    private let card = UIColor(red: 0x1C / 255.0, green: 0x1C / 255.0, blue: 0x1E / 255.0, alpha: 1)
+    private var card: UIColor { Theme.surfaceVariant }
 
     /// Brings the download rows into view so the capture can show that they
     /// carry live state (storage used) rather than placeholder copy.
@@ -46,7 +46,7 @@ final class SettingsViewController: UIViewController {
 
         tableView.translatesAutoresizingMaskIntoConstraints = false
         tableView.backgroundColor = .clear
-        tableView.separatorColor = UIColor(white: 1, alpha: 0.06)
+        tableView.separatorColor = Theme.outline.withAlphaComponent(Theme.isDark ? 0.28 : 0.7)
         tableView.separatorInset = UIEdgeInsets(top: 0, left: 52, bottom: 0, right: 16)
         tableView.dataSource = self
         tableView.delegate = self
@@ -71,7 +71,9 @@ final class SettingsViewController: UIViewController {
         let safe = view.safeAreaLayoutGuide
 
         backButton.translatesAutoresizingMaskIntoConstraints = false
-        backButton.backgroundColor = UIColor(white: 1, alpha: 0.06)
+        backButton.backgroundColor = Theme.isDark
+            ? UIColor(white: 1, alpha: 0.06)
+            : UIColor(white: 0, alpha: 0.06)
         backButton.layer.cornerRadius = 22
         backButton.tintColor = Theme.primaryText
         backButton.setImage(Icons.image(.chevronLeft, size: 20), for: .normal)
@@ -266,7 +268,7 @@ extension SettingsViewController: UITableViewDataSource, UITableViewDelegate {
                        topInset: sections[indexPath.section].title.isEmpty ? 8 : 10)
         if case .toggle(let fallback) = item.kind {
             let toggle = UISwitch()
-            toggle.onTintColor = .white
+            toggle.onTintColor = Theme.accent
             toggle.tintColor = UIColor(white: 1, alpha: 0.2)
             toggle.isOn = SettingsStore.shared.bool(item.key, fallback)
             toggle.accessibilityIdentifier = item.key
@@ -366,7 +368,7 @@ final class SettingsCell: UITableViewCell {
         badgeLabel.translatesAutoresizingMaskIntoConstraints = false
         badgeLabel.font = Theme.font(10, weight: .semibold)
         badgeLabel.textColor = Theme.primaryText
-        badgeLabel.backgroundColor = UIColor(white: 1, alpha: 0.16)
+        badgeLabel.backgroundColor = Theme.primaryText.withAlphaComponent(0.16)
         badgeLabel.layer.cornerRadius = 4
         badgeLabel.layer.masksToBounds = true
         badgeLabel.isHidden = true
@@ -440,7 +442,7 @@ final class SettingsCell: UITableViewCell {
     func configure(item: SettingItem, card: UIColor, first: Bool, last: Bool, topInset: CGFloat) {
         if separator.superview == nil {
             // The real cards are one surface split by hairlines, not a slab.
-            separator.backgroundColor = UIColor.white.withAlphaComponent(0.09)
+            separator.backgroundColor = Theme.outline.withAlphaComponent(Theme.isDark ? 0.28 : 0.7)
             separator.translatesAutoresizingMaskIntoConstraints = false
             cardView.addSubview(separator)
             NSLayoutConstraint.activate([
