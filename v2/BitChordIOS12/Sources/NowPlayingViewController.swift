@@ -1,3 +1,4 @@
+import AVFoundation
 import UIKit
 
 /// Port of upstream `NowPlayingView`: artwork or lyrics in the centre, quality badge, scrubber,

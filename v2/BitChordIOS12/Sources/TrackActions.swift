@@ -117,7 +117,7 @@ enum TrackActions {
     /// Upstream shares a lyrics card; iOS shares through the system sheet,
     /// which is the share surface iOS 12 gives an app.
     static func share(_ track: Track, from host: UIViewController) {
-        var items: [Any] = ["\(track.title) — \(track.artist)"]
+        var items: [Any] = [shareCard(for: track), "\(track.title) — \(track.artist)"]
         let link: String?
         if track.videoID.hasPrefix("saavn:") {
             link = "https://www.jiosaavn.com/song/\(track.videoID.replacingOccurrences(of: "saavn:", with: ""))"
@@ -135,6 +135,44 @@ enum TrackActions {
             pop.sourceRect = host.view.bounds
         }
         host.present(sheet, animated: true, completion: nil)
+    }
+
+    /// Rendered lyrics/share card rather than a bare string: the release title,
+    /// artist and the BitChord mark on the same dark gradient used in the app.
+    private static func shareCard(for track: Track) -> UIImage {
+        let size = CGSize(width: 600, height: 800)
+        return UIGraphicsImageRenderer(size: size).image { context in
+            let colors = [UIColor(red: 0.13, green: 0.10, blue: 0.20, alpha: 1).cgColor,
+                          UIColor(red: 0.28, green: 0.13, blue: 0.32, alpha: 1).cgColor]
+            let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
+                                      colors: colors as CFArray,
+                                      locations: [0, 1])!
+            context.cgContext.drawLinearGradient(gradient,
+                                                 start: .zero,
+                                                 end: CGPoint(x: 0, y: size.height),
+                                                 options: [])
+            let paragraph = NSMutableParagraphStyle()
+            paragraph.alignment = .left
+            let title: [NSAttributedString.Key: Any] = [
+                .font: Theme.font(38, weight: .bold),
+                .foregroundColor: UIColor.white,
+                .paragraphStyle: paragraph
+            ]
+            let artist: [NSAttributedString.Key: Any] = [
+                .font: Theme.font(22, weight: .medium),
+                .foregroundColor: UIColor(white: 1, alpha: 0.72),
+                .paragraphStyle: paragraph
+            ]
+            let mark: [NSAttributedString.Key: Any] = [
+                .font: Theme.font(18, weight: .semibold),
+                .foregroundColor: UIColor(white: 1, alpha: 0.80)
+            ]
+            "BitChord".draw(at: CGPoint(x: 44, y: 48), withAttributes: mark)
+            (track.title as NSString).draw(in: CGRect(x: 44, y: 560, width: 512, height: 120),
+                                          withAttributes: title)
+            (track.artist as NSString).draw(in: CGRect(x: 44, y: 680, width: 512, height: 44),
+                                           withAttributes: artist)
+        }
     }
 
     // MARK: - Go to album / artist

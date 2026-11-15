@@ -32,8 +32,11 @@ final class ScrobbleService {
     func trackDidAdvance(position: Double, duration: Double) {
         guard let track = currentTrack, !scrobbled else { return }
         let length = duration > 0 ? duration : (track.durationSeconds ?? 0)
-        guard length > 30 else { return }
-        let threshold = min(length * 0.5, 180)
+        let minimum = settings.double("BitChord.LastFm.MinDuration", 30)
+        guard length >= minimum else { return }
+        let percent = settings.double("BitChord.LastFm.DelayPercent", 50) / 100
+        let cap = settings.double("BitChord.LastFm.DelayCap", 180)
+        let threshold = min(length * percent, cap)
         guard position >= threshold else { return }
         scrobbled = true
         submitScrobble(track, position: position, duration: length)
