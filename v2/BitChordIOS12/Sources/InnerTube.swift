@@ -85,6 +85,12 @@ final class InnerTube {
     private var webContinuation: String?
     private var webClientVersion = "2.20261112.10.00"
 
+    /// Whether the current search has another page, including the web fallback
+    /// when WEB_REMIX itself returns no token.
+    var canLoadMoreSearch: Bool {
+        return (searchContinuation?.isEmpty == false) || (webQuery != nil)
+    }
+
     func search(_ query: String,
                 filter: SearchFilter? = nil,
                 completion: @escaping ([Track]?, String?) -> Void) {
@@ -243,6 +249,7 @@ final class InnerTube {
             }
             let tracks = self.parseWebSearch(json)
             self.webContinuation = self.continuationToken(in: json)
+            if self.webContinuation == nil { self.webQuery = nil }
             DispatchQueue.main.async {
                 completion(tracks, self.webContinuation != nil, nil)
             }

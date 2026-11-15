@@ -366,7 +366,8 @@ final class SearchViewController: UIViewController {
         inFlight = max(0, inFlight - 1)
         guard inFlight == 0 else { return }
         spinner.stopAnimating()
-        moreToken = SettingsStore.shared.jioSaavnEnabled ? nil : InnerTube.shared.searchContinuation
+        moreToken = SettingsStore.shared.jioSaavnEnabled ? nil
+            : (InnerTube.shared.canLoadMoreSearch ? (InnerTube.shared.searchContinuation ?? "web") : nil)
         updateMoreFooter()
         tableView.reloadData()
         refresh()
@@ -387,7 +388,7 @@ final class SearchViewController: UIViewController {
                     : tracks
                 self.songs.append(contentsOf: page.filter { !existing.contains($0.videoID) })
             }
-            self.moreToken = hasMore ? InnerTube.shared.searchContinuation : nil
+            self.moreToken = hasMore ? (InnerTube.shared.searchContinuation ?? "web") : nil
             self.tableView.reloadData()
             self.updateMoreFooter()
         }
