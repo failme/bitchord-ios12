@@ -49,6 +49,7 @@ final class AudioDSP {
     private var rightBands = [Biquad](repeating: Biquad(), count: 10)
     private var silentFrames: Int64 = 0
     private var skipRequested = false
+    private var floatSamples = true
     private let lock = NSLock()
 
     private init() {
@@ -148,9 +149,13 @@ final class AudioDSP {
 
     private func refreshConfig() {
         let store = SettingsStore.shared
+        let speakerIsOutput = AVAudioSession.sharedInstance().currentRoute.outputs.contains {
+            $0.portType == .builtInSpeaker
+        }
         let next = Config(
             equalizer: store.string("BitChord.Audio.Equalizer", "Off"),
-            loudness: store.bool("BitChord.Audio.LoudnessNormalization", false),
+            loudness: store.bool("BitChord.Audio.LoudnessNormalization", false)
+                || (speakerIsOutput && store.bool("BitChord.Audio.LoudnessSpeaker", false)),
             spatial: store.bool("BitChord.Audio.SpatialAudio", false),
             skipSilence: store.bool("BitChord.Audio.SkipSilence", false)
         )
@@ -170,6 +175,8 @@ final class AudioDSP {
     fileprivate func prepare(format: AudioStreamBasicDescription) {
         sampleRate = format.mSampleRate > 0 ? format.mSampleRate : 44100
         channels = max(1, Int(format.mChannelsPerFrame))
+        floatSamples = (format.mFormatFlags & kAudioFormatFlagIsFloat) != 0
+        if !floatSamples { lastError = "tap format is not float; processing bypassed" }
         let gains = currentConfig().gains
         let frequencies = [31.0, 62.0, 125.0, 250.0, 500.0, 1000.0, 2000.0, 4000.0, 8000.0, 16000.0]
         leftBands = frequencies.enumerated().map { index, frequency in
@@ -185,6 +192,7 @@ final class AudioDSP {
     fileprivate func process(bufferList: UnsafeMutablePointer<AudioBufferList>,
                              frames: CMItemCount) {
         let config = currentConfig()
+        guard floatSamples else { return }
         let buffers = UnsafeMutableAudioBufferListPointer(bufferList)
         guard buffers.count > 0 else { return }
         let frameCount = Int(frames)
@@ -348,6 +356,7 @@ final class AudioDSP {
         }
         return "eq=\(config.equalizer) loudness=\(config.loudness) spatial=\(config.spatial)"
             + " skip=\(config.skipSilence) attached=\(tapAttached)"
+            + " changed=\(abs(after - before) > 0.001 || abs(lastGain - 1) > 0.001)"
             + " frames=\(processedFrames) rmsBefore=\(String(format: "%.3f", before))"
             + " rmsAfter=\(String(format: "%.3f", after))"
             + " gain=\(String(format: "%.2f", lastGain))"

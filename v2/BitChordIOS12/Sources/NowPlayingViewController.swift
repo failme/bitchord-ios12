@@ -986,6 +986,11 @@ final class NowPlayingViewController: UIViewController {
         artworkView.layer.add(zoom, forKey: "bitchord.animatedCover")
     }
 
+    /// Read by the screenshot harness after the sleeve has loaded.
+    func artworkMotionActiveForScreenshots() -> Bool {
+        return artworkView.layer.animation(forKey: "bitchord.animatedCover") != nil
+    }
+
     private func updateTime() {
         let service = PlayerService.shared
         let total = service.duration

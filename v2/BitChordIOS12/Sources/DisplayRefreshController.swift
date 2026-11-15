@@ -34,13 +34,17 @@ final class DisplayRefreshController: NSObject {
 
     private func applySettings() {
         let raw = SettingsStore.shared.string("BitChord.Performance.RefreshRate", "Auto")
-        requestedFPS = raw == "30" ? 30 : 60
+        requestedFPS = DisplayRefreshController.requestedFPS(for: raw)
         if link == nil {
             link = CADisplayLink(target: self, selector: #selector(tick))
             link?.add(to: .main, forMode: .common)
             isRunning = true
         }
         link?.preferredFramesPerSecond = requestedFPS
+    }
+
+    static func requestedFPS(for raw: String) -> Int {
+        return raw == "30" ? 30 : 60
     }
 
     @objc private func tick() {

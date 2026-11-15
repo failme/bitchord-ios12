@@ -593,6 +593,10 @@ final class PlayerService: NSObject {
         sessionHistory.insert(track.videoID)
         ScrobbleService.shared.trackDidStart(track)
         AudioEngine.shared.play(track: track)
+        if SettingsStore.shared.bool("BitChord.Audio.DirectSourceStream", false),
+           repeatMode != .one, currentIndex + 1 < queue.count {
+            StreamPrefetcher.shared.prefetch(videoID: queue[currentIndex + 1].videoID)
+        }
         loadLyrics(for: track)
     }
 

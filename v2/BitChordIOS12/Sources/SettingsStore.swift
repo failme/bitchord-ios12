@@ -209,7 +209,7 @@ enum SettingsCatalog {
                         kind: .page("Streams come from YouTube Music and JioSaavn. A lossless addon can be pointed at below.")),
             SettingItem(key: "BitChord.Audio.DirectSourceStream", title: "Direct Source Stream",
                         detail: "Pre-opens the next source during a transition",
-                        kind: .unavailable("Needs the crossfade/prefetch gate; this player has no overlapping transition to open a source in.")),
+                        kind: .toggle(false)),
             SettingItem(key: "BitChord.Audio.WifiQuality", title: "On Wi-Fi",
                         icon: .wifi,
                         badge: "IN USE",
@@ -220,7 +220,7 @@ enum SettingsCatalog {
             SettingItem(key: "BitChord.Audio.DolbyAtmos", title: "Dolby Atmos",
                         detail: "This device can't play Atmos, so these songs play in their usual version",
                         icon: .dolby,
-                        kind: .unavailable("YouTube Music streams here are stereo; iOS 12 AVPlayer has no Atmos renderer for a WebM/Opus stream.")),
+                        kind: .unavailable("Missing an Atmos-capable output and an E-AC-3/Atmos stream; iOS 12 AVPlayer has no Atmos renderer. The row ships when both exist.")),
         ]),
 
         SettingSection(title: "Playback", items: [
@@ -253,9 +253,9 @@ enum SettingsCatalog {
                         kind: .choice("Off", ["Off", "Flat", "Bass", "Vocal", "Treble"])),
             SettingItem(key: "BitChord.Audio.BitPerfect", title: "Bit-perfect output",
                         detail: "Bypass OS resampling",
-                        kind: .unavailable("AVPlayer always routes through the iOS mixer; there is no exclusive-mode or integer output path.")),
+                        kind: .unavailable("Missing an exclusive, integer-output audio API and a USB DAC; AVPlayer always goes through the iOS mixer. The toggle ships with that API.")),
             SettingItem(key: "BitChord.Audio.PreferUSBDAC", title: "Prefer USB DAC",
-                        kind: .unavailable("iOS selects the attached audio route itself; apps cannot pin playback to a USB DAC.")),
+                        kind: .unavailable("Missing an attached USB DAC and a route-pinning API; iOS owns route selection. The row ships when both are present.")),
             SettingItem(key: "BitChord.Audio.SkipSilence", title: "Skip silence",
                         detail: "Detect a silent run and jump past it",
                         kind: .toggle(false)),
@@ -272,7 +272,7 @@ enum SettingsCatalog {
                         detail: "Widen the stereo image in the audio tap",
                         kind: .toggle(false)),
             SettingItem(key: "BitChord.Audio.OutputPrecision", title: "Output precision",
-                        kind: .unavailable("The system chooses the hardware sample format; AVPlayer exposes no bit-depth selection.")),
+                        kind: .unavailable("Missing a DAC/OS that exposes selectable bit depth; AVPlayer has no bit-depth property. The choice ships with that hardware API.")),
             SettingItem(key: "BitChord.Audio.DisableOnPhoneSpeaker", title: "Disable on phone speaker",
                         detail: "Pause when the built-in speaker is the output",
                         kind: .toggle(false))
@@ -293,12 +293,12 @@ enum SettingsCatalog {
             SettingItem(key: "BitChord.Lyrics.AutoDownloadToStorage", title: "Save lyrics offline",
                         detail: "Reuse fetched lyrics without a network", kind: .toggle(false)),
             SettingItem(key: "BitChord.Lyrics.ArtistSignatures", title: "Artist signatures",
-                        kind: .unavailable("Signature artwork comes from a signature service deployed with the party backend; this build has no endpoint.")),
+                        kind: .unavailable("Missing the signature-service base URL and response schema from the party backend. The editor and artwork loader ship once that endpoint exists.")),
             SettingItem(key: "BitChord.Lyrics.ActiveSource", title: "Lyrics source",
                         detail: "Automatic asks lrc.red, LyricsPlus, Unison, then LRCLIB",
                         kind: .choice("Automatic", ["Automatic", "LRCLIB"])),
             SettingItem(key: "BitChord.Lyrics.SourcesJSON", title: "Custom lyric sources",
-                        kind: .unavailable("Only the four built-in lyrics providers are signed by this client; custom provider JSON needs its own proxy and schema."))
+                        kind: .unavailable("Missing a signed provider-JSON proxy and its schema; the four built-in providers are the only signed sources. The editor ships with that proxy."))
         ]),
 
         SettingSection(title: "Library & downloads", items: [
@@ -355,7 +355,7 @@ enum SettingsCatalog {
                         detail: "WebDAV servers you can stream from",
                         kind: .sources),
             SettingItem(key: "BitChord.Source.SMB", title: "SMB",
-                         kind: .unavailable("iOS has no SMB client API; a third-party SMB2/SMB3 library with an iOS 12 slice would be required.")),
+                         kind: .unavailable("Missing an SMB2/SMB3 client library with an iOS 12 simulator/device slice; iOS has no SMB API. The browser ships once that dependency is added.")),
             SettingItem(key: "BitChord.Source.JioSaavn", title: "JioSaavn",
                         detail: "Primary playable catalogue on this device",
                         kind: .toggle(true)),
@@ -408,17 +408,17 @@ enum SettingsCatalog {
                         icon: .spotify,
                         kind: .page("Open Library → Import Spotify, paste a public playlist link, and BitChord matches its rows on YouTube Music. No Spotify sign-in is needed.")),
             SettingItem(key: "BitChord.Spotify.Username", title: "Spotify username",
-                        kind: .unavailable("Only public playlists can be imported without a Spotify developer app.")),
+                        kind: .unavailable("Missing a Spotify developer app (client ID/secret), redirect URI and a signed-in account. The profile row ships after OAuth.")),
             SettingItem(key: "BitChord.Spotify.DisplayName", title: "Spotify display name",
-                        kind: .unavailable("Only public playlists can be imported without a Spotify developer app.")),
+                        kind: .unavailable("Missing a Spotify developer app (client ID/secret), redirect URI and a signed-in account. The profile row ships after OAuth.")),
             SettingItem(key: "BitChord.Spotify.AvatarURL", title: "Spotify avatar",
-                        kind: .unavailable("Only public playlists can be imported without a Spotify developer app.")),
+                        kind: .unavailable("Missing a Spotify developer app (client ID/secret), redirect URI and a signed-in account. The avatar row ships after OAuth.")),
             SettingItem(key: "BitChord.Spotify.AccessToken", title: "Spotify token",
-                        kind: .unavailable("Authenticated Spotify library sync is not enabled in this build.")),
+                        kind: .unavailable("Missing a Spotify OAuth access token with library scopes. The token row and library sync ship once the user authorizes the app.")),
             SettingItem(key: "BitChord.Spotify.CookieSPDC", title: "Spotify cookie",
-                        kind: .unavailable("Authenticated Spotify library sync is not enabled in this build.")),
+                        kind: .unavailable("Missing the Spotify web session cookie (sp_dc) from a signed-in account. The cookie row and sync ship once it is provided.")),
             SettingItem(key: "BitChord.Discord.Enabled", title: "Discord presence",
-                        kind: .unavailable("Discord's IPC transport does not exist on iOS."))
+                        kind: .unavailable("Missing a Discord app/bridge that speaks a supported mobile transport; Discord IPC is a desktop Unix socket. Presence ships with that bridge."))
         ]),
 
         SettingSection(title: "Appearance", items: [
@@ -437,7 +437,7 @@ enum SettingsCatalog {
                         detail: "Allow the sleeve motion off Wi-Fi",
                         kind: .toggle(true)),
             SettingItem(key: "BitChord.Appearance.SpotifyCanvas", title: "Spotify Canvas",
-                        kind: .unavailable("Canvas is authenticated Spotify media; the public embed page exposes no Canvas track.")),
+                        kind: .unavailable("Missing a Spotify OAuth token and a Canvas media endpoint; the public embed page exposes no Canvas track. The player ships with both.")),
             SettingItem(key: "BitChord.Appearance.LiquidGlass", title: "Liquid glass",
                         detail: "Blurred cover backdrop behind the player", kind: .toggle(true)),
             SettingItem(key: "BitChord.Appearance.LegacyMesh", title: "Legacy mesh gradient",
@@ -493,9 +493,9 @@ enum SettingsCatalog {
             SettingItem(key: "BitChord.Misc.StopOnCloseRecents", title: "Stop when recents close",
                         kind: .toggle(false)),
             SettingItem(key: "BitChord.Misc.ShowListenTogetherButton", title: "Listen together button",
-                        kind: .unavailable("Listen Together is not ported.")),
+                        kind: .unavailable("Missing a deployed party server URL and participant identity. The button, editor and synchronized queue ship once that server exists.")),
             SettingItem(key: "BitChord.Misc.SmartAudioAlignment", title: "Smart audio alignment",
-                        kind: .unavailable("Needs per-stream offset analysis plus the crossfade engine; AVPlayer cannot align two streams.")),
+                        kind: .unavailable("Missing a second synchronized stream/device and an offset analyzer. AVPlayer cannot align two independent streams; the control ships with that transport.")),
             SettingItem(key: "BitChord.Misc.WorkOutGenres", title: "Workout genres",
                         detail: "Show the upbeat genres card in Replay",
                         kind: .toggle(true)),
@@ -527,15 +527,16 @@ enum SettingsCatalog {
                         detail: "High keeps the full mesh; Low uses a static colour",
                         kind: .choice("High", ["High", "Low"])),
             SettingItem(key: "BitChord.Audio.LoudnessSpeaker", title: "Loudness on speaker",
-                        kind: .unavailable("Needs the per-sample loudness processor; this player is AVPlayer-based.")),
+                        detail: "Normalise only while the built-in speaker is routed",
+                        kind: .toggle(false)),
             SettingItem(key: "BitChord.Audio.DacVolume", title: "DAC hardware volume",
-                        kind: .unavailable("Needs a USB DAC with a volume endpoint; the simulator has no audio hardware.")),
+                        kind: .unavailable("Missing a USB DAC that exposes a hardware volume endpoint; the simulator has no audio hardware. The slider ships when that device is attached.")),
             SettingItem(key: "BitChord.Audio.FixedVolume", title: "Fixed volume output",
-                        kind: .unavailable("Needs exclusive bit-perfect output, which AVPlayer does not expose.")),
+                        kind: .unavailable("Missing an exclusive integer-output API; AVPlayer exposes none. Fixed-volume output ships with that API and a DAC.")),
             SettingItem(key: "BitChord.Audio.Convert", title: "Convert on USB DAC",
-                        kind: .unavailable("Needs the bit-perfect resampler and a connected DAC.")),
+                        kind: .unavailable("Missing a bit-perfect resampler and a connected USB DAC. The convert toggle ships with both.")),
             SettingItem(key: "BitChord.WearOS", title: "Wear OS",
-                        kind: .unavailable("Wear OS is a separate Android companion app; there is no watchOS target in this project."))
+                        kind: .unavailable("Missing a watchOS companion target and a paired Apple Watch; Wear OS is a separate Android app. The row ships with that target."))
         ])
     ]
 

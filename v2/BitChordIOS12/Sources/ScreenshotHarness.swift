@@ -672,6 +672,10 @@ enum ScreenshotHarness {
             guard let track = tracks.first else {
                 exit(0)
             }
+            let savedAnimated = SettingsStore.shared.bool("BitChord.Appearance.AnimatedCover", false)
+            let savedCellular = SettingsStore.shared.bool("BitChord.Appearance.AnimatedCoverCellular", true)
+            SettingsStore.shared.set(true, for: "BitChord.Appearance.AnimatedCover")
+            SettingsStore.shared.set(true, for: "BitChord.Appearance.AnimatedCoverCellular")
             PlayerService.shared.play(tracks: [track], startingAt: 0)
             root.presentNowPlayingFromRoot()
             // The vocal enters around half a minute in; seek there so the
@@ -681,6 +685,14 @@ enum ScreenshotHarness {
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
                 write(window: window, name: "now-playing", directory: directory)
+                if let player = root.presentedViewController as? NowPlayingViewController {
+                    write(window: window, name: "animated-cover", directory: directory)
+                    writeText("animatedCover.active=\(player.artworkMotionActiveForScreenshots())\n"
+                                + "animatedCover.setting=\(SettingsStore.shared.bool("BitChord.Appearance.AnimatedCover", false))\n",
+                              name: "animated-cover.txt", directory: directory)
+                }
+                SettingsStore.shared.set(savedAnimated, for: "BitChord.Appearance.AnimatedCover")
+                SettingsStore.shared.set(savedCellular, for: "BitChord.Appearance.AnimatedCoverCellular")
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
                 if let player = root.presentedViewController as? NowPlayingViewController {

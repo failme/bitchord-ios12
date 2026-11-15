@@ -174,11 +174,20 @@ enum SettingsProbe {
         let wet = AudioDSP.shared.selfTest(eq: "Bass", loudness: true, spatial: true)
         record("settings.dspDry", dry)
         record("settings.dspWet", wet)
+        record("settings.dspProcessed", "dry=\(dry.contains("changed=true")) wet=\(wet.contains("changed=true"))")
         record("settings.crossfade", "explicit=5 offAutomix=\(PlayerService.crossfadeSeconds(setting: 0, automix: false, fast: false)) automix=\(PlayerService.crossfadeSeconds(setting: 0, automix: true, fast: false)) fast=\(PlayerService.crossfadeSeconds(setting: 0, automix: true, fast: true))")
         record("settings.animatedCover", "enabled=\(NowPlayingViewController.artworkMotionEnabled(animated: true, cellular: true, reduce: false, onWiFi: true)) cellularOff=\(NowPlayingViewController.artworkMotionEnabled(animated: true, cellular: false, reduce: false, onWiFi: false)) reduced=\(NowPlayingViewController.artworkMotionEnabled(animated: true, cellular: true, reduce: true, onWiFi: true))")
+        let savedLanguage = SettingsStore.shared.string("BitChord.Misc.AppLanguage", "English")
+        SettingsStore.shared.set("Español", for: "BitChord.Misc.AppLanguage")
         record("settings.localization", L10n.report())
+        SettingsStore.shared.set(savedLanguage, for: "BitChord.Misc.AppLanguage")
         record("settings.translation", TranslationService.shared.selfTest())
         record("settings.refreshRate", DisplayRefreshController.shared.report)
+        record("settings.refreshModes", "auto=\(DisplayRefreshController.requestedFPS(for: "Auto")) sixty=\(DisplayRefreshController.requestedFPS(for: "60")) thirty=\(DisplayRefreshController.requestedFPS(for: "30"))")
+        let savedPrefetch = SettingsStore.shared.bool("BitChord.Audio.DirectSourceStream", false)
+        SettingsStore.shared.set(true, for: "BitChord.Audio.DirectSourceStream")
+        record("settings.prefetch", "enabled=\(SettingsStore.shared.bool("BitChord.Audio.DirectSourceStream", false)) \(StreamPrefetcher.shared.report)")
+        SettingsStore.shared.set(savedPrefetch, for: "BitChord.Audio.DirectSourceStream")
 
         // Autoplay: "Don't repeat in session" filters history, not just the queue.
         let mix = [probeTrack("a"), probeTrack("b"), probeTrack("c")]
