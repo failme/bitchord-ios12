@@ -364,6 +364,7 @@ enum ScreenshotHarness {
                                 }
                                 report.append("theme.appIconSupported=\(UIApplication.shared.supportsAlternateIcons)")
                                 guard UIApplication.shared.supportsAlternateIcons else { finish(); return }
+                                report.append("theme.appIconAttempt=true")
                                 AppIconChoice.apply("Monochrome") { error in
                                     report.append("theme.appIconError=\(error ?? "")_")
                                     report.append("theme.appIconAlternate=\(UIApplication.shared.alternateIconName ?? "Default")")
