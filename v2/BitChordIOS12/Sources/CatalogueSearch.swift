@@ -17,6 +17,18 @@ struct CatalogueAlbum {
     let songCount: Int
 }
 
+/// Everything the artist page draws: the photograph, the counts, the
+/// biography, the popular songs and the release/related-artist shelves.
+struct ArtistProfile {
+    let name: String
+    let artwork: URL?
+    let listenerText: String?
+    let bio: String?
+    let topSongs: [Track]
+    let albums: [CatalogueAlbum]
+    let related: [CatalogueArtist]
+}
+
 /// Searching JioSaavn instead of YouTube.
 ///
 /// YouTube Music's search only ever answered with recordings — artists and albums
@@ -159,22 +171,134 @@ final class CatalogueSearch {
                 completion([])
                 return
             }
-            var rows = (json["topSongs"] as? [[String: Any]]) ?? []
+            var rows = self.rows(in: json["topSongs"], key: "songs")
             if rows.isEmpty {
-                // Older responses put the list under `songs`, sometimes in a map.
-                rows = (json["songs"] as? [[String: Any]]) ?? []
-            }
-            if rows.isEmpty {
-                for value in json.values {
-                    if let artist = value as? [String: Any],
-                       let list = artist["topSongs"] as? [[String: Any]], !list.isEmpty {
-                        rows = list
-                        break
-                    }
-                }
+                rows = self.rows(in: json["songs"], key: "songs")
             }
             completion(rows.compactMap { self.track(from: $0) })
         }
+    }
+
+    /// The full artist page. JioSaavn's current payload nests the popular songs
+    /// and albums in maps (`topSongs.songs`, `topAlbums.albums`); the old parser
+    /// only accepted arrays, which is why artist pages opened empty. Older and
+    /// newer shapes are both accepted here.
+    func artistProfile(id: String,
+                       name: String,
+                       artwork: URL?,
+                       completion: @escaping (ArtistProfile) -> Void) {
+        guard SettingsStore.shared.jioSaavnEnabled else {
+            youTubeArtistProfile(id: id, name: name, artwork: artwork, completion: completion)
+            return
+        }
+        get(call: "artist.getArtistPageDetails", params: ["artistId": id]) { json in
+            guard let json = json else {
+                self.youTubeArtistProfile(id: id, name: name, artwork: artwork,
+                                          completion: completion)
+                return
+            }
+            let profileName = self.decode((json["name"] as? String) ?? name)
+            let songs = self.rows(in: json["topSongs"], key: "songs")
+                .compactMap { self.track(from: $0) }
+            let albums = self.rows(in: json["topAlbums"], key: "albums")
+                .compactMap { self.album(from: $0) }
+            if songs.isEmpty && albums.isEmpty {
+                self.youTubeArtistProfile(id: id, name: name, artwork: artwork,
+                                          completion: completion)
+                return
+            }
+            let relatedRows = (json["similarArtists"] as? [[String: Any]]) ?? []
+            let related = relatedRows.compactMap { row -> CatalogueArtist? in
+                guard let identifier = (row["id"] as? String) ?? (row["_id"] as? String),
+                      !identifier.isEmpty else { return nil }
+                let title = self.decode((row["name"] as? String) ?? "")
+                guard !title.isEmpty else { return nil }
+                let raw = (row["image_url"] as? String) ?? (row["image"] as? String)
+                return CatalogueArtist(id: identifier, name: title, artwork: self.artwork(raw))
+            }
+            let artworkURL = self.artwork((json["image"] as? String)) ?? artwork
+            completion(ArtistProfile(name: profileName,
+                                     artwork: artworkURL,
+                                     listenerText: self.listenerText(in: json),
+                                     bio: self.artistBio(json["bio"] ?? json["artistBio"]),
+                                     topSongs: songs,
+                                     albums: albums,
+                                     related: related))
+        }
+    }
+
+    private func youTubeArtistProfile(id: String,
+                                      name: String,
+                                      artwork: URL?,
+                                      completion: @escaping (ArtistProfile) -> Void) {
+        InnerTube.shared.fetchCollection(id) { tracks, _ in
+            completion(ArtistProfile(name: name,
+                                     artwork: artwork,
+                                     listenerText: "Artist",
+                                     bio: nil,
+                                     topSongs: tracks ?? [],
+                                     albums: [],
+                                     related: []))
+        }
+    }
+
+    private func rows(in value: Any?, key: String) -> [[String: Any]] {
+        if let rows = value as? [[String: Any]] { return rows }
+        if let map = value as? [String: Any],
+           let rows = map[key] as? [[String: Any]] { return rows }
+        return []
+    }
+
+    private func album(from row: [String: Any]) -> CatalogueAlbum? {
+        guard let identifier = row["id"] as? String, !identifier.isEmpty else { return nil }
+        let title = decode((row["title"] as? String) ?? "")
+        guard !title.isEmpty else { return nil }
+        let info = row["more_info"] as? [String: Any] ?? [:]
+        let count = Int((info["song_count"] as? String) ?? "") ?? 0
+        return CatalogueAlbum(id: identifier,
+                              title: title,
+                              artist: primaryArtist(in: info),
+                              year: (row["year"] as? String) ?? "",
+                              artwork: artwork(row["image"] as? String),
+                              songCount: count)
+    }
+
+    private func listenerText(in json: [String: Any]) -> String? {
+        let subtitle = decode((json["subtitle"] as? String) ?? "")
+        if !subtitle.isEmpty { return subtitle }
+        let raw = (json["fan_count"] as? String) ?? (json["follower_count"] as? String) ?? ""
+        guard let count = Int(raw), count > 0 else { return nil }
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.locale = Locale(identifier: "en_US")
+        let number = formatter.string(from: NSNumber(value: count)) ?? raw
+        return "\(number) listeners"
+    }
+
+    /// `bio` is either a plain string, a JSON-encoded string, or a list of
+    /// objects with a `text` field. Empty `[]` is common and means no copy.
+    private func artistBio(_ value: Any?) -> String? {
+        if let text = value as? String {
+            let decoded = decode(text)
+            if decoded.hasPrefix("[") {
+                if let data = decoded.data(using: .utf8),
+                   let list = (try? JSONSerialization.jsonObject(with: data)) as? [[String: Any]] {
+                    let joined = list.compactMap { $0["text"] as? String }
+                        .map { decode($0) }
+                        .joined(separator: "\n")
+                    return joined.isEmpty ? nil : joined
+                }
+                return nil
+            }
+            return decoded.isEmpty ? nil : decoded
+        }
+        if let list = value as? [[String: Any]] {
+            let joined = list.compactMap { $0["text"] as? String }
+                .map { decode($0) }
+                .joined(separator: "\n")
+            return joined.isEmpty ? nil : joined
+        }
+        return nil
     }
 
     // MARK: - Row mapping

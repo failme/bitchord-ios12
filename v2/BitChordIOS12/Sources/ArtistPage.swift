@@ -1,18 +1,11 @@
 import Foundation
 
-/// Upstream's artist screen: `BrowseType.ARTIST` on YouTube Music, which fills
-/// the page with the artist's best-known songs. The browse id comes from the
-/// artist rows search already fetched, so opening a page is one request.
+/// Upstream's artist screen: `BrowseType.ARTIST` on YouTube Music. The page
+/// carries the artist photograph, listener count, biography, popular songs,
+/// releases and related artists; the catalogue supplies all of it from one
+/// artist-page request.
 enum ArtistPage {
-    static func make(artist: CatalogueArtist) -> CollectionViewController {
-        let controller = CollectionViewController(title: artist.name,
-                                                  subtitle: "Artist",
-                                                  artwork: artist.artwork)
-        controller.loader = { completion in
-            InnerTube.shared.fetchCollection(artist.id) { tracks, _ in
-                completion(tracks ?? [])
-            }
-        }
-        return controller
+    static func make(artist: CatalogueArtist) -> ArtistViewController {
+        return ArtistViewController(artist: artist)
     }
 }

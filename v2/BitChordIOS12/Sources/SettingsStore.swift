@@ -28,6 +28,8 @@ enum SettingKind {
     case sources
     /// Opens the Google / YouTube Music account page.
     case account
+    /// Opens the equalizer: presets, manual bands, balance and preamp.
+    case equalizer
 }
 
 struct SettingItem {
@@ -68,6 +70,10 @@ final class SettingsStore {
         return defaults.data(forKey: key)
     }
 
+    func doubles(_ key: String, _ fallback: [Double]) -> [Double] {
+        return defaults.array(forKey: key) as? [Double] ?? fallback
+    }
+
     func double(_ key: String, _ fallback: Double) -> Double {
         guard defaults.object(forKey: key) != nil else { return fallback }
         return defaults.double(forKey: key)
@@ -87,6 +93,7 @@ final class SettingsStore {
     func set(_ value: Bool, for key: String) { set(value as Any, for: key) }
     func set(_ value: Double, for key: String) { set(value as Any, for: key) }
     func set(_ value: String, for key: String) { set(value as Any, for: key) }
+    func set(_ value: [Double], for key: String) { set(value as Any, for: key) }
 
     // MARK: - Working settings
 
@@ -249,11 +256,8 @@ enum SettingsCatalog {
                         detail: "Fade the last seconds of a track before the next one",
                         kind: .stepper(0, 0, 12, 1, " s")),
             SettingItem(key: "BitChord.Audio.Equalizer", title: "Equalizer",
-                        detail: "Seven manual bands plus the reference preset curves",
-                        kind: .choice("Off", ["Off", "Flat", "Acoustic", "Bass boost", "Bass cut",
-                                              "Vocal", "Treble boost", "Treble cut", "Loudness",
-                                              "Spoken word", "Electronic", "Rock", "Hip hop",
-                                              "Jazz", "Classical", "Small speakers", "Late night"])),
+                        detail: "Presets, seven manual bands, balance and preamp",
+                        kind: .equalizer),
             SettingItem(key: "BitChord.Audio.BitPerfect", title: "Bit-perfect output",
                         detail: "Bypass OS resampling",
                         kind: .unavailable("Missing an exclusive, integer-output audio API and a USB DAC; AVPlayer always goes through the iOS mixer. The toggle ships with that API.")),
@@ -507,7 +511,7 @@ enum SettingsCatalog {
                         kind: .action("replay")),
             SettingItem(key: "BitChord.Misc.AppLanguage", title: "Language",
                         detail: "Interface language; applies on the next launch",
-                        kind: .choice("English", ["English", "हिन्दी", "Español", "Français"])),
+                        kind: .choice("English", L10n.languageNames)),
             SettingItem(key: "BitChord.Misc.ShowOnboarding", title: "Show onboarding again",
                         detail: "Welcome, tour and library choice",
                         kind: .onboarding)

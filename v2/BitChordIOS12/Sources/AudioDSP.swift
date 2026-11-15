@@ -17,12 +17,39 @@ final class AudioDSP {
         var loudness = false
         var spatial = false
         var skipSilence = false
+        var manualBands: [Double] = []
+        var balance: Double = 0
+        var preamp: Double = 0
+
+        init(equalizer: String = "Off",
+             loudness: Bool = false,
+             spatial: Bool = false,
+             skipSilence: Bool = false,
+             manualBands: [Double] = [],
+             balance: Double = 0,
+             preamp: Double = 0) {
+            self.equalizer = equalizer
+            self.loudness = loudness
+            self.spatial = spatial
+            self.skipSilence = skipSilence
+            self.manualBands = manualBands
+            self.balance = balance
+            self.preamp = preamp
+        }
 
         var enabled: Bool {
-            return equalizer != "Off" || loudness || spatial || skipSilence
+            return equalizer != "Off" || loudness || spatial || skipSilence ||
+                abs(balance) > 0.001 || abs(preamp) > 0.001
         }
 
         var gains: [Double] {
+            if equalizer == "Manual" {
+                var values = Array(repeating: 0.0, count: 10)
+                for (index, value) in manualBands.prefix(7).enumerated() {
+                    values[index] = value
+                }
+                return values
+            }
             switch equalizer {
             case "Acoustic": return [3, 1.5, 0, 1.5, 2.5, 2, 1, 0, 0, 0]
             case "Bass boost": return [6, 4, 1.5, 0, 0, 0, 0, 0, 0, 0]
@@ -164,12 +191,16 @@ final class AudioDSP {
         let speakerIsOutput = AVAudioSession.sharedInstance().currentRoute.outputs.contains {
             $0.portType == .builtInSpeaker
         }
+        let manual = store.bool("BitChord.Audio.EqualizerManual", false)
         let next = Config(
-            equalizer: store.string("BitChord.Audio.Equalizer", "Off"),
+            equalizer: manual ? "Manual" : store.string("BitChord.Audio.Equalizer", "Off"),
             loudness: store.bool("BitChord.Audio.LoudnessNormalization", false)
                 || (speakerIsOutput && store.bool("BitChord.Audio.LoudnessSpeaker", false)),
             spatial: store.bool("BitChord.Audio.SpatialAudio", false),
-            skipSilence: store.bool("BitChord.Audio.SkipSilence", false)
+            skipSilence: store.bool("BitChord.Audio.SkipSilence", false),
+            manualBands: store.doubles("BitChord.Audio.EqBands", Array(repeating: 0, count: 7)),
+            balance: store.double("BitChord.Audio.EqBalance", 0),
+            preamp: store.double("BitChord.Audio.EqPreamp", 0)
         )
         lock.lock()
         config = next
@@ -255,15 +286,27 @@ final class AudioDSP {
                     l = leftBands[band].process(l, gain: gains[band])
                     r = rightBands[band].process(r, gain: gains[band])
                 }
+                // The first pass used to leave these writes out, so the tap
+                // measured an equalised signal and then played the original.
+                left[frame] = l
+                right[frame] = r
             }
             sum += (l * l + r * r) * 0.5
         }
         let rms = sqrt(sum / Float(max(1, frames)))
         let gain = config.loudness ? loudnessGain(rms) : 1
         let width: Float = config.spatial ? 1.45 : 1.0
+        let preamp = Float(pow(10.0, config.preamp / 20.0))
+        let balance = Float(max(-1, min(1, config.balance)))
+        let trim = gain * preamp
         for frame in 0..<frames {
-            var l = left[frame] * gain
-            var r = right[frame] * gain
+            var l = left[frame] * trim
+            var r = right[frame] * trim
+            if balance < 0 {
+                r *= 1 + balance
+            } else if balance > 0 {
+                l *= 1 - balance
+            }
             if config.spatial {
                 let mid = (l + r) * 0.5
                 let side = (l - r) * 0.5 * width
@@ -304,8 +347,20 @@ final class AudioDSP {
         }
         let rms = sqrt(sum / Float(max(1, frames * channels)))
         let gain = config.loudness ? loudnessGain(rms) : 1
+        let preamp = Float(pow(10.0, config.preamp / 20.0))
+        let trim = gain * preamp
+        let balance = Float(max(-1, min(1, config.balance)))
         for index in 0..<(frames * channels) {
-            data[index] *= gain
+            data[index] *= trim
+        }
+        if channels >= 2 {
+            for frame in 0..<frames {
+                if balance < 0 {
+                    data[frame * channels + 1] *= 1 + balance
+                } else if balance > 0 {
+                    data[frame * channels] *= 1 - balance
+                }
+            }
         }
         if config.spatial, channels >= 2 {
             for frame in 0..<frames {
@@ -342,11 +397,14 @@ final class AudioDSP {
 
     /// Deterministic proof for the report harness: feed a known signal through
     /// the same renderer the tap uses, with the current persisted settings.
-    func selfTest(eq: String? = nil, loudness: Bool? = nil, spatial: Bool? = nil) -> String {
+    func selfTest(eq: String? = nil, loudness: Bool? = nil, spatial: Bool? = nil,
+                  manualBands: [Double]? = nil, balance: Double? = nil) -> String {
         var config = currentConfig()
         if let eq = eq { config.equalizer = eq }
         if let loudness = loudness { config.loudness = loudness }
         if let spatial = spatial { config.spatial = spatial }
+        if let manualBands = manualBands { config.manualBands = manualBands }
+        if let balance = balance { config.balance = balance }
         var left = (0..<4096).map { Float(sin(Double($0) * 0.08) * 0.25) }
         var right = left
         let before = sqrt(left.reduce(0) { $0 + $1 * $1 } / Float(left.count))
@@ -372,6 +430,23 @@ final class AudioDSP {
             + " frames=\(processedFrames) rmsBefore=\(String(format: "%.3f", before))"
             + " rmsAfter=\(String(format: "%.3f", after))"
             + " gain=\(String(format: "%.2f", lastGain))"
+    }
+
+    /// The frequencies the manual faders label, in the same order as the
+    /// ten biquad slots. Only the first seven are exposed as faders.
+    static let bandFrequencies: [Double] = [60, 150, 400, 1000, 2500, 6000, 14000]
+
+    static let presets: [String] = ["Off", "Flat", "Acoustic", "Bass boost", "Bass cut",
+                                    "Vocal", "Treble boost", "Treble cut", "Loudness",
+                                    "Spoken word", "Electronic", "Rock", "Hip hop",
+                                    "Jazz", "Classical", "Small speakers", "Late night"]
+
+    /// The curve a named preset uses. The editor seeds its faders with this so
+    /// switching to Manual starts from the sound that was playing.
+    static func gains(for preset: String) -> [Double] {
+        var config = Config(equalizer: preset)
+        config.equalizer = preset
+        return config.gains
     }
 
     private let frequencies = EqFrequencies.values

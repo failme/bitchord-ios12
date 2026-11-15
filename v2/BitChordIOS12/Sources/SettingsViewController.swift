@@ -8,7 +8,8 @@ final class SettingsViewController: UIViewController {
     private let titleLabel = UILabel()
     private let backButton = UIButton(type: .system)
     private let searchField = UITextField()
-    private let sections = SettingsCatalog.sections
+    private let catalogSections = SettingsCatalog.sections
+    private var sections = SettingsCatalog.sections
 
     private var card: UIColor { Theme.surfaceVariant }
 
@@ -102,6 +103,7 @@ final class SettingsViewController: UIViewController {
         leftInset.addSubview(magnifier)
         searchField.leftView = leftInset
         searchField.leftViewMode = .always
+        searchField.addTarget(self, action: #selector(searchChanged), for: .editingChanged)
         view.addSubview(searchField)
 
         NSLayoutConstraint.activate([
@@ -126,6 +128,28 @@ final class SettingsViewController: UIViewController {
         } else {
             dismiss(animated: true, completion: nil)
         }
+    }
+
+    /// The field at the top of the page is a real filter, not decoration. It
+    /// matches row titles and detail lines and keeps only the sections that
+    /// still have a visible result.
+    @objc private func searchChanged() {
+        let query = (searchField.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else {
+            sections = catalogSections
+            tableView.reloadData()
+            return
+        }
+        let needle = query.lowercased()
+        sections = catalogSections.compactMap { section in
+            let items = section.items.filter { item in
+                return item.title.lowercased().contains(needle)
+                    || (item.detail ?? "").lowercased().contains(needle)
+                    || item.key.lowercased().contains(needle)
+            }
+            return items.isEmpty ? nil : SettingSection(title: section.title, items: items)
+        }
+        tableView.reloadData()
     }
 
     @objc private func toggleChanged(_ sender: UISwitch) {
@@ -351,6 +375,9 @@ extension SettingsViewController: UITableViewDataSource, UITableViewDelegate {
         }
         if case .sources = item.kind {
             navigationController?.pushViewController(SourcesViewController(), animated: true)
+        }
+        if case .equalizer = item.kind {
+            navigationController?.pushViewController(EqualizerViewController(), animated: true)
         }
         if case .account = item.kind {
             navigationController?.pushViewController(AccountViewController(), animated: true)
@@ -602,7 +629,7 @@ final class SettingsCell: UITableViewCell {
             // The real app greys the row out; a subtitle, where it has one,
             // explains why the row is inert rather than hiding the reason.
             available = false
-        case .page, .onboarding, .sources, .account, .action:
+        case .page, .onboarding, .sources, .account, .action, .equalizer:
             showsChevron = true
         case .toggle:
             showsChevron = false

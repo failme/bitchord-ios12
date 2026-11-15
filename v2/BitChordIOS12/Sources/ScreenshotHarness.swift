@@ -1489,23 +1489,24 @@ enum ScreenshotHarness {
     }
 
     private static func artistProbe(_ capture: DownloadCapture) {
-        // The same row search produces: a YouTube Music artist browse id.
-        InnerTube.shared.searchCollections("The Weeknd", filter: .artists) { items in
-            guard let item = items.first else {
+        // Use the same catalogue search the Artists tab uses. JioSaavn's
+        // artist page is the one with releases, a biography and related
+        // artists; the YouTube browse fallback only has the song list.
+        CatalogueSearch.shared.artists("The Weeknd") { artists in
+            guard let item = artists.first else {
                 capture.report.append("artist.tracks=0")
                 capture.checkpoint()
                 moodsProbe(capture)
                 return
             }
-            capture.report.append("artist.name=\(item.title)")
-            let page = ArtistPage.make(artist: CatalogueArtist(id: item.browseID,
-                                                              name: item.title,
-                                                              artwork: item.artworkURL))
+            capture.report.append("artist.name=\(item.name)")
+            let page = ArtistPage.make(artist: item)
             capture.root.present(chrome(page), animated: false) {
                 waitUntil({ page.loadedTrackCount > 0 }, timeout: 25) { _ in
-                    after(0.8) {
+                    after(1.0) {
                         capture.shot("artist")
                         capture.report.append("artist.loaded=\(page.loadedTrackCount)")
+                        capture.report.append("artist.summary=\(page.reportSummary)")
                         capture.checkpoint()
                         page.dismiss(animated: false) { moodsProbe(capture) }
                     }

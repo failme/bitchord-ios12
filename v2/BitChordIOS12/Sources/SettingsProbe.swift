@@ -84,6 +84,13 @@ enum SettingsProbe {
                     failures.append(item.key)
                 }
                 tested += 1
+            case .equalizer:
+                let before = SettingsStore.shared.string(item.key, "Off")
+                SettingsStore.shared.set("Bass boost", for: item.key)
+                if SettingsStore.shared.string(item.key, before) != "Bass boost" {
+                    failures.append(item.key)
+                }
+                tested += 1
             default:
                 continue
             }
@@ -175,11 +182,15 @@ enum SettingsProbe {
         record("settings.dspDry", dry)
         record("settings.dspWet", wet)
         record("settings.dspProcessed", "dry=\(dry.contains("changed=true")) wet=\(wet.contains("changed=true"))")
+        let manual = AudioDSP.shared.selfTest(eq: "Manual", loudness: false, spatial: false,
+                                               manualBands: [6, 3, 0, -2, 0, 3, 6], balance: -0.4)
+        record("settings.manualEq", "changed=\(manual.contains("changed=true")) bands=7 balance=-0.4")
         record("settings.crossfade", "explicit=5 offAutomix=\(PlayerService.crossfadeSeconds(setting: 0, automix: false, fast: false)) automix=\(PlayerService.crossfadeSeconds(setting: 0, automix: true, fast: false)) fast=\(PlayerService.crossfadeSeconds(setting: 0, automix: true, fast: true))")
         record("settings.animatedCover", "enabled=\(NowPlayingViewController.artworkMotionEnabled(animated: true, cellular: true, reduce: false, onWiFi: true)) cellularOff=\(NowPlayingViewController.artworkMotionEnabled(animated: true, cellular: false, reduce: false, onWiFi: false)) reduced=\(NowPlayingViewController.artworkMotionEnabled(animated: true, cellular: true, reduce: true, onWiFi: true))")
         let savedLanguage = SettingsStore.shared.string("BitChord.Misc.AppLanguage", "English")
         SettingsStore.shared.set("Español", for: "BitChord.Misc.AppLanguage")
         record("settings.localization", L10n.report())
+        record("settings.languages", "\(L10n.languageNames.count)")
         SettingsStore.shared.set(savedLanguage, for: "BitChord.Misc.AppLanguage")
         record("settings.translation", TranslationService.shared.selfTest())
         record("settings.refreshRate", DisplayRefreshController.shared.report)
