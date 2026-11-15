@@ -455,10 +455,23 @@ final class DownloadStore: NSObject {
     /// foreground session. One retry keeps a download from dying for that, and
     /// the transport is recorded so the capture can say which one carried it.
     private func retryInForeground(videoID: String, track: Track) {
-        guard let url = urls[videoID], attempts[videoID] == 1 else { return }
-        attempts[videoID] = 2
+        guard let url = urls[videoID], attempts[videoID] == 2 else { return }
+        attempts[videoID] = 3
         transport[videoID] = "foreground"
         let task = pacedSession.downloadTask(with: url)
+        task.taskDescription = videoID
+        tasks[task.taskIdentifier] = videoID
+        task.resume()
+    }
+
+    /// A background task can fail before its first byte on the simulator. Try
+    /// the same transport once more before falling back to a foreground task;
+    /// the retry is what keeps a keep-mode capture genuinely backgrounded.
+    private func retryInBackground(videoID: String, track: Track) {
+        guard let url = urls[videoID], attempts[videoID] == 1 else { return }
+        attempts[videoID] = 2
+        transport[videoID] = "background"
+        let task = session.downloadTask(with: url)
         task.taskDescription = videoID
         tasks[task.taskIdentifier] = videoID
         task.resume()
@@ -825,11 +838,14 @@ extension DownloadStore: URLSessionDownloadDelegate {
         // still remains a cancel.
         if ns.domain == NSURLErrorDomain, retryableCodes.contains(ns.code),
            transport[videoID] == "background",
-           attempts[videoID] == 1,
            !cancelledByUser.contains(videoID) {
             DispatchQueue.main.async {
                 self.tasks.removeValue(forKey: task.taskIdentifier)
-                self.retryInForeground(videoID: videoID, track: track)
+                if self.attempts[videoID] == 1 {
+                    self.retryInBackground(videoID: videoID, track: track)
+                } else if self.attempts[videoID] == 2 {
+                    self.retryInForeground(videoID: videoID, track: track)
+                }
             }
             return
         }
