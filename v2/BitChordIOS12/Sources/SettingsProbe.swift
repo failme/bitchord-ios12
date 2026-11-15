@@ -171,7 +171,7 @@ enum SettingsProbe {
 
         // DSP: the same renderer the tap uses, with and without processing.
         let dry = AudioDSP.shared.selfTest(eq: "Off", loudness: false, spatial: false)
-        let wet = AudioDSP.shared.selfTest(eq: "Bass", loudness: true, spatial: true)
+        let wet = AudioDSP.shared.selfTest(eq: "Bass boost", loudness: true, spatial: true)
         record("settings.dspDry", dry)
         record("settings.dspWet", wet)
         record("settings.dspProcessed", "dry=\(dry.contains("changed=true")) wet=\(wet.contains("changed=true"))")

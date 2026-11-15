@@ -24,9 +24,21 @@ final class AudioDSP {
 
         var gains: [Double] {
             switch equalizer {
-            case "Bass": return [7, 6, 5, 3, 1, 0, 0, 0, 0, 0]
-            case "Vocal": return [-1, 0, 1, 3, 5, 5, 3, 1, 0, -1]
-            case "Treble": return [0, 0, 0, 0, 0, 1, 3, 5, 6, 7]
+            case "Acoustic": return [3, 1.5, 0, 1.5, 2.5, 2, 1, 0, 0, 0]
+            case "Bass boost": return [6, 4, 1.5, 0, 0, 0, 0, 0, 0, 0]
+            case "Bass cut": return [-6, -4, -1.5, 0, 0, 0, 0, 0, 0, 0]
+            case "Vocal": return [-3, -1.5, 1, 3.5, 3, 1, -1, 0, 0, 0]
+            case "Treble boost": return [0, 0, 0, 0, 1.5, 3.5, 5, 0, 0, 0]
+            case "Treble cut": return [0, 0, 0, 0, -1.5, -3.5, -5, 0, 0, 0]
+            case "Loudness": return [6, 3.5, 0, -1.5, -1, 2, 5, 0, 0, 0]
+            case "Spoken word": return [-5, -2.5, 1.5, 4, 3.5, 1.5, -2, 0, 0, 0]
+            case "Electronic": return [5, 3, -1, 0, 1, 3, 4, 0, 0, 0]
+            case "Rock": return [4, 2.5, -1, -1.5, 1, 3, 3.5, 0, 0, 0]
+            case "Hip hop": return [6, 4, 0.5, -1, 0.5, 2, 2.5, 0, 0, 0]
+            case "Jazz": return [3, 1.5, 0, 1, 1.5, 2, 2.5, 0, 0, 0]
+            case "Classical": return [3, 2, 0, 0, 1, 2.5, 3, 0, 0, 0]
+            case "Small speakers": return [5, 4, 2, 0.5, 0, -1, -2, 0, 0, 0]
+            case "Late night": return [3, 1, 0, 1.5, 1, -1, -3, 0, 0, 0]
             default: return Array(repeating: 0, count: 10)
             }
         }
@@ -178,7 +190,7 @@ final class AudioDSP {
         floatSamples = (format.mFormatFlags & kAudioFormatFlagIsFloat) != 0
         if !floatSamples { lastError = "tap format is not float; processing bypassed" }
         let gains = currentConfig().gains
-        let frequencies = [31.0, 62.0, 125.0, 250.0, 500.0, 1000.0, 2000.0, 4000.0, 8000.0, 16000.0]
+        let frequencies = EqFrequencies.values
         leftBands = frequencies.enumerated().map { index, frequency in
             Biquad(frequency: min(frequency, sampleRate * 0.45),
                    gain: gains[index], sampleRate: sampleRate)
@@ -362,7 +374,12 @@ final class AudioDSP {
             + " gain=\(String(format: "%.2f", lastGain))"
     }
 
-    private let frequencies = [31.0, 62.0, 125.0, 250.0, 500.0, 1000.0, 2000.0, 4000.0, 8000.0, 16000.0]
+    private let frequencies = EqFrequencies.values
+}
+
+private enum EqFrequencies {
+    static let values = [60.0, 150.0, 400.0, 1000.0, 2500.0, 6000.0, 14000.0,
+                         250.0, 1000.0, 4000.0]
 }
 
 private struct Biquad {
