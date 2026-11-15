@@ -1997,6 +1997,15 @@ enum ScreenshotHarness {
                 ]
                 fresh = known.filter { !DownloadStore.shared.isDownloaded($0.videoID) }
             }
+            // Screenshot passes seed and download other fixtures, so every
+            // known song can already be on disk by the time this launch runs.
+            // Recycle one saved row rather than reporting there is nothing to
+            // transfer: the row is restored by the background download and the
+            // later cold-launch assertions still see a populated locker.
+            if fresh.isEmpty, let existing = DownloadStore.shared.saved.first {
+                DownloadStore.shared.remove(existing.track.videoID)
+                fresh = [existing.track]
+            }
             tryBackgroundStart(fresh, index: 0, base: base, directory: directory, keep: keep)
         }
     }
