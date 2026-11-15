@@ -22,6 +22,8 @@ enum SettingKind {
     case unavailable(String)
     /// Re-opens the first-run flow.
     case onboarding
+    /// Runs a screen action (backup export/import, reveal cache).
+    case action(String)
     /// Opens the WebDAV source browser.
     case sources
     /// Opens the Google / YouTube Music account page.
@@ -152,6 +154,29 @@ final class SettingsStore {
         get { return bool("BitChord.Misc.PlayNextOnSwipe", false) }
         set { set(newValue, for: "BitChord.Misc.PlayNextOnSwipe") }
     }
+
+    var syncedLyrics: Bool {
+        get { return bool("BitChord.Lyrics.Synced", true) }
+        set { set(newValue, for: "BitChord.Lyrics.Synced") }
+    }
+
+    var lyricsOffsetMilliseconds: Double {
+        get { return double("BitChord.Lyrics.OffsetSeconds", 0) * 1000 }
+        set { set(newValue / 1000, for: "BitChord.Lyrics.OffsetSeconds") }
+    }
+
+    var hideRecents: Bool { return bool("BitChord.Misc.HideRecents", false) }
+    var hideHomeVideos: Bool { return bool("BitChord.Misc.HideHomeVideos", false) }
+    var hideTopPicks: Bool { return bool("BitChord.Misc.HideTopPicks", false) }
+    var hideHomeMoods: Bool { return bool("BitChord.Misc.HideHomeMoods", false) }
+    var useAllAudioFolders: Bool { return bool("BitChord.LocalMusic.UseAllFolders", false) }
+    var exportCompatibleDownloads: Bool { return bool("BitChord.Download.ExportCompatible", false) }
+    var replayGenres: Bool { return bool("BitChord.Replay.WorkoutGenres", true) }
+    var fullBleedArtwork: Bool { return bool("BitChord.Appearance.FullBleedArtwork", true) }
+    var fullBleedDetailArtwork: Bool { return bool("BitChord.Appearance.FullBleedDetailArtwork", false) }
+    var prioritizeSyllableSync: Bool { return bool("BitChord.Lyrics.PrioritizeSyllableSync", false) }
+    var highPerformanceMode: Bool { return bool("BitChord.Performance.HighPerformanceMode", false) }
+    var renderQuality: String { return string("BitChord.Performance.RenderQuality", "High") }
 }
 
 /// The upstream sections and keys, with an honest availability verdict for each.
@@ -183,7 +208,8 @@ enum SettingsCatalog {
                         icon: .plug,
                         kind: .page("Streams come from YouTube Music and JioSaavn. A lossless addon can be pointed at below.")),
             SettingItem(key: "BitChord.Audio.DirectSourceStream", title: "Direct Source Stream",
-                        kind: .toggle(false)),
+                        detail: "Pre-opens the next source during a transition",
+                        kind: .unavailable("Needs the crossfade/prefetch gate; this player has no overlapping transition to open a source in.")),
             SettingItem(key: "BitChord.Audio.WifiQuality", title: "On Wi-Fi",
                         icon: .wifi,
                         badge: "IN USE",
@@ -207,6 +233,18 @@ enum SettingsCatalog {
             SettingItem(key: "BitChord.Audio.AutoPlay", title: "Autoplay",
                         detail: "",
                         kind: .toggle(true)),
+            SettingItem(key: "BitChord.Appearance.FullBleedArtwork", title: "Full-screen cover art",
+                        detail: "Let the sleeve fill the player backdrop",
+                        kind: .toggle(true)),
+            SettingItem(key: "BitChord.Appearance.FullBleedDetailArtwork", title: "Full-screen detail cover",
+                        detail: "Use the same edge-to-edge sleeve on album pages",
+                        kind: .toggle(false)),
+            SettingItem(key: "BitChord.Lyrics.OffsetSeconds", title: "Lyrics offset",
+                        detail: "Shift words against the audio, in milliseconds",
+                        kind: .stepper(0, -2, 2, 0.1, " s")),
+            SettingItem(key: "BitChord.Lyrics.PrioritizeSyllableSync", title: "Prefer syllable sync",
+                        detail: "Use word timings before plain line timings",
+                        kind: .toggle(false)),
             SettingItem(key: "BitChord.Audio.Crossfade", title: "Crossfade",
                         detail: "Needs the AVPlayer pipeline",
                         kind: .unavailable("The embed player has no second stream to fade into.")),
@@ -271,13 +309,26 @@ enum SettingsCatalog {
                         detail: "Refresh synced playlists on launch",
                         kind: .toggle(false)),
             SettingItem(key: "BitChord.Download.ExportCompatible", title: "Export compatible files",
-                        kind: .unavailable("Download manager is not ported.")),
+                        detail: "Copies downloads to Documents/Exports for Files and iTunes",
+                        kind: .toggle(false)),
+            SettingItem(key: "BitChord.Backup.Export", title: "Export data",
+                        detail: "Playlists, likes, history and settings as JSON",
+                        kind: .action("export")),
+            SettingItem(key: "BitChord.Backup.Import", title: "Import data",
+                        detail: "Restore a BitChord JSON backup",
+                        kind: .action("import")),
             SettingItem(key: "BitChord.LocalMusic.SelectedFolder", title: "Local music folder",
                         detail: "Audio files in this app folder appear in Library \u{2192} Local Music",
                         kind: .page("Put audio files in the app's LocalMusic folder, through the Files app or iTunes File Sharing. Library \u{2192} Local Music lists them by folder, with the title, artist and length read from each file.")),
+            SettingItem(key: "BitChord.LocalMusic.UseAllFolders", title: "Use all audio folders",
+                        detail: "Also scan the rest of Documents for playable audio",
+                        kind: .toggle(false)),
             SettingItem(key: "BitChord.LocalMusic.FilterNonMusic", title: "Filter non-music",
                         detail: "Hide clips shorter than 30 seconds",
                         kind: .toggle(true)),
+            SettingItem(key: "BitChord.Storage.ShowCacheFolder", title: "Show cache folder",
+                        detail: "Reveal the app's cache in Files",
+                        kind: .action("cacheFolder")),
             SettingItem(key: "BitChord.Storage.CacheLimitMB", title: "Song cache limit",
                         detail: "Bound on the app's disk cache",
                         kind: .choice(CacheStore.fallback, CacheStore.options)),
@@ -359,8 +410,8 @@ enum SettingsCatalog {
             SettingItem(key: "BitChord.Appearance.Font", title: "Font",
                         kind: .choice("System", ["System", "Rounded", "Serif"])),
             SettingItem(key: "BitChord.Appearance.AppIcon", title: "App icon",
-                        detail: "Default or monochrome",
-                        kind: .choice(AppIconChoice.fallback, ["Default", "Monochrome"])),
+                        detail: "Default, glass, neon and monochrome",
+                        kind: .choice(AppIconChoice.fallback, AppIconChoice.displayNames)),
             SettingItem(key: "BitChord.Appearance.AnimatedCover", title: "Animated cover",
                         kind: .unavailable("Animated artwork is not ported.")),
             SettingItem(key: "BitChord.Appearance.AnimatedCoverCellular", title: "Animated cover on cellular",
@@ -389,7 +440,26 @@ enum SettingsCatalog {
             SettingItem(key: "BitChord.Misc.PlayNextOnSwipe", title: "Swipe to play next",
                         detail: "Swipe a song row to put it after the current track",
                         kind: .toggle(false)),
+            SettingItem(key: "BitChord.Misc.HideRecents", title: "Hide recents",
+                        detail: "Keep recently played rows off Home",
+                        kind: .toggle(false)),
+            SettingItem(key: "BitChord.Misc.HideHomeVideos", title: "Hide home videos",
+                        detail: "Drop video shelves from the YouTube Music feed",
+                        kind: .toggle(false)),
+            SettingItem(key: "BitChord.Misc.HideTopPicks", title: "Hide top picks",
+                        detail: "Hide the large personalised cards",
+                        kind: .toggle(false)),
+            SettingItem(key: "BitChord.Misc.HideHomeMoods", title: "Hide home moods",
+                        detail: "Hide mood and genre cards",
+                        kind: .toggle(false)),
+            SettingItem(key: "BitChord.Misc.SquareVideoThumbnails", title: "Square video thumbnails",
+                        detail: "Crop video art to a square instead of 16:9",
+                        kind: .toggle(true)),
+            SettingItem(key: "BitChord.Misc.PreferMusicOnly", title: "Prefer music only",
+                        detail: "Drop spoken-word and video results from search",
+                        kind: .toggle(false)),
             SettingItem(key: "BitChord.Misc.DontRepeatInSession", title: "Don't repeat in session",
+                        detail: "Radio will not suggest a song already played this session",
                         kind: .toggle(false)),
             SettingItem(key: "BitChord.Misc.StopOnCloseRecents", title: "Stop when recents close",
                         kind: .toggle(false)),
@@ -398,9 +468,11 @@ enum SettingsCatalog {
             SettingItem(key: "BitChord.Misc.SmartAudioAlignment", title: "Smart audio alignment",
                         kind: .unavailable("Needs the DSP pipeline.")),
             SettingItem(key: "BitChord.Misc.WorkOutGenres", title: "Workout genres",
-                        kind: .unavailable("Workout mode is not ported.")),
+                        detail: "Show the upbeat genres card in Replay",
+                        kind: .toggle(true)),
             SettingItem(key: "BitChord.Misc.AppLanguage", title: "Language",
-                        kind: .choice("System", ["System", "English", "Indonesian"])),
+                        detail: "English only in this build",
+                        kind: .unavailable("The iOS 12 port ships one English resource bundle; adding a language needs translated strings and a restart path.")),
             SettingItem(key: "BitChord.Misc.ShowOnboarding", title: "Show onboarding again",
                         detail: "Welcome, tour and library choice",
                         kind: .onboarding)
@@ -414,11 +486,14 @@ enum SettingsCatalog {
                         detail: "Live source, rate and buffer counters on the player",
                         kind: .toggle(false)),
             SettingItem(key: "BitChord.Performance.HighPerformanceMode", title: "High performance mode",
-                        kind: .unavailable("Not ported.")),
+                        detail: "Freezes the mesh backdrop and disables depth blur",
+                        kind: .toggle(false)),
             SettingItem(key: "BitChord.Performance.RefreshRate", title: "Refresh rate",
-                        kind: .unavailable("Not ported.")),
+                        detail: "This iOS version has no app-selected display rate",
+                        kind: .unavailable("iOS 12 exposes no app-level display refresh-rate control; the system picks it.")),
             SettingItem(key: "BitChord.Performance.RenderQuality", title: "Render quality",
-                        kind: .unavailable("Not ported."))
+                        detail: "High keeps the full mesh; Low uses a static colour",
+                        kind: .choice("High", ["High", "Low"]))
         ])
     ]
 

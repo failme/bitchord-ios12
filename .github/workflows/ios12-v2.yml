@@ -95,6 +95,21 @@ jobs:
           ARCHS=$(lipo -archs "$APP/BitChordIOS12V2")
           echo "::notice ::Architectures: $ARCHS"
 
+      - name: Verify packaged icon variants
+        if: success()
+        run: |
+          set -o pipefail
+          APP="build/Build/Products/Release-iphoneos/BitChordIOS12V2.app"
+          assetutil --info "$APP/Assets.car" > /tmp/assets.json
+          for ICON in AppIcon AppIcon-Monochrome AppIcon-LiquidGlass AppIcon-NeonViolet \
+                      AppIcon-SamsungGlassClearDark AppIcon-PixelNeonCyan; do
+            grep -q "\"Name\" : \"$ICON\"" /tmp/assets.json || {
+              echo "::error ::compiled Assets.car is missing $ICON"
+              exit 1
+            }
+          done
+          echo "compiled icon variants present"
+
       - name: Package unsigned IPA
         if: success()
         run: |
@@ -972,6 +987,40 @@ jobs:
                        motion-onboarding-3; do
             test -s "shots/$FRAME.png" || { echo "::error ::missing $FRAME"; exit 1; }
           done
+
+          # Settings matrix, driven through the real stores and helpers. This
+          # writes one report after the visual fixtures, so the probe's seed
+          # rows cannot leak into a screenshot.
+          xcrun simctl terminate "$UDID" "$BUNDLE" || true
+          sleep 1
+          rm -f "$CONTAINER/Documents/shots/settings-probe.txt" \
+                "$CONTAINER/Documents/shots/settings-probe-done.txt"
+          xcrun simctl launch "$UDID" "$BUNDLE" -BCSettingsProbe "$CONTAINER/Documents/shots" > /dev/null
+          for i in $(seq 1 90); do
+            [ -f "$CONTAINER/Documents/shots/settings-probe-done.txt" ] && break
+            sleep 2
+          done
+          cp "$CONTAINER/Documents/shots/settings-probe.txt" shots/ 2>/dev/null || true
+          echo "### Settings probe"
+          cat shots/settings-probe.txt 2>/dev/null || echo "(no settings probe report)"
+          PROBE=shots/settings-probe.txt
+          test -s "$PROBE" || { echo "::error ::no settings probe report"; exit 1; }
+          grep -q "settings.done=true" "$PROBE"
+          grep -q "settings.roundTripFailures=none" "$PROBE"
+          grep -q "settings.themeLight=true" "$PROBE"
+          grep -q "settings.themeDark=true" "$PROBE"
+          grep -q "settings.appIcons=23" "$PROBE"
+          grep -q "settings.appIconsUnique=23" "$PROBE"
+          grep -q "settings.appIconAlternates=22" "$PROBE"
+          grep -q "settings.appIconDeclared=22" "$PROBE"
+          grep -q "settings.backupRestored=true" "$PROBE"
+          grep -q "settings.localRoots=LocalMusic->Documents" "$PROBE"
+          grep -q "settings.lyrics=synced=1 shifted=0 unsynced=-2" "$PROBE"
+          grep -q "settings.renderQuality=high=42 cheap=12 low=12" "$PROBE"
+          grep -q "settings.autoplay=noRepeat=c allowed=b,c" "$PROBE"
+          grep -q "settings.homeHideRecents=shown=true hidden=true" "$PROBE"
+          grep -q "settings.downloadExport=saved=1 exported=1" "$PROBE"
+          grep -q "settings.searchPage2=[1-9]" "$PROBE"
 
           kill "$ADDON_PID" 2>/dev/null || true
           kill "$WEBDAV_PID" 2>/dev/null || true

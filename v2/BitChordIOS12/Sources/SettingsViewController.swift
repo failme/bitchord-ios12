@@ -131,6 +131,45 @@ final class SettingsViewController: UIViewController {
     @objc private func toggleChanged(_ sender: UISwitch) {
         guard let key = sender.accessibilityIdentifier else { return }
         SettingsStore.shared.set(sender.isOn, for: key)
+        if key == "BitChord.Download.ExportCompatible" && sender.isOn {
+            DownloadStore.shared.exportAllCompatible()
+        }
+    }
+
+    private func perform(action: String) {
+        switch action {
+        case "export":
+            guard let backup = BackupService.shared.makeBackup() else {
+                showMessage("Backup", "Could not build the backup file.")
+                return
+            }
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent(backup.name)
+            do {
+                try backup.data.write(to: url, options: .atomic)
+            } catch {
+                showMessage("Backup", "Could not write the backup file.")
+                return
+            }
+            let share = UIActivityViewController(activityItems: [url], applicationActivities: nil)
+            share.popoverPresentationController?.sourceView = view
+            share.popoverPresentationController?.sourceRect = view.bounds
+            present(share, animated: true, completion: nil)
+        case "import":
+            let picker = UIDocumentPickerViewController(documentTypes: ["public.json", "public.data"],
+                                                        in: .import)
+            picker.delegate = self
+            present(picker, animated: true, completion: nil)
+        case "cacheFolder":
+            navigationController?.pushViewController(CacheFolderViewController(), animated: true)
+        default:
+            break
+        }
+    }
+
+    private func showMessage(_ title: String, _ message: String) {
+        let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "OK", style: .default, handler: nil))
+        present(alert, animated: true, completion: nil)
     }
 
     /// The addon is a URL the user owns; the row shows the host once set, and an
@@ -326,6 +365,18 @@ extension SettingsViewController: UITableViewDataSource, UITableViewDelegate {
         if case .text(let message, let placeholder, let secret) = item.kind {
             textPrompt(item: item, message: message, placeholder: placeholder, secret: secret)
         }
+        if case .action(let action) = item.kind {
+            perform(action: action)
+        }
+    }
+}
+
+extension SettingsViewController: UIDocumentPickerDelegate {
+    func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+        guard let url = urls.first else { return }
+        let result = BackupService.shared.restore(from: url)
+        tableView.reloadData()
+        showMessage("Restore", result.message)
     }
 }
 
@@ -522,7 +573,7 @@ final class SettingsCell: UITableViewCell {
             // The real app greys the row out; a subtitle, where it has one,
             // explains why the row is inert rather than hiding the reason.
             available = false
-        case .page, .onboarding, .sources, .account:
+        case .page, .onboarding, .sources, .account, .action:
             showsChevron = true
         case .toggle:
             showsChevron = false

@@ -12,6 +12,7 @@ final class ReplayViewController: UIViewController {
     private let tableView = UITableView(frame: .zero, style: .plain)
     private let headerLabel = UILabel()
     private let emptyLabel = UILabel()
+    private let genresButton = UIButton(type: .system)
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -23,6 +24,14 @@ final class ReplayViewController: UIViewController {
         headerLabel.textColor = Theme.secondaryText
         headerLabel.text = ReplayViewController.summaryText
         view.addSubview(headerLabel)
+
+        genresButton.translatesAutoresizingMaskIntoConstraints = false
+        genresButton.setTitle("Workout genres", for: .normal)
+        genresButton.setTitleColor(Theme.accent, for: .normal)
+        genresButton.titleLabel?.font = Theme.font(13, weight: .semibold)
+        genresButton.isHidden = !SettingsStore.shared.replayGenres
+        genresButton.addTarget(self, action: #selector(openGenres), for: .touchUpInside)
+        view.addSubview(genresButton)
 
         tableView.translatesAutoresizingMaskIntoConstraints = false
         tableView.backgroundColor = Theme.background
@@ -44,6 +53,9 @@ final class ReplayViewController: UIViewController {
         NSLayoutConstraint.activate([
             headerLabel.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 10),
             headerLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
+
+            genresButton.centerYAnchor.constraint(equalTo: headerLabel.centerYAnchor),
+            genresButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
 
             tableView.topAnchor.constraint(equalTo: headerLabel.bottomAnchor, constant: 10),
             tableView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
@@ -79,6 +91,18 @@ final class ReplayViewController: UIViewController {
         let seconds = LibraryStore.shared.recentTracks.reduce(0.0) { $0 + ($1.durationSeconds ?? 0) }
         let minutes = Int((seconds / 60).rounded())
         return "\(plays) plays · \(list.count) songs · \(minutes) min"
+    }
+
+    @objc private func openGenres() {
+        let controller = CollectionViewController(title: "Workout genres",
+                                                  subtitle: "Upbeat songs for a session",
+                                                  artwork: nil)
+        controller.loader = { completion in
+            InnerTube.shared.search("Workout", filter: .songs) { tracks, _ in
+                completion(tracks ?? [])
+            }
+        }
+        navigationController?.pushViewController(controller, animated: true)
     }
 }
 

@@ -68,6 +68,17 @@ final class LibraryStore {
         lastPlaybackDuration = UserDefaults.standard.double(forKey: durationKey)
     }
 
+    /// Re-reads every persisted record, for a backup restored over the current
+    /// library. Notification observers redraw from these properties.
+    func reloadFromDisk() {
+        likedTracks = []
+        playlists = []
+        recentTracks = []
+        recentSearches = []
+        load()
+        announce()
+    }
+
     private func save<T: Encodable>(_ value: T, key: String) {
         if let data = try? JSONEncoder().encode(value) {
             UserDefaults.standard.set(data, forKey: key)

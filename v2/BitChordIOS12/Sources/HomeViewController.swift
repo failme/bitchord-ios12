@@ -170,6 +170,10 @@ final class HomeViewController: UIViewController {
                                               selector: #selector(accountChanged),
                                               name: .googleAccountDidChange,
                                               object: nil)
+        NotificationCenter.default.addObserver(self,
+                                              selector: #selector(settingsChanged),
+                                              name: .settingsDidChange,
+                                              object: nil)
         applyAccountState()
         rebuild()
         loadQuickPicks()
@@ -197,6 +201,12 @@ final class HomeViewController: UIViewController {
     /// out, or when the feed answers nothing playable, it falls back to that
     /// chart so Home is never empty on a first launch.
     private func loadQuickPicks() {
+        if SettingsStore.shared.hideTopPicks {
+            topPicks.isHidden = true
+            topPicks.configure(tracks: [])
+            rebuild()
+            return
+        }
         guard GoogleAccountStore.shared.isSignedIn else {
             loadFallbackQuickPicks()
             return
@@ -218,6 +228,7 @@ final class HomeViewController: UIViewController {
     }
 
     private func loadFallbackQuickPicks() {
+        guard !SettingsStore.shared.hideTopPicks else { return }
         let year = Calendar.current.component(.year, from: Date())
         InnerTube.shared.search("Top songs \(year)", filter: .songs) { [weak self] tracks, _ in
             guard let self = self, let tracks = tracks, !tracks.isEmpty else { return }
@@ -232,7 +243,18 @@ final class HomeViewController: UIViewController {
     }
 
     private func showRemoteHome(_ items: [YouTubeHomeItem]) {
-        remoteHomeItems = Array(items.prefix(12))
+        if SettingsStore.shared.hideHomeVideos {
+            remoteHomeShelf.removeFromSuperview()
+            updateEmptyState()
+            return
+        }
+        let visible = SettingsStore.shared.hideHomeMoods
+            ? items.filter { item in
+                let title = item.title.lowercased()
+                return !title.contains("mood") && !title.contains("energy") && !title.contains("genre")
+            }
+            : items
+        remoteHomeItems = Array(visible.prefix(12))
         guard !remoteHomeItems.isEmpty else {
             remoteHomeShelf.removeFromSuperview()
             updateEmptyState()
@@ -333,6 +355,19 @@ final class HomeViewController: UIViewController {
         loadQuickPicks()
     }
 
+    @objc private func settingsChanged() {
+        if SettingsStore.shared.hideTopPicks {
+            topPicks.isHidden = true
+        } else if !remoteQuickPicks.isEmpty {
+            topPicks.isHidden = false
+        }
+        if SettingsStore.shared.hideHomeVideos {
+            remoteHomeShelf.removeFromSuperview()
+        }
+        rebuild()
+        updateEmptyState()
+    }
+
     private func applyAccountState() {
         let signedIn = GoogleAccountStore.shared.isSignedIn
         signInHolder.isHidden = signedIn
@@ -362,6 +397,14 @@ final class HomeViewController: UIViewController {
 
     var isSignInPromptVisible: Bool { return !signInHolder.isHidden }
 
+    /// Reads the shelves the current settings and library would draw, for the
+    /// settings probe. It goes through the same `rebuild` the UI uses.
+    func probeShelfTitles() -> [String] {
+        loadViewIfNeeded()
+        rebuild()
+        return shelfViews.keys.sorted()
+    }
+
     @objc private func openSettings() {
         let settings = SettingsViewController()
         let navigation = UINavigationController(rootViewController: settings)
@@ -379,7 +422,7 @@ final class HomeViewController: UIViewController {
         if let continueTrack = store.continueListeningTrack {
             shelves.append(("Continue listening", [continueTrack]))
         }
-        if !store.recentTracks.isEmpty {
+        if !SettingsStore.shared.hideRecents && !store.recentTracks.isEmpty {
             shelves.append(("Recently played", store.recentTracks))
         }
         if !store.quickPicks.isEmpty {

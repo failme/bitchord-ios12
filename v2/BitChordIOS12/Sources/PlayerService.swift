@@ -36,6 +36,9 @@ final class PlayerService: NSObject {
     /// harness reads it as proof the end-of-queue branch ran.
     private(set) var autoplayCount = 0
     private var autoplayInFlight = false
+    /// Every song played since launch, so "Don't repeat in session" can keep
+    /// radio from suggesting it again even after it leaves the queue.
+    private(set) var sessionHistory: Set<String> = []
 
     var isScrubbing = false
 
@@ -295,6 +298,18 @@ final class PlayerService: NSObject {
         postChange()
     }
 
+    /// Upstream's "Stop when recents close" clears playback with the task, so
+    /// nothing resumes from the control centre after the app was swiped away.
+    func stopForTermination() {
+        AudioEngine.shared.pause()
+        queue = []
+        unshuffledQueue = []
+        currentIndex = -1
+        isPlaying = false
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+        postChange()
+    }
+
     func togglePlayPause() {
         if isPlaying {
             pause()
@@ -337,6 +352,14 @@ final class PlayerService: NSObject {
         return SettingsStore.shared.bool("BitChord.Audio.AutoPlay", true)
     }
 
+    static func autoplayCandidates(mix: [Track], queueIDs: Set<String>,
+                                   history: Set<String>, avoidRepeats: Bool) -> [Track] {
+        return mix.filter { track in
+            guard !queueIDs.contains(track.videoID) else { return false }
+            return !avoidRepeats || !history.contains(track.videoID)
+        }
+    }
+
     private func extendWithAutoplay(from track: Track) {
         guard !autoplayInFlight else { return }
         autoplayInFlight = true
@@ -347,7 +370,9 @@ final class PlayerService: NSObject {
             self.autoplayInFlight = false
             self.statusText = ""
             let known = Set(self.queue.map { $0.videoID })
-            let fresh = (mix ?? []).filter { !known.contains($0.videoID) }
+            let fresh = PlayerService.autoplayCandidates(
+                mix: mix ?? [], queueIDs: known, history: self.sessionHistory,
+                avoidRepeats: SettingsStore.shared.bool("BitChord.Misc.DontRepeatInSession", false))
             guard !fresh.isEmpty else {
                 self.isPlaying = false
                 self.postChange()
@@ -528,6 +553,7 @@ final class PlayerService: NSObject {
 
         LibraryStore.shared.recordPlayback(track)
         PlaybackHistoryStore.shared.record(track)
+        sessionHistory.insert(track.videoID)
         ScrobbleService.shared.trackDidStart(track)
         AudioEngine.shared.play(track: track)
         loadLyrics(for: track)

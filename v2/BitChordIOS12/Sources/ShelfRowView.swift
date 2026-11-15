@@ -215,6 +215,8 @@ final class CardItemCell: UICollectionViewCell {
     private let titleLabel = UILabel()
     private let subtitleLabel = UILabel()
     private var task: URLSessionDataTask?
+    private var squareArtwork: NSLayoutConstraint!
+    private var wideArtwork: NSLayoutConstraint!
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -246,11 +248,13 @@ final class CardItemCell: UICollectionViewCell {
         subtitleLabel.numberOfLines = 1
         contentView.addSubview(subtitleLabel)
 
+        squareArtwork = artworkView.heightAnchor.constraint(equalTo: artworkView.widthAnchor)
+        wideArtwork = artworkView.heightAnchor.constraint(equalTo: artworkView.widthAnchor,
+                                                          multiplier: 9.0 / 16.0)
         NSLayoutConstraint.activate([
             artworkView.topAnchor.constraint(equalTo: contentView.topAnchor),
             artworkView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
             artworkView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
-            artworkView.heightAnchor.constraint(equalTo: artworkView.widthAnchor),
 
             titleLabel.topAnchor.constraint(equalTo: artworkView.bottomAnchor, constant: 6),
             titleLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
@@ -265,6 +269,9 @@ final class CardItemCell: UICollectionViewCell {
     func configure(_ item: CardItem) {
         titleLabel.text = item.title
         subtitleLabel.text = item.subtitle
+        let square = SettingsStore.shared.bool("BitChord.Misc.SquareVideoThumbnails", false)
+        squareArtwork.isActive = square
+        wideArtwork.isActive = !square
         task?.cancel()
         artworkView.image = nil
         guard let url = item.artworkURL else { return }

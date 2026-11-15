@@ -105,6 +105,10 @@ final class NowPlayingViewController: UIViewController {
                                               selector: #selector(playerChanged),
                                               name: .libraryDidChange,
                                               object: nil)
+        NotificationCenter.default.addObserver(self,
+                                              selector: #selector(settingsChanged),
+                                              name: .settingsDidChange,
+                                              object: nil)
         refresh()
     }
 
@@ -674,6 +678,10 @@ final class NowPlayingViewController: UIViewController {
 
     private func applyMode(lyrics: Bool) {
         showingLyrics = lyrics
+        let fullBleed = SettingsStore.shared.fullBleedArtwork
+        artworkFadeView.isHidden = !fullBleed
+        artworkView.contentMode = fullBleed ? .scaleAspectFill : .scaleAspectFit
+        artworkView.backgroundColor = fullBleed ? Theme.surface : Theme.background
         artworkView.isHidden = lyrics
         artworkFadeView.isHidden = lyrics
         // In lyrics mode the words take the screen: the big title and the
@@ -775,6 +783,15 @@ final class NowPlayingViewController: UIViewController {
         updateTime()
     }
 
+    @objc private func settingsChanged() {
+        lyricsToken = ""
+        applyMode(lyrics: showingLyrics)
+        refresh()
+        if let image = artworkView.image {
+            applyArtwork(image)
+        }
+    }
+
     private func refresh() {
         let service = PlayerService.shared
         guard let track = service.currentTrack else {
@@ -834,11 +851,12 @@ final class NowPlayingViewController: UIViewController {
         case .one: repeatButton.setImage(Icons.image(.repeatOne, size: 20), for: .normal); repeatButton.alpha = 1
         }
 
-        let token = "\(track.videoID)-\(service.lyrics.count)"
+        let syncedSetting = SettingsStore.shared.syncedLyrics
+        let token = "\(track.videoID)-\(service.lyrics.count)-\(syncedSetting)"
         if token != lyricsToken {
             lyricsToken = token
             currentLyrics = service.lyrics
-            lyricsSynced = service.lyricsAreSynced
+            lyricsSynced = service.lyricsAreSynced && syncedSetting
             lyricHighlight = -1
             lyricHeights.removeAll()
             let caption = service.lyricsSource.isEmpty
@@ -893,8 +911,11 @@ final class NowPlayingViewController: UIViewController {
         meshView.palette = legacyMesh ? Theme.meshFallbackPalette : Theme.meshPalette(of: image)
         // One blurred still per song, not a live dark blur: this is what keeps
         // the lyrics backdrop in the artwork's colours.
-        let reduceBlur = SettingsStore.shared.bool("BitChord.Appearance.ReduceDynamicBlur", false)
-        let blurred = Theme.blurredImage(image, radius: reduceBlur ? 18 : 42)
+        let radius = NowPlayingViewController.backdropBlurRadius(
+            reduceBlur: SettingsStore.shared.bool("BitChord.Appearance.ReduceDynamicBlur", false),
+            highPerformance: SettingsStore.shared.highPerformanceMode,
+            renderQuality: SettingsStore.shared.renderQuality)
+        let blurred = Theme.blurredImage(image, radius: radius)
         UIView.transition(with: backdropView, duration: 0.36, options: .transitionCrossDissolve, animations: {
             self.backdropView.image = blurred
         }, completion: nil)
@@ -922,16 +943,21 @@ final class NowPlayingViewController: UIViewController {
         updateHighlight(at: position)
     }
 
+    /// Performance knobs have to show up somewhere visible on this target:
+    /// both the high-performance switch and the low render quality drop the
+    /// per-track 42pt blur to a cheap 12pt one.
+    static func backdropBlurRadius(reduceBlur: Bool, highPerformance: Bool,
+                                   renderQuality: String) -> CGFloat {
+        return reduceBlur || highPerformance || renderQuality == "Low" ? 12 : 42
+    }
+
     private func updateHighlight(at position: TimeInterval) {
-        guard lyricsSynced, !currentLyrics.isEmpty else { return }
-        var index = -1
-        for (offset, line) in currentLyrics.enumerated() {
-            if line.time <= position {
-                index = offset
-            } else {
-                break
-            }
-        }
+        let index = NowPlayingViewController.lyricIndex(lines: currentLyrics,
+                                                        position: position,
+                                                        offsetMilliseconds: SettingsStore.shared.lyricsOffsetMilliseconds,
+                                                        synced: lyricsSynced)
+        guard index != -2 else { return }
+        let position = position - SettingsStore.shared.lyricsOffsetMilliseconds / 1000
         if index >= 0, index < currentLyrics.count {
             // The strip's chevron is a 14pt glyph at half alpha, not a text
             // character sharing the lyric's 16pt white: upstream draws an
@@ -972,6 +998,19 @@ final class NowPlayingViewController: UIViewController {
                   let path = lyricsTable.indexPath(for: cell) else { continue }
             lyricCell.setPosition(path.row == lyricHighlight ? position : -1)
         }
+    }
+
+    /// -2 means the panel is not in synced mode (nothing to highlight), -1
+    /// means no line has started yet, and anything else is the active line.
+    static func lyricIndex(lines: [WordLyricLine], position: TimeInterval,
+                           offsetMilliseconds: Double, synced: Bool) -> Int {
+        guard synced, !lines.isEmpty else { return -2 }
+        let shifted = position - offsetMilliseconds / 1000
+        var index = -1
+        for (offset, line) in lines.enumerated() {
+            if line.time <= shifted { index = offset } else { break }
+        }
+        return index
     }
 
     // MARK: - Actions

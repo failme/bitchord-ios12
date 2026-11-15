@@ -165,7 +165,8 @@ final class CollectionHeaderView: UIView {
         artworkView.translatesAutoresizingMaskIntoConstraints = false
         artworkView.contentMode = .scaleAspectFill
         artworkView.clipsToBounds = true
-        artworkView.layer.cornerRadius = 8
+        let detailBleed = SettingsStore.shared.fullBleedDetailArtwork
+        artworkView.layer.cornerRadius = detailBleed ? 0 : 8
         artworkView.backgroundColor = Theme.surfaceVariant
         addSubview(artworkView)
 
@@ -197,8 +198,8 @@ final class CollectionHeaderView: UIView {
         NSLayoutConstraint.activate([
             artworkView.topAnchor.constraint(equalTo: topAnchor, constant: 8),
             artworkView.centerXAnchor.constraint(equalTo: centerXAnchor),
-            artworkView.widthAnchor.constraint(equalToConstant: 168),
-            artworkView.heightAnchor.constraint(equalToConstant: 168),
+            artworkView.widthAnchor.constraint(equalToConstant: detailBleed ? 228 : 168),
+            artworkView.heightAnchor.constraint(equalToConstant: detailBleed ? 228 : 168),
 
             titleLabel.topAnchor.constraint(equalTo: artworkView.bottomAnchor, constant: 14),
             titleLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 16),

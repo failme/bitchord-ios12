@@ -251,7 +251,7 @@ final class SearchViewController: UIViewController {
     private var rows: [Row] {
         switch source {
         case .youtube:
-            if query.isEmpty && !recents.isEmpty {
+            if query.isEmpty && !recents.isEmpty && !SettingsStore.shared.hideRecents {
                 return recents.map(Row.recent)
             }
             return songs.map(Row.song) + albums.map(Row.album) + artists.map(Row.artist)
@@ -337,7 +337,12 @@ final class SearchViewController: UIViewController {
 
         catalogue.songs(text) { [weak self] rows in
             guard let self = self, token == self.requestToken else { return }
-            self.songs = rows
+            // The catalogue already returns music, but long mixes and full
+            // concerts are still video-shaped. "Prefer music only" drops them
+            // so a search stays songs rather than hours-long uploads.
+            self.songs = SettingsStore.shared.bool("BitChord.Misc.PreferMusicOnly", false)
+                ? rows.filter { ($0.durationSeconds ?? 0) > 0 && ($0.durationSeconds ?? 0) < 900 }
+                : rows
             self.landed(token: token)
         }
         // Artists come from YouTube Music, which is where upstream's artist
@@ -376,7 +381,11 @@ final class SearchViewController: UIViewController {
             self.loadingMore = false
             if let tracks = tracks {
                 let existing = Set(self.songs.map { $0.videoID })
-                self.songs.append(contentsOf: tracks.filter { !existing.contains($0.videoID) })
+                let musicOnly = SettingsStore.shared.bool("BitChord.Misc.PreferMusicOnly", false)
+                let page = musicOnly
+                    ? tracks.filter { ($0.durationSeconds ?? 0) > 0 && ($0.durationSeconds ?? 0) < 900 }
+                    : tracks
+                self.songs.append(contentsOf: page.filter { !existing.contains($0.videoID) })
             }
             self.moreToken = hasMore ? InnerTube.shared.searchContinuation : nil
             self.tableView.reloadData()
@@ -394,7 +403,8 @@ final class SearchViewController: UIViewController {
     }
 
     private func updateRecentsHeader() {
-        guard source == .youtube, query.isEmpty, !recents.isEmpty else {
+        guard source == .youtube, query.isEmpty, !recents.isEmpty,
+              !SettingsStore.shared.hideRecents else {
             tableView.tableHeaderView = nil
             return
         }

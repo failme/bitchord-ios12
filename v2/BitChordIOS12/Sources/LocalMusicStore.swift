@@ -32,16 +32,27 @@ final class LocalMusicStore {
     private let scanQueue = DispatchQueue(label: "com.bitchord.localmusic.scan")
     private static let audioExtensions: Set<String> = ["m4a", "mp3", "aac", "wav", "aif", "aiff", "caf", "m4b"]
 
-    var rootURL: URL {
+    private var documentsURL: URL {
         let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSTemporaryDirectory())
-        return documents.appendingPathComponent(LocalMusicStore.folderName, isDirectory: true)
+        return documents
+    }
+
+    var rootURL: URL {
+        return documentsURL.appendingPathComponent(LocalMusicStore.folderName, isDirectory: true)
+    }
+
+    /// The folder the next scan reads. Exposed so the settings probe can prove
+    /// "Use all audio folders" really changes the scan rather than only a flag.
+    var scanRootURL: URL {
+        return SettingsStore.shared.useAllAudioFolders ? documentsURL : rootURL
     }
 
     /// Reads the folder off the main queue, then publishes the result.
     func scan(completion: (([LocalSong]) -> Void)? = nil) {
         scanQueue.async {
-            let found = LocalMusicStore.readSongs(root: self.rootURL)
+            let root = self.scanRootURL
+            let found = LocalMusicStore.readSongs(root: root)
             DispatchQueue.main.async {
                 self.songs = found
                 NotificationCenter.default.post(name: .localMusicDidChange, object: nil)
@@ -68,8 +79,9 @@ final class LocalMusicStore {
     func localURL(for videoID: String) -> URL? {
         guard videoID.hasPrefix(LocalMusicStore.idPrefix) else { return nil }
         let relative = String(videoID.dropFirst(LocalMusicStore.idPrefix.count))
-        let url = rootURL.appendingPathComponent(relative)
-        return FileManager.default.fileExists(atPath: url.path) ? url : nil
+        let candidates = [rootURL.appendingPathComponent(relative),
+                          documentsURL.appendingPathComponent(relative)]
+        return candidates.first(where: { FileManager.default.fileExists(atPath: $0.path) })
     }
 
     // MARK: - Reading
@@ -95,7 +107,7 @@ final class LocalMusicStore {
                 }
             } else if let song = song(at: entry,
                                       relative: entry.lastPathComponent,
-                                      folder: LocalMusicStore.folderName) {
+                                      folder: root.lastPathComponent) {
                 found.append(song)
             }
         }

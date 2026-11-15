@@ -47,6 +47,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
             DeepLinkRouter.handle(url, cold: true)
         }
         ScreenshotHarness.runIfRequested()
+        SettingsProbe.runIfRequested()
         // A saved remote playlist with "Keep downloads updated" on is refreshed
         // once the first screen has settled, without blocking launch.
         DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
@@ -112,5 +113,11 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
                      handleEventsForBackgroundURLSession identifier: String,
                      completionHandler: @escaping () -> Void) {
         DownloadStore.shared.backgroundEventsCompletion = completionHandler
+    }
+
+    func applicationWillTerminate(_ application: UIApplication) {
+        if SettingsStore.shared.bool("BitChord.Misc.StopOnCloseRecents", false) {
+            PlayerService.shared.stopForTermination()
+        }
     }
 }

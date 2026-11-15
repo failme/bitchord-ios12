@@ -279,6 +279,59 @@ final class DownloadStore: NSObject {
         return limit == "Unlimited" ? "\(songs) · \(size)" : "\(songs) · \(size) of \(limit)"
     }
 
+    /// Copies completed downloads into Documents/Exports, where iOS File
+    /// Sharing and the Files app can reach them. The original cache copy stays
+    /// so offline playback keeps working.
+    @discardableResult
+    func exportAllCompatible() -> Int {
+        guard let documents = FileManager.default.urls(for: .documentDirectory,
+                                                       in: .userDomainMask).first else { return 0 }
+        let exports = documents.appendingPathComponent("Exports", isDirectory: true)
+        try? FileManager.default.createDirectory(at: exports,
+                                                 withIntermediateDirectories: true,
+                                                 attributes: nil)
+        var copied = 0
+        for item in saved {
+            let source = directory.appendingPathComponent(item.fileName)
+            guard FileManager.default.fileExists(atPath: source.path) else { continue }
+            let safe = item.track.title.replacingOccurrences(of: "/", with: "-")
+            let name = "\(item.track.artist) - \(safe).\(item.fileName.split(separator: ".").last ?? "m4a")"
+            let target = exports.appendingPathComponent(name)
+            if FileManager.default.fileExists(atPath: target.path) { copied += 1; continue }
+            do {
+                try FileManager.default.copyItem(at: source, to: target)
+                copied += 1
+            } catch {
+                continue
+            }
+        }
+        return copied
+    }
+
+    /// A tiny on-disk fixture for the settings probe, so the export row is
+    /// exercised even when the screenshot run deleted its download.
+    func probeSeedExportFixture() -> String {
+        let id = "probe-export"
+        let name = "\(id).m4a"
+        let url = directory.appendingPathComponent(name)
+        try? Data(repeating: 1, count: 64).write(to: url, options: .atomic)
+        saved.removeAll(where: { $0.track.videoID == id })
+        saved.append(DownloadedTrack(track: Track(videoID: id, title: "Probe export",
+                                                  artist: "BitChord", durationSeconds: 120),
+                                     fileName: name, byteSize: 64, qualityLabel: "High",
+                                     downloadedAt: Date()))
+        save()
+        return id
+    }
+
+    func probeClearExportFixture(_ id: String) {
+        if let item = saved.first(where: { $0.track.videoID == id }) {
+            try? FileManager.default.removeItem(at: directory.appendingPathComponent(item.fileName))
+        }
+        saved.removeAll(where: { $0.track.videoID == id })
+        save()
+    }
+
     // MARK: - Downloading
 
     /// Starts a download, or answers at once when the track is already here.
@@ -710,6 +763,9 @@ extension DownloadStore: URLSessionDownloadDelegate {
                                               qualityLabel: quality,
                                               downloadedAt: Date()), at: 0)
             self.save()
+            if SettingsStore.shared.exportCompatibleDownloads {
+                self.exportAllCompatible()
+            }
             self.active.removeValue(forKey: videoID)
             self.failed.removeValue(forKey: videoID)
             self.failedTracks.removeValue(forKey: videoID)
