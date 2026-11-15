@@ -69,6 +69,18 @@ enum ScreenshotHarness {
             }
             return
         }
+        // The web-form routes are parser/router behaviour, not a SpringBoard
+        // handoff: exercise the same `DeepLink.parse` the universal-link
+        // callback uses, without asking `simctl` to pass a query-bearing
+        // https URL through `launch`.
+        if let flag = arguments.firstIndex(of: "-BCWebLinks"), flag + 1 < arguments.count {
+            let directory = URL(fileURLWithPath: arguments[flag + 1], isDirectory: true)
+            try? FileManager.default.createDirectory(at: directory,
+                                                     withIntermediateDirectories: true,
+                                                     attributes: nil)
+            captureWebLinks(directory: directory)
+            return
+        }
         // A 320x568 pass over the live tabs and the player. This runs with
         // -BCSmallScreen, so the same code and constraints are exercised at the
         // width where the fixed-size Explore rows and player stack used to fail.
@@ -2139,6 +2151,31 @@ enum ScreenshotHarness {
         guard let text = try? String(contentsOf: directory.appendingPathComponent("background-report.txt"),
                                      encoding: .utf8) else { return [] }
         return text.split(separator: "\n").map(String.init)
+    }
+
+    /// Exercises the URL forms upstream's Android intent filters expose. The
+    /// custom scheme is still the only one the OS can associate on iOS 12;
+    /// this proves the parser and router that the universal-link callback
+    /// shares accept the web shapes without making `simctl launch` carry a
+    /// query-bearing URL through argv.
+    private static func captureWebLinks(directory: URL) {
+        let urls: [(String, String)] = [
+            ("watch", "https://music.youtube.com/watch?v=J7p4bzqLvCw"),
+            ("short", "https://youtu.be/J7p4bzqLvCw"),
+            ("playlist", "https://music.youtube.com/playlist?list=PLP32wGpgzmIlDFQuxl1qeH33hJJSq8wfe"),
+            ("search", "https://music.youtube.com/search?q=Blinding+Lights")
+        ]
+        var report: [String] = []
+        for (name, raw) in urls {
+            guard let url = URL(string: raw), let route = DeepLink.parse(url) else {
+                report.append("web.\(name)=invalid")
+                continue
+            }
+            report.append("web.\(name)=\(DeepLinkRouter.describe(route))")
+        }
+        report.append("web.done=true")
+        writeText(report.joined(separator: "\n"), name: "web-links-report.txt", directory: directory)
+        exit(0)
     }
 
     fileprivate static func writeReport(_ text: String, directory: URL) {

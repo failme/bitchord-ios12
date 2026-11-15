@@ -839,14 +839,21 @@ jobs:
           # The same router accepts the web forms upstream's Android intent
           # filters expose: watch, short link, playlist and search URLs.
           PLAYLIST_BARE=$(printf '%s' "$PLAYLIST_ID" | sed 's/^VL//')
-          launch_link "https://music.youtube.com/watch?v=$TRACK_ID"
-          launch_link "https://youtu.be/$TRACK_ID"
-          launch_link "https://music.youtube.com/playlist?list=$PLAYLIST_BARE"
-          launch_link "https://music.youtube.com/search?q=Blinding+Lights"
-          cp "$CONTAINER/Documents/shots/deeplinks.txt" shots/deeplinks.txt 2>/dev/null || true
-          grep -q "route=track id=$TRACK_ID screen=NowPlaying" shots/deeplinks.txt
-          grep -q "route=playlist id=VL$PLAYLIST_BARE screen=Playlist" shots/deeplinks.txt
-          grep -q "route=search q=Blinding Lights screen=Search" shots/deeplinks.txt
+          rm -f "$CONTAINER/Documents/shots/web-links-report.txt"
+          xcrun simctl terminate "$UDID" "$BUNDLE" > /dev/null 2>&1 || true
+          xcrun simctl launch "$UDID" "$BUNDLE" -BCWebLinks "$CONTAINER/Documents/shots" > /dev/null
+          for i in $(seq 1 15); do
+            [ -f "$CONTAINER/Documents/shots/web-links-report.txt" ] && break
+            sleep 1
+          done
+          cp "$CONTAINER/Documents/shots/web-links-report.txt" shots/ 2>/dev/null || true
+          echo "### Web link report"
+          cat shots/web-links-report.txt 2>/dev/null || echo "(no web link report)"
+          grep -q "web.watch=route=track id=J7p4bzqLvCw" shots/web-links-report.txt
+          grep -q "web.short=route=track id=J7p4bzqLvCw" shots/web-links-report.txt
+          grep -q "web.playlist=route=playlist id=VLPLP32wGpgzmIlDFQuxl1qeH33hJJSq8wfe" shots/web-links-report.txt
+          grep -q "web.search=route=search q=Blinding Lights" shots/web-links-report.txt
+          grep -q "web.done=true" shots/web-links-report.txt
           test -s shots/deeplink-prompt.png
           test -s shots/deeplink-track.png
           test -s shots/deeplink-cold.png
