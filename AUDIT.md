@@ -12,16 +12,14 @@ screenshot), **Ported** (implemented and reachable, exercised indirectly by the
 flows CI asserts), **iOS 12 block**, **Account/credential** (needs an account or
 third-party keys this build cannot ship), **Android-only**.
 
-Latest full run: commit `eade027` (`43658827453`). The build and simulator jobs
-are green. The screenshots job's first attempt passed every screen, motion,
-geometry, compact-layout and Spotify-link assertion but hit the known
-background-transfer fixture flake (`background.track=false` before a transfer
-started); the rerun passed every assertion, including the resumed transfer
-(`background.ok=true`). It captured 113 PNGs: 59 settled screenshots, 46
-origin/mid/settled motion frames and 8 screens at 320x568, plus their reports,
-under `_ci_tmp/run-eade/green/`. Both root IPAs are that
-build: 17,343,241 bytes, sha256
-`6c2ff026fa88da14f27dd09bd2d90f78ecf6cd970651a3dcf1af3d3d64d5805f`, bundle
+Latest full run: commit `eb13fcc` (`43666892167`, attempt 1). The build,
+simulator and screenshots jobs are green, including the simulated Google
+handoff, relaunch, sign-out and signed-out relaunch. It captured 125 PNGs: 59
+settled screenshots, 46 origin/mid/settled motion frames, 8 screens at
+320x568 and 12 Google-account handoff/restore/sign-out frames, plus their
+reports, under `_ci_tmp/run-eb13/extract/shots/`. Both root IPAs are that
+build: 17,369,394 bytes, sha256
+`0fa3c7b1712af19aecd6da77915294824273135cced2116ae18ffe57efa3062a`, bundle
 `com.bitchord.ios12v2` 2.0.0, `MinimumOSVersion 12.0`, `UIDeviceFamily [1,2]`,
 a thin `arm64` executable (Mach-O) and a registered `bitchord` URL scheme -
 verified on the packaged file, with all three copies byte-identical.
@@ -33,7 +31,7 @@ The screens were measured against the running Android app in the emulator
 heights, banner and card origins, list rows, settings rows, player transport
 and footer were moved onto the reference bounds; `home.png`, `library.png`, `explore.png`, `search.png`,
 `settings.png`, `downloads-empty.png`, `local-music.png` and `now-playing.png`
-in `_ci_tmp/run-eade/green/shots/` are the resulting captures. Home's account button is 36pt, the Top Picks card is
+in `_ci_tmp/run-eb13/extract/shots/` are the resulting captures. Home's account button is 36pt, the Top Picks card is
 240x320pt (upstream's `min(width * 0.60, 280)` at 402pt by its 0.75 aspect),
 and the album shelf follows the card row at 16pt rather than the feed's 28pt
 rhythm. Explore keeps the 1.72:1 mood card and 18pt radius from
@@ -67,33 +65,58 @@ scale on press, the stats carousel snaps and onboarding steps fade.
 
 The white page after a successful Google login is treated as what it is: the
 YouTube Music shell failing to paint, not a failed Google sign-in. The login
-now watches the cookie store while navigation reaches any YouTube host,
-captures a complete session as soon as an API SID exists, and — if the shell
-stays blank — fetches `music.youtube.com` itself and reads the same
-`LOGGED_IN`, `SESSION_INDEX`, `DATASYNC_ID`, `DELEGATED_SESSION_ID` and
-`VISITOR_DATA` values from `ytcfg`. The captured cookie carries the Google
-identity cookies only when the YouTube jar has no API SID of its own. The
-manual **Done** path remains as a fallback.
+watches the cookie store while navigation reaches any YouTube host, captures a
+complete session as soon as an API SID exists, and — if the shell stays blank —
+fetches `music.youtube.com` itself and reads the same `LOGGED_IN`,
+`SESSION_INDEX`, `DATASYNC_ID`, `DELEGATED_SESSION_ID` and `VISITOR_DATA`
+values from `ytcfg`. The captured cookie carries the Google identity cookies
+only when the YouTube jar has no API SID of its own. The manual **Done** path
+remains as a fallback.
 
 The account surface follows the Android app rather than inventing an OAuth
 client. **Sign in with Google** opens `accounts.google.com/ServiceLogin` in a
 `WKWebView` with a Safari user agent, continues to `music.youtube.com`, and
 captures the resulting YouTube/Google cookies. The app validates an API SID
-(`SAPISID`, `__Secure-3PAPISID` or `__Secure-1PAPISID`), stores the session in
-the keychain, and signs InnerTube browsing requests with `SAPISIDHASH` plus the
-captured auth user. Playback stays on the anonymous clients. The banner, all
-five header avatars, Settings' **Account & integrations** row and History's
-sign-in prompt share one `GoogleAccountStore`; the account page can sign out
-and clears the browser cookies. No client ID or secret is committed, and CI
-only exercises the signed-out state, so the first real login still needs the
-listener to enter their own Google password/2FA on the device.
+(`SAPISID`, `__Secure-3PAPISID` or `__Secure-1PAPISID`), stores the session,
+and signs InnerTube browsing requests with `SAPISIDHASH` plus the captured auth
+user. Playback stays on the anonymous clients. The banner, all five header
+avatars, Settings' **Account & integrations** row and History's sign-in prompt
+share one `GoogleAccountStore`.
+
+`-BCSignInStage` now proves the handoff without a Google account. It seeds the
+web view's own cookie store with a YouTube `SAPISID` and visibility marker plus
+a Google-only marker, loads a Google-origin page that redirects to
+`music.youtube.com`, and runs the real sign-in controller, cookie capture and
+`ytcfg`/document parsers:
+
+- Rendered shell: `handoff-report-rendered.txt` has
+  `probe.shellOrigin=https://music.youtube.com`, `probe.ytcfg=true`,
+  `networkFallback=false`, `document.youtubeCookie=true`,
+  `document.googleCookie=false`, `signedIn=true`, `homeVisible=true`.
+- Blank shell: `handoff-report-blank.txt` has `shellBlank=true`, `ytcfg=false`,
+  `networkFallback=true`, and `networkCookie=true`, proving the fallback
+  request carried the captured signing cookie. It also reaches
+  `signedIn=true`, `homeVisible=true`.
+- Both paths write `dataSync=fixture-account` (the normalized `page||account`
+  value), dismiss the browser, and capture `signed-in-home-rendered.png` and
+  `signed-in-home-blank.png`.
+- The next launch restores the same session, headers and visible Home
+  (`restore.signedIn=true`, `restore.homeVisible=true`). Sign-out clears the
+  session and shows the account page's **Sign in with Google** state, the Home
+  prompt returns, and a further launch stays signed out.
+
+The unsigned simulator has no keychain entitlement (`SecItemAdd` returns
+`-34018`), so the harness records `persistence=simulator-fallback` and keeps
+the session in a simulator-only durable fallback. A signed device still uses
+the keychain alone; that device path and a real Google password/2FA login
+remain device checks.
 
 ## Motion evidence
 
 A separate `-BCMotion` launch drives every transition through the real control
 (`MotionHarness`). It writes an origin frame, at least one mid frame and the
 settled frame, and records presentation-layer values in
-`_ci_tmp/run-eade/green/shots/motion-report.txt`. CI fails if any flag is
+`_ci_tmp/run-eb13/extract/shots/motion-report.txt`. CI fails if any flag is
 false or any of the 46
 frames is missing, so a transition that snapped cannot pass as animated. The
 tab pill's 0.42s spring was checked against an emulator screen recording of the
@@ -141,7 +164,7 @@ window, rather than leaving a failed `test` as the last command in a chain.
 | `sharedUi/SearchScreen.kt` | `SearchViewController`, `InnerTube`, `CatalogueSearch` | Asserted - `search.png` |
 | `sharedUi/LibraryScreen.kt`, `LibraryPhoneParts.kt` | `LibraryViewController`, `LibraryStore`, `SavedLibraryViewController` | Asserted - `library.png`, `library-synced.png`; signed in, rows open Liked Music, History and the saved playlist/album/artist feeds |
 | `ui/screens/HistoryScreen.kt` | `HistoryViewController` | Asserted - `history.png`, `history-empty.png`, `historyPage.*` |
-| `AccountAndScrobblingScreen.kt` | `AccountViewController`, `GoogleAccountStore`, `GoogleSignInViewController`, `ScrobbleService` | Asserted signed out - `small-account.png`, `auth.accountSheet=true`. Signed in, the account page switches channels and Settings configures Last.fm/ListenBrainz; a real Google login still needs the listener's password/2FA on the device |
+| `AccountAndScrobblingScreen.kt` | `AccountViewController`, `GoogleAccountStore`, `GoogleSignInViewController`, `ScrobbleService` | Asserted signed out - `small-account.png`, `auth.accountSheet=true`; the deterministic handoff asserts a signed-in Home, identity, restore and sign-out. Settings configures Last.fm/ListenBrainz; a real Google password/2FA login still needs the device |
 | `ui/screens/LocalFolder.kt` | `LocalMusicViewController`, `LocalMusicStore` | Asserted - `local-music.png`, `local-songs.png`, `local.playing=true` |
 | `ui/screens/DetailScreen.kt` | `CollectionViewController`, `ArtistPage` | Asserted - `artist.png`, `artist.loaded=5` |
 | `ui/replay/*` | `ReplayViewController` | Asserted - `replay.png`, `replay.entries`, `replay.plays` |
@@ -231,7 +254,7 @@ silently left out.
 
 | Upstream folder | Contains | iOS port and remaining gap |
 | --- | --- | --- |
-| `app/.../auth` | Google web login, account sessions, Spotify/Discord sign-in | Google web login, keychain session, account identity and channel switching are ported. Spotify uses public embed import without OAuth; Discord and authenticated Spotify library sync are absent. |
+| `app/.../auth` | Google web login, account sessions, Spotify/Discord sign-in | Google web login, session restore/sign-out, account identity and channel switching are ported and handoff-tested (keychain on device, simulator fallback in unsigned CI). Spotify uses public embed import without OAuth; Discord and authenticated Spotify library sync are absent. |
 | `app/.../data/innertube` | Search, browse, home, library, account, write actions | Search, browse, collection pages, home feed, liked music, history, saved playlists/albums/artists and channel enumeration are ported. Remote playlist creation is ported; continuations beyond the ported pages and the other write actions (rate, save, feedback tokens, remote rename) are not. |
 | `app/.../data/jiosaavn`, `data/sources`, `data/webdav`, `data/remote` | Catalogue, addon, WebDAV, Jellyfin | Ported: JioSaavn search/streams, addon tiers, WebDAV and Jellyfin browsers. SMB has no client. |
 | `app/.../data/scrobbling` | Last.fm, Libre.fm, ListenBrainz | Ported: now-playing, half-track scrobble with the four-minute cap, primary-artist option, configurable Last.fm endpoint. Last.fm needs the listener's own API key/secret/session key; ListenBrainz needs only a token. |
@@ -251,7 +274,7 @@ silently left out.
 
 ## What CI measured, and what it did not
 
-Measured in the simulator (`_ci_tmp/run-eade/green/shots/download-report.txt`
+Measured in the simulator (`_ci_tmp/run-eb13/extract/shots/download-report.txt`
 and the background reports), with the run above:
 
 - Song menu: `menu.items=Play next|Add to queue|Add to playlist|Like|Open
@@ -308,10 +331,10 @@ account/settings captures. The account page is the signed-out state;
 `auth.browserFlow=google-web-session` and `auth.hasCookie=false` show CI did
 not inject or fabricate a session.
 
-Not measured here: a real Google sign-in (CI has no Google account and cannot
-type a password or 2FA code), lock-screen controls, `SCNetworkReachability`,
-the real background transfer daemon, audio routing and DAC behaviour, and a
-real addon server over a network - all physical-device checks. The web view,
-cookie extraction, keychain write, SAPISIDHASH headers and account parsing are
-compiled and exercised up to the signed-out boundary; the first real login and
-profile fetch need the listener's device.
+Not measured here: a real Google password/2FA login (the deterministic handoff
+uses a seeded session), the signed-device keychain path, lock-screen controls,
+`SCNetworkReachability`, the real background transfer daemon, audio routing and
+DAC behaviour, and a real addon server over a network - all physical-device
+checks. The web view, cookie extraction, `ytcfg` and document parsing,
+`SAPISIDHASH` headers, restore, sign-out and the signed-out boundary are now
+exercised in the simulator.
