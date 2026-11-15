@@ -2002,9 +2002,14 @@ enum ScreenshotHarness {
             // Recycle one saved row rather than reporting there is nothing to
             // transfer: the row is restored by the background download and the
             // later cold-launch assertions still see a populated locker.
-            if fresh.isEmpty, let existing = DownloadStore.shared.saved.first {
-                DownloadStore.shared.remove(existing.track.videoID)
-                fresh = [existing.track]
+            if fresh.isEmpty {
+                // Recycle several saved rows so the retry loop has real
+                // candidates instead of one resolver attempt deciding the run.
+                let existing = Array(DownloadStore.shared.saved.prefix(4))
+                for item in existing {
+                    DownloadStore.shared.remove(item.track.videoID)
+                }
+                fresh = existing.map { $0.track }
             }
             tryBackgroundStart(fresh, index: 0, base: base, directory: directory, keep: keep)
         }
@@ -2018,7 +2023,7 @@ enum ScreenshotHarness {
                                            base: [String],
                                            directory: URL,
                                            keep: Bool) {
-        guard index < min(4, tracks.count) else {
+        guard index < min(8, tracks.count) else {
             var report = base
             report.append("background.track=false")
             writeText(report.joined(separator: "\n"), name: "background-report.txt", directory: directory)
@@ -2037,7 +2042,10 @@ enum ScreenshotHarness {
                     report.append("background.retry=\(index) failure=\(DownloadStore.shared.failure(for: track.videoID) ?? "")")
                     writeText(report.joined(separator: "\n"),
                               name: "background-retry-\(index).txt", directory: directory)
-                    tryBackgroundStart(tracks, index: index + 1, base: base, directory: directory, keep: keep)
+                    var nextBase = base
+                    nextBase.append("background.lastFailure=\(DownloadStore.shared.failure(for: track.videoID) ?? "none")")
+                    nextBase.append("background.lastTrack=\(track.videoID)")
+                    tryBackgroundStart(tracks, index: index + 1, base: nextBase, directory: directory, keep: keep)
                     return
                 }
                 report.append("background.live=\(started)")
