@@ -679,9 +679,12 @@ final class NowPlayingViewController: UIViewController {
     private func applyMode(lyrics: Bool) {
         showingLyrics = lyrics
         let fullBleed = SettingsStore.shared.fullBleedArtwork
-        artworkFadeView.isHidden = !fullBleed
+        let progressive = SettingsStore.shared.bool("BitChord.Appearance.ProgressiveBlur", true)
+        let blendOff = SettingsStore.shared.bool("BitChord.Appearance.DisableBlendEffects", false)
+        artworkFadeView.isHidden = !fullBleed || !progressive || blendOff
         artworkView.contentMode = fullBleed ? .scaleAspectFill : .scaleAspectFit
         artworkView.backgroundColor = fullBleed ? Theme.surface : Theme.background
+        glowView.isHidden = blendOff
         artworkView.isHidden = lyrics
         artworkFadeView.isHidden = lyrics
         // In lyrics mode the words take the screen: the big title and the
@@ -912,12 +915,14 @@ final class NowPlayingViewController: UIViewController {
         // One blurred still per song, not a live dark blur: this is what keeps
         // the lyrics backdrop in the artwork's colours.
         let radius = NowPlayingViewController.backdropBlurRadius(
-            reduceBlur: SettingsStore.shared.bool("BitChord.Appearance.ReduceDynamicBlur", false),
+            reduceBlur: SettingsStore.shared.bool("BitChord.Appearance.ReduceDynamicBlur", false)
+                || SettingsStore.shared.bool("BitChord.Appearance.GlassPerformance", false),
             highPerformance: SettingsStore.shared.highPerformanceMode,
             renderQuality: SettingsStore.shared.renderQuality)
         let blurred = Theme.blurredImage(image, radius: radius)
+        let theme = SettingsStore.shared.string("BitChord.Appearance.PlayerTheme", "Cover")
         UIView.transition(with: backdropView, duration: 0.36, options: .transitionCrossDissolve, animations: {
-            self.backdropView.image = blurred
+            self.backdropView.image = theme == "Solid" ? nil : blurred
         }, completion: nil)
         if let image = image, let edge = Theme.edgeColor(of: image) {
             glowLayer.colors = [edge.withAlphaComponent(0.5).cgColor, UIColor.clear.cgColor]

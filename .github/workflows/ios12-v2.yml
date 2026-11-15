@@ -1019,8 +1019,10 @@ jobs:
           grep -q "settings.renderQuality=high=42 cheap=12 low=12" "$PROBE"
           grep -q "settings.autoplay=noRepeat=c allowed=b,c" "$PROBE"
           grep -q "settings.homeHideRecents=shown=true hidden=true" "$PROBE"
-          grep -q "settings.downloadExport=saved=1 exported=1" "$PROBE"
+          grep -q "settings.downloadExport=saved=1 exported=[1-9]" "$PROBE"
+          grep -q "settings.speakerGuard=speakerBlocked=true headphonesAllowed=true" "$PROBE"
           grep -q "settings.searchPage2=[1-9]" "$PROBE"
+          grep -q "settings.searchFresh=[1-9]" "$PROBE"
 
           kill "$ADDON_PID" 2>/dev/null || true
           kill "$WEBDAV_PID" 2>/dev/null || true

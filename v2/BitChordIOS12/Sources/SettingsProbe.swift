@@ -1,4 +1,5 @@
 import UIKit
+import AVFoundation
 
 /// Executable proof for the settings matrix, run by the screenshot job with
 /// `-BCSettingsProbe <Documents>`. It drives the same stores and pure helpers
@@ -150,6 +151,12 @@ enum SettingsProbe {
                                                               history: ["b"], avoidRepeats: false)
         record("settings.autoplay", "noRepeat=\(noRepeat.map { $0.videoID }.joined(separator: ",")) allowed=\(repeatAllowed.map { $0.videoID }.joined(separator: ","))")
 
+        let speakerBlocked = PlayerService.speakerBlocked(
+            disabled: true, portType: AVAudioSession.Port.builtInSpeaker.rawValue)
+        let headphonesAllowed = !PlayerService.speakerBlocked(
+            disabled: true, portType: AVAudioSession.Port.headphones.rawValue)
+        record("settings.speakerGuard", "speakerBlocked=\(speakerBlocked) headphonesAllowed=\(headphonesAllowed)")
+
         // Home: hide recents removes the shelf, not merely the row toggle.
         LibraryStore.shared.recordPlayback(probeTrack("home-probe"))
         let hideOld = UserDefaults.standard.object(forKey: "BitChord.Misc.HideRecents")
@@ -170,9 +177,11 @@ enum SettingsProbe {
         // Search continuation: the second page must carry real tracks.
         InnerTube.shared.search("Blinding Lights", filter: .songs) { tracks, _ in
             let first = tracks?.count ?? 0
+            let firstIDs = Set((tracks ?? []).map { $0.videoID })
             InnerTube.shared.searchNext { next, hasMore, _ in
                 record("settings.searchPage1", "\(first)")
                 record("settings.searchPage2", "\(next?.count ?? 0)")
+                record("settings.searchFresh", "\((next ?? []).filter { !firstIDs.contains($0.videoID) }.count)")
                 record("settings.searchMore", "\(hasMore)")
                 record("settings.done", "\(failures.isEmpty)")
                 finish()

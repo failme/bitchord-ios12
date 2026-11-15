@@ -269,7 +269,8 @@ enum SettingsCatalog {
             SettingItem(key: "BitChord.Audio.OutputPrecision", title: "Output precision",
                         kind: .unavailable("WebKit picks the output format.")),
             SettingItem(key: "BitChord.Audio.DisableOnPhoneSpeaker", title: "Disable on phone speaker",
-                        kind: .unavailable("Route control needs the AVPlayer pipeline."))
+                        detail: "Pause when the built-in speaker is the output",
+                        kind: .toggle(false))
         ]),
 
         SettingSection(title: "Lyrics", items: [
@@ -425,7 +426,16 @@ enum SettingsCatalog {
             SettingItem(key: "BitChord.Appearance.ReduceAnimation", title: "Reduce animation",
                         kind: .toggle(false)),
             SettingItem(key: "BitChord.Appearance.ReduceDynamicBlur", title: "Reduce dynamic blur",
-                        detail: "Uses a lighter backdrop blur", kind: .toggle(false))
+                        detail: "Uses a lighter backdrop blur", kind: .toggle(false)),
+            SettingItem(key: "BitChord.Appearance.DisableBlendEffects", title: "Disable blend effects",
+                        detail: "Remove the cover-colour glow and fades", kind: .toggle(false)),
+            SettingItem(key: "BitChord.Appearance.GlassPerformance", title: "Glass performance",
+                        detail: "Use the cheaper backdrop blur", kind: .toggle(false)),
+            SettingItem(key: "BitChord.Appearance.ProgressiveBlur", title: "Progressive top blur",
+                        detail: "Fade the cover into the status bar", kind: .toggle(true)),
+            SettingItem(key: "BitChord.Appearance.PlayerTheme", title: "Player theme",
+                        detail: "Cover, solid colour or the legacy mesh",
+                        kind: .choice("Cover", ["Cover", "Solid", "Legacy"]))
         ]),
 
         SettingSection(title: "Misc", items: [
@@ -470,6 +480,9 @@ enum SettingsCatalog {
             SettingItem(key: "BitChord.Misc.WorkOutGenres", title: "Workout genres",
                         detail: "Show the upbeat genres card in Replay",
                         kind: .toggle(true)),
+            SettingItem(key: "BitChord.Replay.Stats", title: "Replay",
+                        detail: "Plays, top songs and minutes listened",
+                        kind: .action("replay")),
             SettingItem(key: "BitChord.Misc.AppLanguage", title: "Language",
                         detail: "English only in this build",
                         kind: .unavailable("The iOS 12 port ships one English resource bundle; adding a language needs translated strings and a restart path.")),
@@ -493,7 +506,17 @@ enum SettingsCatalog {
                         kind: .unavailable("iOS 12 exposes no app-level display refresh-rate control; the system picks it.")),
             SettingItem(key: "BitChord.Performance.RenderQuality", title: "Render quality",
                         detail: "High keeps the full mesh; Low uses a static colour",
-                        kind: .choice("High", ["High", "Low"]))
+                        kind: .choice("High", ["High", "Low"])),
+            SettingItem(key: "BitChord.Audio.LoudnessSpeaker", title: "Loudness on speaker",
+                        kind: .unavailable("Needs the per-sample loudness processor; this player is AVPlayer-based.")),
+            SettingItem(key: "BitChord.Audio.DacVolume", title: "DAC hardware volume",
+                        kind: .unavailable("Needs a USB DAC with a volume endpoint; the simulator has no audio hardware.")),
+            SettingItem(key: "BitChord.Audio.FixedVolume", title: "Fixed volume output",
+                        kind: .unavailable("Needs exclusive bit-perfect output, which AVPlayer does not expose.")),
+            SettingItem(key: "BitChord.Audio.Convert", title: "Convert on USB DAC",
+                        kind: .unavailable("Needs the bit-perfect resampler and a connected DAC.")),
+            SettingItem(key: "BitChord.WearOS", title: "Wear OS",
+                        kind: .unavailable("Wear OS is a separate Android companion app; there is no watchOS target in this project."))
         ])
     ]
 

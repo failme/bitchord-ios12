@@ -161,6 +161,8 @@ final class SettingsViewController: UIViewController {
             present(picker, animated: true, completion: nil)
         case "cacheFolder":
             navigationController?.pushViewController(CacheFolderViewController(), animated: true)
+        case "replay":
+            navigationController?.pushViewController(ReplayViewController(), animated: true)
         default:
             break
         }
@@ -362,12 +364,35 @@ extension SettingsViewController: UITableViewDataSource, UITableViewDelegate {
             choose(item: item, options: options)
             _ = SettingsStore.shared.string(item.key, fallback)
         }
+        if case .stepper(let fallback, let minimum, let maximum, let step, let unit) = item.kind {
+            adjustStepper(item: item, fallback: fallback, minimum: minimum,
+                          maximum: maximum, step: step, unit: unit)
+        }
         if case .text(let message, let placeholder, let secret) = item.kind {
             textPrompt(item: item, message: message, placeholder: placeholder, secret: secret)
         }
         if case .action(let action) = item.kind {
             perform(action: action)
         }
+    }
+
+    private func adjustStepper(item: SettingItem, fallback: Double,
+                               minimum: Double, maximum: Double,
+                               step: Double, unit: String) {
+        let current = SettingsStore.shared.double(item.key, fallback)
+        let shown = unit == " s" ? String(format: "%+.1f s", current) : "\(current)\(unit)"
+        let sheet = UIAlertController(title: item.title, message: shown,
+                                      preferredStyle: .actionSheet)
+        for (title, value) in [("Increase", min(maximum, current + step)),
+                               ("Decrease", max(minimum, current - step)),
+                               ("Reset", fallback)] {
+            sheet.addAction(UIAlertAction(title: title, style: .default) { _ in
+                SettingsStore.shared.set(value, for: item.key)
+                self.tableView.reloadData()
+            })
+        }
+        sheet.addAction(UIAlertAction(title: "Cancel", style: .cancel, handler: nil))
+        present(sheet, animated: true, completion: nil)
     }
 }
 
@@ -548,9 +573,13 @@ final class SettingsCell: UITableViewCell {
             trailingValue = true
         case .stepper(let fallback, _, _, _, let unit):
             let value = SettingsStore.shared.double(item.key, fallback)
-            valueLabel.text = unit == "\u{00D7}"
-                ? String(format: "%.2g%@", value, unit)
-                : "\(Int(value))\(unit)"
+            if unit == "\u{00D7}" {
+                valueLabel.text = String(format: "%.2g%@", value, unit)
+            } else if unit == " s" {
+                valueLabel.text = String(format: "%+.1f s", value)
+            } else {
+                valueLabel.text = "\(Int(value))\(unit)"
+            }
             showsChevron = true
             trailingValue = true
         case .storage:

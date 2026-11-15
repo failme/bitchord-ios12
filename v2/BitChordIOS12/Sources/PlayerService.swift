@@ -202,6 +202,25 @@ final class PlayerService: NSObject {
             // Re-assert the session so the web audio thread is not torn down.
             try? AVAudioSession.sharedInstance().setActive(true)
         })
+
+        observers.append(NotificationCenter.default.addObserver(
+            forName: AVAudioSession.routeChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self = self,
+                  let port = AVAudioSession.sharedInstance().currentRoute.outputs.first?.portType.rawValue,
+                  PlayerService.speakerBlocked(
+                    disabled: SettingsStore.shared.bool("BitChord.Audio.DisableOnPhoneSpeaker", false),
+                    portType: port) else { return }
+            self.pause()
+            self.statusText = "Phone speaker output is disabled in Settings."
+            self.postChange()
+        })
+    }
+
+    static func speakerBlocked(disabled: Bool, portType: String) -> Bool {
+        return disabled && portType == AVAudioSession.Port.builtInSpeaker.rawValue
     }
 
     // MARK: - Settings
@@ -285,6 +304,14 @@ final class PlayerService: NSObject {
 
     func play() {
         guard currentTrack != nil else { return }
+        if PlayerService.speakerBlocked(
+            disabled: SettingsStore.shared.bool("BitChord.Audio.DisableOnPhoneSpeaker", false),
+            portType: AVAudioSession.sharedInstance().currentRoute.outputs.first?.portType.rawValue ?? "") {
+            statusText = "Phone speaker output is disabled in Settings."
+            isPlaying = false
+            postChange()
+            return
+        }
         AudioEngine.shared.resume()
         isPlaying = true
         updateNowPlaying()
