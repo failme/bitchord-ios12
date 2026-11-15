@@ -581,6 +581,7 @@ extension GoogleSignInViewController: WKNavigationDelegate {
     func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
         progress.isHidden = false
         spinner.startAnimating()
+        if webView === fixtureShellWebView { return }
         if GoogleSignInViewController.isYouTubeURL(webView.url) {
             enterYouTubeStage()
         }
@@ -589,6 +590,8 @@ extension GoogleSignInViewController: WKNavigationDelegate {
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction,
                  decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
         if let fixture = GoogleHandoffFixture.active,
+           webView !== fixtureShellWebView,
+           !fixtureShellLoaded,
            navigationAction.request.url?.host?.lowercased() == "music.youtube.com" {
             decisionHandler(.cancel)
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
