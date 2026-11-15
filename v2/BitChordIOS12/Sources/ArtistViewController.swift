@@ -59,7 +59,7 @@ final class ArtistViewController: UIViewController {
 
         spinner.translatesAutoresizingMaskIntoConstraints = false
         spinner.hidesWhenStopped = true
-        spinner.activityIndicatorViewStyle = .gray
+        spinner.style = .gray
         spinner.color = Theme.secondaryText
         view.addSubview(spinner)
 
