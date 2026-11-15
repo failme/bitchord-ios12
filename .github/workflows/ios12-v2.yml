@@ -351,12 +351,13 @@ jobs:
               grep -q "handoff.probe.shellBlank=false" "$HANDOFF"
               grep -q "handoff.probe.ytcfg=true" "$HANDOFF"
               grep -q "handoff.probe.networkFallback=false" "$HANDOFF"
+              grep -q "handoff.probe.networkCookie=false" "$HANDOFF"
             else
               grep -q "handoff.probe.shellBlank=true" "$HANDOFF"
               grep -q "handoff.probe.ytcfg=false" "$HANDOFF"
               grep -q "handoff.probe.networkFallback=true" "$HANDOFF"
+              grep -q "handoff.probe.networkCookie=true" "$HANDOFF"
             fi
-            grep -q "handoff.probe.networkCookie=true" "$HANDOFF"
             grep -q "handoff.document.youtubeCookie=true" "$HANDOFF"
             grep -q "handoff.document.googleCookie=false" "$HANDOFF"
             grep -q "handoff.dismissed=true" "$HANDOFF"
