@@ -38,6 +38,9 @@ final class SearchViewController: UIViewController {
     private var pendingWork: DispatchWorkItem?
     private var requestToken = 0
     private var inFlight = 0
+    private var moreToken: String?
+    private var loadingMore = false
+    private var moreFooter: UIView?
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -165,6 +168,8 @@ final class SearchViewController: UIViewController {
         sourceSelector.onSelect = { [weak self] index in
             guard let self = self, let picked = Source(rawValue: index) else { return }
             self.source = picked
+            self.moreToken = nil
+            self.updateMoreFooter()
             self.tableView.setContentOffset(.zero, animated: false)
             self.tableView.reloadData()
             self.refresh()
@@ -197,6 +202,20 @@ final class SearchViewController: UIViewController {
         tableView.register(CatalogueRowCell.self, forCellReuseIdentifier: CatalogueRowCell.reuseIdentifier)
         tableView.register(RecentSearchCell.self, forCellReuseIdentifier: RecentSearchCell.reuseIdentifier)
         view.addSubview(tableView)
+
+        let footer = UIView(frame: CGRect(x: 0, y: 0, width: 320, height: 56))
+        let more = UIButton(type: .system)
+        more.translatesAutoresizingMaskIntoConstraints = false
+        more.setTitle("Load more", for: .normal)
+        more.setTitleColor(Theme.primaryText, for: .normal)
+        more.titleLabel?.font = Theme.font(15, weight: .medium)
+        more.addTarget(self, action: #selector(loadMoreTapped), for: .touchUpInside)
+        footer.addSubview(more)
+        NSLayoutConstraint.activate([
+            more.centerXAnchor.constraint(equalTo: footer.centerXAnchor),
+            more.centerYAnchor.constraint(equalTo: footer.centerYAnchor)
+        ])
+        moreFooter = footer
 
         emptyLabel.translatesAutoresizingMaskIntoConstraints = false
         emptyLabel.textColor = Theme.secondaryText
@@ -283,10 +302,12 @@ final class SearchViewController: UIViewController {
             songs = []
             artists = []
             albums = []
+            moreToken = nil
             inFlight = 0
             spinner.stopAnimating()
             tableView.reloadData()
             refresh()
+            updateMoreFooter()
             return
         }
 
@@ -306,6 +327,8 @@ final class SearchViewController: UIViewController {
 
     private func run(_ text: String) {
         query = text
+        moreToken = nil
+        updateMoreFooter()
         inFlight = 3
         spinner.startAnimating()
         emptyLabel.isHidden = true
@@ -338,8 +361,36 @@ final class SearchViewController: UIViewController {
         inFlight = max(0, inFlight - 1)
         guard inFlight == 0 else { return }
         spinner.stopAnimating()
+        moreToken = SettingsStore.shared.jioSaavnEnabled ? nil : InnerTube.shared.searchContinuation
+        updateMoreFooter()
         tableView.reloadData()
         refresh()
+    }
+
+    @objc private func loadMoreTapped() {
+        guard moreToken != nil, !loadingMore else { return }
+        loadingMore = true
+        updateMoreFooter()
+        InnerTube.shared.searchNext { [weak self] tracks, hasMore, _ in
+            guard let self = self else { return }
+            self.loadingMore = false
+            if let tracks = tracks {
+                let existing = Set(self.songs.map { $0.videoID })
+                self.songs.append(contentsOf: tracks.filter { !existing.contains($0.videoID) })
+            }
+            self.moreToken = hasMore ? InnerTube.shared.searchContinuation : nil
+            self.tableView.reloadData()
+            self.updateMoreFooter()
+        }
+    }
+
+    private func updateMoreFooter() {
+        let hasRows = source == .youtube && !songs.isEmpty
+        tableView.tableFooterView = hasRows && moreToken != nil ? moreFooter : nil
+        if let more = moreFooter?.subviews.compactMap({ $0 as? UIButton }).first {
+            more.isEnabled = !loadingMore
+            more.setTitle(loadingMore ? "Loading…" : "Load more", for: .normal)
+        }
     }
 
     private func updateRecentsHeader() {

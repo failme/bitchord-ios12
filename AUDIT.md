@@ -153,7 +153,7 @@ window, rather than leaving a failed `test` as the last command in a chain.
 | `components/IosSwitch.kt`, `IosMenu.kt` | UIKit switches, action sheets | Ported - iOS 12 has no `UIMenu` |
 | `FrostedTopBar`, `GlassNavBar`, `LiquidGlass` | `MeshGradientView`, `Theme`, native bars | Ported as an approximation |
 | `OnboardingScreen.kt` | `OnboardingViewController` | Asserted - `onboarding-welcome/tour/library/ready.png`, `onboarding-report.txt`, 320x568 shots; re-runnable from Settings |
-| `MusicLink.kt`, `PlayerDeepLink.kt`, intent filters | `DeepLink`, `DeepLinkRouter`, `CFBundleURLTypes` | Asserted - six routes from `deeplinks.txt`, all `cold=1`; scheme shown registered by SpringBoard's prompt |
+| `MusicLink.kt`, `PlayerDeepLink.kt`, intent filters | `DeepLink`, `DeepLinkRouter`, `CFBundleURLTypes` | Asserted - six `bitchord://` routes from `deeplinks.txt`, all `cold=1`; the shared parser also accepts YouTube watch/short/playlist/search URLs (`web-links-report.txt`). Universal-link association itself needs a controlled domain/AASA (blocked below) |
 
 ## Screens
 
@@ -169,11 +169,11 @@ window, rather than leaving a failed `test` as the last command in a chain.
 | `ui/screens/DetailScreen.kt` | `CollectionViewController`, `ArtistPage` | Asserted - `artist.png`, `artist.loaded=5` |
 | `ui/replay/*` | `ReplayViewController` | Asserted - `replay.png`, `replay.entries`, `replay.plays` |
 | `SettingsSheet.kt`, `SettingsView` | `SettingsViewController`, `SettingsStore` | Asserted - `settings*.png`; 82 rows, all 73 keys |
-| `ui/screens/EqualizerScreen.kt` | Disabled row with reason | iOS 12 block - `AVPlayer` has no EQ tap |
-| `ListenTogetherScreen.kt`, `PartySync.kt` | Absent | Account/credential - needs a party server |
-| `DiscordScreen.kt`, `data/discord` | Disabled row | Android-only - Discord RPC uses local Android IPC |
+| `ui/screens/EqualizerScreen.kt` | Disabled row with reason | Blocked - the native path is `AVPlayer`; an `AVAudioEngine` graph is required for a 10-band tap |
+| `ListenTogetherScreen.kt`, `PartySync.kt` | Disabled row | Blocked - needs a deployed party server and shared account |
+| `DiscordScreen.kt`, `data/discord` | Disabled row | Blocked - Discord RPC's local IPC transport is Android-only |
 | `SpotifyLibraryScreen.kt`, `SpotifyCanvasAuthScreen.kt` | `SpotifyImporter`, Library's **Import Spotify** card; sync by public YT Music link | Public playlist import is ported (embed page, matching, 100-row continuation). Authenticated Spotify library and Canvas need an OAuth client this build does not ship |
-| `SourcesScreen.kt`, `data/sources`, `data/webdav`, `data/remote` | `AddonService`, `WebDAVClient`, `WebDAVStore`, `JellyfinClient`, `JellyfinStore`, `JellyfinViewController`, `SourcesViewController` | Asserted - WebDAV: `webdav-tree.png`, `webdav-playing.png`, `webdav-error.png`; PROPFIND list, folder browse, streamed `track.m4a`, bad-password message. Jellyfin: native API sign-in, library/folder/album browse, streamed `track.m4a` with `isPlaying=true`, expired/wrong-password/unreachable messages, `jellyfin-tree/playing/error/small.png`. SMB not shipped (see Remaining) |
+| `SourcesScreen.kt`, `data/sources`, `data/webdav`, `data/remote` | `AddonService`, `WebDAVClient`, `WebDAVStore`, `JellyfinClient`, `JellyfinStore`, `JellyfinViewController`, `SourcesViewController` | Asserted - WebDAV: `webdav-tree.png`, `webdav-playing.png`, `webdav-error.png`; PROPFIND list, folder browse, streamed `track.m4a`, bad-password message. Jellyfin: native API sign-in, library/folder/album browse, streamed `track.m4a` with `isPlaying=true`, expired/wrong-password/unreachable messages, `jellyfin-tree/playing/error/small.png`. SMB is blocked on the missing protocol client; see **Blocked surfaces** |
 | `WearOsSettings.kt`, `ui/widget`, `wearos/`, `tv/` | Absent | Android-only - separate apps/surfaces |
 
 ## Song menu and library actions
@@ -201,7 +201,7 @@ window, rather than leaving a failed `test` as the last command in a chain.
 | `PlaybackFallback`, `QualityUpgrade`, `StreamChoice` | `AudioEngine`, `JioSaavnService`, download quality | Asserted - quality and addon fallback proofs |
 | `MusicOnlyPlayback.kt` | `LocalMusicStore` 30 s filter | Ported |
 | `PartySync.kt` | Absent | Account/credential - party server |
-| `MusicLink.kt`, `PlayerDeepLink.kt` | `DeepLink`, `DeepLinkRouter` | Ported - six `bitchord://` routes asserted in `deeplinks.txt`; universal links remain absent |
+| `MusicLink.kt`, `PlayerDeepLink.kt` | `DeepLink`, `DeepLinkRouter` | Ported - six `bitchord://` routes asserted in `deeplinks.txt`; YouTube web forms asserted through the same parser. The OS-level universal-link association remains blocked by domain ownership/AASA |
 
 ## Downloads and offline
 
@@ -227,24 +227,50 @@ window, rather than leaving a failed `test` as the last command in a chain.
 
 All 73 upstream keys are present. Wired: playback speed, sleep timer,
 download quality, storage limit, Wi-Fi-only, autoplay, show queue history,
-addon URL, cache
-limit, storage used, local-music filter, Appearance → Font, Reduce animation,
-Hide volume, Hide song status, Hide status bar in player, the Google account
+addon URL, cache limit, storage used, local-music filter, the Google account
 row, Last.fm (toggle, now-playing, primary artist, username, API key, secret,
 session key, endpoint) and ListenBrainz (toggle, token, primary artist).
-The Theme row is disabled because iOS 12 has no dynamic dark/light palette;
-the port keeps Midnight. Disabled rows still state what is missing: DSP, DAC,
-authenticated Spotify, Canvas, Cast, Discord and the party server.
 
-## Remaining differences (iOS permits them; not built in this pass)
+The settings that used to be rows without a consequence now drive their
+surfaces: **Theme** persists System/Light/Dark and rebuilds the root so UIKit
+views resolve the new palette (the light status bar is set from the same
+value); **Font** is read by every `Theme.font` call; **App icon** switches the
+shipped `AppIcon-Monochrome` asset through `setAlternateIconName`; **Lyrics →
+Show full lyrics** switches between the lyric column and the one line being
+sung; **Blur unfocused lines** changes the unsung alpha; **Save lyrics
+offline** stores and reuses provider results; **Lyrics source** selects
+Automatic (lrc.red → LyricsPlus → Unison → LRCLIB) or LRCLIB alone; **Liquid
+glass**, **Legacy mesh gradient** and **Reduce dynamic blur** change the real
+player backdrop; **Keep downloads updated** refreshes remote playlists at
+launch; **JioSaavn** switches the resolver and the search catalogue;
+**Track length tolerance** changes artist/title corroboration; **Stats for
+nerds** shows the live engine summary; **Swipe to play next** adds the real
+swipe action; **On Wi-Fi/On mobile data** select the playback bitrate ceiling.
 
-Named rather than hidden:
+Rows that remain disabled, and the specific block behind each, are listed
+under **Blocked surfaces** below; none is a silent “not ported” placeholder.
 
-| Item | Why it is not here | What exists instead |
+## Blocked surfaces
+
+Each row names the concrete reason and the thing that would unblock it. These
+are the only surfaces not implemented; buildable discrepancies found by the
+folder pass were implemented rather than listed here.
+
+| Surface | Concrete block | What would unblock it |
 | --- | --- | --- |
-| SMB source (`data/smb`) | Needs its own protocol client; WebDAV and Jellyfin were the two built in this pass | WebDAV and Jellyfin browsers plus the addon stream and local locker |
-| Universal links (`applinks:`) | Associated-domains entitlement and iOS 13-era handling | The `bitchord://` scheme is the iOS 12 substitute; SpringBoard confirms it before opening |
-| Listen Together, authenticated Spotify library/Canvas, Discord, Cast | Accounts, OAuth clients or servers this build does not ship | Public Spotify playlist import and Last.fm/ListenBrainz scrobbling now work; the rest have disabled rows naming the missing piece |
+| SMB source (`data/smb`) | iOS has no SMB client API. iOS 12 also has no Network.framework SMB transport; the only SMB2 framework in the reference tree is a headerless arm64-only binary that cannot be linked into a simulator build. | Vendor an SMB2/SMB3 library with an iOS 12 simulator slice and a public header, or a server-side bridge. |
+| Universal-link association (`applinks:`) | An associated-domain entitlement can only be issued for a domain this project controls, and Apple must serve `apple-app-site-association` from it. The app cannot claim `youtube.com` or `music.youtube.com`. | A controlled domain with an AASA file and the `associated-domains` entitlement. The parser/router already accepts the same URLs, as `web-links-report.txt` asserts. |
+| Listen Together / party / presence | The client protocol needs a deployed party server and a shared signed-in identity; no such server or credentials are part of this build. | A hosted party backend and account identity for every participant. |
+| Authenticated Spotify library and Canvas | Spotify library sync and Canvas need an OAuth client/secret and a signed-in Spotify account; neither is shipped, and Canvas media is not in the public embed page. | A Spotify developer app with the library/Canvas scopes and a test account. |
+| Discord presence | Discord RPC uses local IPC (a Unix socket to the desktop client) on Android; iOS has no equivalent local Discord transport and Discord has no iOS RPC endpoint used here. | A supported Discord iOS SDK/endpoint. |
+| Google Cast | No Google Cast SDK or receiver application ID is linked; Cast discovery also needs the local-network multicast entitlement. | Add the Google Cast iOS SDK, a receiver ID and the multicast entitlement. |
+| Crossfade, 10-band EQ, loudness, skip-silence, Automix, spatial audio | The native path is `AVPlayer` over progressive files; those processors need per-sample access and two overlapping players, which the current pipeline does not expose. (`AVAudioEngine`/`MTAudioProcessingTap` would be a new playback engine, not a setting.) | Replace the native engine with an `AVAudioEngine` graph and implement the processors. |
+| Bit-perfect, USB-DAC preference, output routing, disable-on-speaker | iOS public audio APIs expose no exclusive/bit-perfect mode, no DAC selection and no route-by-route override for this player. | A private/entitled audio route API or a platform change; not shippable on iOS 12. |
+| Translation / bilingual lyrics | iOS 12 has no on-device translation API (`Translation` is iOS 17.4+), and the project has no third-party translation key. | A translation service key and a server-side proxy. |
+| Animated cover / Spotify Canvas | The catalogues used here return static artwork; Canvas is authenticated Spotify media (see above) and InnerTube's animated artwork is not exposed by the browsing response. | An animated-artwork provider and, for Canvas, Spotify auth. |
+| Remote InnerTube rating/save/rename | Those endpoints require the signed-in account and write/feedback tokens; the app deliberately keeps browsing anonymous and only creates remote playlists with the captured session. (The YouTube search list does have a real **Load more** control and advances its continuation token; the JioSaavn catalogue is a single 30-row page.) | A signed-in account with write scopes. |
+| `ui/festive`, `ui/performance` | Festive is a dated seasonal illustration/composition with no corresponding iOS asset; performance exposes Android per-app refresh-rate controls, which iOS does not provide to apps. | The seasonal artwork/spec and an iOS-supported frame-rate policy. |
+| Widget, Wear OS, TV apps | These are separate Android application surfaces, not screens inside the phone app. | Separate iOS extensions/apps, outside this target. |
 
 ## Upstream folder coverage
 
@@ -254,23 +280,23 @@ silently left out.
 
 | Upstream folder | Contains | iOS port and remaining gap |
 | --- | --- | --- |
-| `app/.../auth` | Google web login, account sessions, Spotify/Discord sign-in | Google web login, session restore/sign-out, account identity and channel switching are ported and handoff-tested (keychain on device, simulator fallback in unsigned CI). Spotify uses public embed import without OAuth; Discord and authenticated Spotify library sync are absent. |
-| `app/.../data/innertube` | Search, browse, home, library, account, write actions | Search, browse, collection pages, home feed, liked music, history, saved playlists/albums/artists and channel enumeration are ported. Remote playlist creation is ported; continuations beyond the ported pages and the other write actions (rate, save, feedback tokens, remote rename) are not. |
+| `app/.../auth` | Google web login, account sessions, Spotify/Discord sign-in | Google web login, session restore/sign-out, account identity and channel switching are ported and handoff-tested (keychain on device, simulator fallback in unsigned CI). Spotify uses public embed import without OAuth, so its authenticated OAuth sign-in is blocked on client credentials; Discord's local IPC transport has no iOS equivalent. |
+| `app/.../data/innertube` | Search, browse, home, library, account, write actions | Search, browse, collection pages, home feed, liked music, history, saved playlists/albums/artists and channel enumeration are ported. YouTube search has a real **Load more** driven by the response continuation token. Remote playlist creation is ported; rating, save, feedback tokens and remote rename need a signed-in write account and remain blocked. |
 | `app/.../data/jiosaavn`, `data/sources`, `data/webdav`, `data/remote` | Catalogue, addon, WebDAV, Jellyfin | Ported: JioSaavn search/streams, addon tiers, WebDAV and Jellyfin browsers. SMB has no client. |
 | `app/.../data/scrobbling` | Last.fm, Libre.fm, ListenBrainz | Ported: now-playing, half-track scrobble with the four-minute cap, primary-artist option, configurable Last.fm endpoint. Last.fm needs the listener's own API key/secret/session key; ListenBrainz needs only a token. |
-| `app/.../data/spotify` | Public embed import and authenticated library | Public playlist import is ported through the embed page, including its 100-row token continuation and YouTube matching. Authenticated Spotify library/canvas remains unported. |
+| `app/.../data/spotify` | Public embed import and authenticated library | Public playlist import is ported through the embed page, including its 100-row token continuation and YouTube matching. Authenticated Spotify library/canvas is blocked on a Spotify OAuth app and account; see **Blocked surfaces**. |
 | `app/.../data/lyrics`, `data/stats` | Lyrics providers, Replay | Ported with live providers, karaoke and Replay. |
-| `app/.../data/listentogether`, `data/presence`, `backend/` | Party protocol, presence, server | Absent: needs the party server and a shared signed-in identity on every device. |
-| `app/.../data/canvas`, `data/discord` | Canvas clips, Discord RPC | Absent: Canvas needs Spotify's authenticated media API; Discord RPC is local Android IPC. |
+| `app/.../data/listentogether`, `data/presence`, `backend/` | Party protocol, presence, server | Blocked: needs a deployed party server and a shared signed-in identity on every device. |
+| `app/.../data/canvas`, `data/discord` | Canvas clips, Discord RPC | Blocked: Canvas needs Spotify's authenticated media API/account; Discord RPC is local Android IPC. |
 | `app/.../download` | Queue, background transfers, offline files, playlist sync | Ported with background `URLSession`, quality/Wi-Fi/cap rules and synced playlists. |
-| `app/.../playback` | Queue, radio, crossfade/DSP, Cast, DSD, loop mix, smart transitions | Queue, autoplay/radio, sleep timer and speed are ported. `audio` DSP, `cast`, `dsd`, `loopmix` and `smart` are blocked by the WebKit/AVPlayer pipeline. |
-| `app/.../ui/screens`, `ui/player`, `ui/components`, `ui/replay`, `ui/onboarding`, `ui/theme` | The Android UI | Ported and asserted by the screen/motion runs, including themes' font choice. `ui/festive` and `ui/performance` overlays are absent. |
+| `app/.../playback` | Queue, radio, crossfade/DSP, Cast, DSD, loop mix, smart transitions | Queue, autoplay/radio, sleep timer and speed are ported. Crossfade/EQ/loudness/skip-silence/Automix need an `AVAudioEngine` graph rather than `AVPlayer`; bit-perfect/USB-DAC/routing need APIs iOS does not expose; Cast needs the Cast SDK and a receiver ID; DSD has no public decoder/route. These are the block rows above, not hidden omissions. |
+| `app/.../ui/screens`, `ui/player`, `ui/components`, `ui/replay`, `ui/onboarding`, `ui/theme` | The Android UI | Ported and asserted by the screen/motion runs, including Theme (System/Light/Dark), Font, the alternate monochrome icon, liquid-glass/mesh backdrop options and the lyric presentation settings. `ui/festive` is a dated seasonal composition with no iOS asset; `ui/performance` needs Android-only per-app refresh-rate control. |
 | `app/.../widget`, `wear`, `wearos/`, `tv/` | Home-screen widget, watch and TV apps | Android-only surfaces; not part of the iPhone app. |
 | `shared/src/commonMain` | Models, settings, party, smart playback | Models/settings are mirrored. Party and smart/Automix models are not used because their engines are absent. |
 | `shared/src/jvmSharedMain` | InnerTube, Spotify, downloads on JVM | The API shapes informed the iOS clients; JVM-only HTTP/storage code is not shipped. |
 | `sharedUi` | Compose screens and resources | Served as the visual reference; UIKit replacements are listed in the screen matrix. |
 | `web/` | Browser client, extension, docs | A separate web product; not part of the iOS app. |
-| `native/` | FFmpeg decoder, analyzer, loop-mix native code | Not linked: the iOS player uses WebKit/AVPlayer rather than a native media3/FFmpeg pipeline. |
+| `native/` | FFmpeg decoder, analyzer, loop-mix native code | Not linked: the iOS player uses WebKit/AVPlayer rather than a native media3/FFmpeg pipeline. Linking FFmpeg would unblock DSD/loop-mix but also require a new audio-graph/engine and licensing review. |
 
 ## What CI measured, and what it did not
 

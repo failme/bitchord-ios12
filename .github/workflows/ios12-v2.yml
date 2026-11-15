@@ -920,6 +920,8 @@ jobs:
           grep -q "theme.textDark=true" shots/theme-report.txt
           grep -q "theme.settingsBackgroundLight=true" shots/theme-report.txt
           grep -q "theme.accountBackgroundLight=true" shots/theme-report.txt
+          grep -q "theme.appIconSupported=true" shots/theme-report.txt
+          grep -q "theme.appIconAlternate=Monochrome" shots/theme-report.txt
           test -s shots/theme-home-light.png
           test -s shots/theme-settings-light.png
           test -s shots/theme-account-light.png

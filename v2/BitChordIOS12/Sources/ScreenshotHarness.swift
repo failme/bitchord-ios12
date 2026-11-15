@@ -352,14 +352,23 @@ enum ScreenshotHarness {
                             after(0.8) {
                                 writeShot("theme-account-light")
                                 report.append("theme.accountBackgroundLight=\(account.view.backgroundColor == UIColor.white)")
-                                writeText(report.joined(separator: "\n"),
-                                          name: "theme-report.txt", directory: directory)
-                                writeText("done", name: "theme-done.txt", directory: directory)
-                                // Leave the next harness launch on the normal
-                                // Midnight palette rather than leaking this
-                                // test-only launch argument into it.
-                                UserDefaults.standard.set(Theme.Mode.dark.rawValue, forKey: Theme.modeKey)
-                                exit(0)
+                                let finish = {
+                                    writeText(report.joined(separator: "\n"),
+                                              name: "theme-report.txt", directory: directory)
+                                    writeText("done", name: "theme-done.txt", directory: directory)
+                                    // Leave the next harness launch on the normal
+                                    // Midnight palette rather than leaking this
+                                    // test-only launch argument into it.
+                                    UserDefaults.standard.set(Theme.Mode.dark.rawValue, forKey: Theme.modeKey)
+                                    exit(0)
+                                }
+                                report.append("theme.appIconSupported=\(UIApplication.shared.supportsAlternateIcons)")
+                                guard UIApplication.shared.supportsAlternateIcons else { finish(); return }
+                                AppIconChoice.apply("Monochrome") { error in
+                                    report.append("theme.appIconError=\(error ?? "")_")
+                                    report.append("theme.appIconAlternate=\(UIApplication.shared.alternateIconName ?? "Default")")
+                                    AppIconChoice.apply("Default") { _ in finish() }
+                                }
                             }
                         }
                     }

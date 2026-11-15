@@ -73,6 +73,10 @@ final class InnerTube {
 
     // MARK: - Search
 
+    /// The next page token from the last `search` response, when YouTube Music
+    /// supplied one. Cleared by a new query.
+    private(set) var searchContinuation: String?
+
     func search(_ query: String,
                 filter: SearchFilter? = nil,
                 completion: @escaping ([Track]?, String?) -> Void) {
@@ -95,18 +99,67 @@ final class InnerTube {
         if let params = filter?.params {
             body["params"] = params
         }
+        searchContinuation = nil
         post(path: "search", body: body, userAgent: InnerTube.browserUserAgent) { json, error in
             guard let json = json else {
                 completion(nil, error ?? "Search failed.")
                 return
             }
             let tracks = self.parseSearch(json)
+            self.searchContinuation = self.continuationToken(in: json)
             if tracks.isEmpty {
                 completion(nil, "No results for \"\(trimmed)\".")
             } else {
                 completion(tracks, nil)
             }
         }
+    }
+
+    /// The next page of the current search. The caller appends the rows; this
+    /// only advances the token so a repeated call cannot loop on the same page.
+    func searchNext(completion: @escaping ([Track]?, Bool, String?) -> Void) {
+        guard let token = searchContinuation, !token.isEmpty else {
+            completion([], false, nil)
+            return
+        }
+        let body: [String: Any] = [
+            "context": [
+                "client": [
+                    "clientName": "WEB_REMIX",
+                    "clientVersion": "1.20241011.01.00",
+                    "hl": "en",
+                    "gl": "US"
+                ]
+            ],
+            "continuation": token
+        ]
+        post(path: "search", body: body, userAgent: InnerTube.browserUserAgent) { [weak self] json, error in
+            guard let self = self else { return }
+            guard let json = json else {
+                completion(nil, self.searchContinuation != nil, error ?? "Search page failed.")
+                return
+            }
+            let tracks = self.parseSearch(json)
+            self.searchContinuation = self.continuationToken(in: json)
+            completion(tracks, self.searchContinuation != nil, nil)
+        }
+    }
+
+    private func continuationToken(in node: Any) -> String? {
+        if let dict = node as? [String: Any] {
+            if let command = dict["continuationCommand"] as? [String: Any],
+               let token = command["token"] as? String, !token.isEmpty {
+                return token
+            }
+            for (_, child) in dict {
+                if let found = continuationToken(in: child) { return found }
+            }
+        } else if let array = node as? [Any] {
+            for child in array {
+                if let found = continuationToken(in: child) { return found }
+            }
+        }
+        return nil
     }
 
     // MARK: - Stream resolution

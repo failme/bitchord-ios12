@@ -68,7 +68,11 @@ enum DeepLink {
         case "browse":
             return parts.dropFirst().first.flatMap { $0.isEmpty ? nil : .album($0) }
         case "search":
-            guard let text = value("q")?.trimmingCharacters(in: .whitespacesAndNewlines),
+            // Query components treat `+` as a literal plus; the YouTube web
+            // form uses it as the space between search terms.
+            guard let text = value("q")?
+                .replacingOccurrences(of: "+", with: " ")
+                .trimmingCharacters(in: .whitespacesAndNewlines),
                   !text.isEmpty else { return nil }
             return .search(text)
         default:
