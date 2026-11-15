@@ -176,7 +176,7 @@ window, rather than leaving a failed `test` as the last command in a chain.
 | `PlaybackFallback`, `QualityUpgrade`, `StreamChoice` | `AudioEngine`, `JioSaavnService`, download quality | Asserted - quality and addon fallback proofs |
 | `MusicOnlyPlayback.kt` | `LocalMusicStore` 30 s filter | Ported |
 | `PartySync.kt` | Absent | Account/credential - party server |
-| `MusicLink.kt`, `PlayerDeepLink.kt` | Absent | Remaining (see below) |
+| `MusicLink.kt`, `PlayerDeepLink.kt` | `DeepLink`, `DeepLinkRouter` | Ported - six `bitchord://` routes asserted in `deeplinks.txt`; universal links remain absent |
 
 ## Downloads and offline
 

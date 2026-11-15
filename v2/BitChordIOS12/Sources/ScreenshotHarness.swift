@@ -235,11 +235,18 @@ enum ScreenshotHarness {
         report.append("auth.signedIn=\(GoogleAccountStore.shared.isSignedIn)")
         report.append("auth.browserFlow=google-web-session")
         report.append("auth.hasCookie=\(GoogleAccountStore.shared.requestHeaders()["Cookie"] != nil)")
-        let spotifyID = SpotifyImporter.extractPlaylistID("https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M?si=abc")
-        report.append("spotify.link=\(spotifyID == "37i9dQZF1DXcBWIGoYBM5M")")
-        report.append("spotify.uri=\(SpotifyImporter.extractPlaylistID("spotify:playlist:37i9dQZF1DXcBWIGoYBM5M") != nil)")
-        report.append("spotify.reject=\(SpotifyImporter.extractPlaylistID("https://example.com/playlist/37i9dQZF1DXcBWIGoYBM5M") == nil)")
-        report.append("auth.dataSyncNormalize=\(GoogleAccountStore.normalizeDataSyncID("page||account") == "account")")
+        let spotifyLink = "https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M?si=abc"
+        let spotifyURI = "spotify:playlist:37i9dQZF1DXcBWIGoYBM5M"
+        let foreignPlaylist = "https://example.com/playlist/37i9dQZF1DXcBWIGoYBM5M"
+        let spotifyID = SpotifyImporter.extractPlaylistID(spotifyLink)
+        let spotifyLinkOK = spotifyID == "37i9dQZF1DXcBWIGoYBM5M"
+        let spotifyURIOK = SpotifyImporter.extractPlaylistID(spotifyURI) != nil
+        let spotifyRejectOK = SpotifyImporter.extractPlaylistID(foreignPlaylist) == nil
+        let dataSyncOK = GoogleAccountStore.normalizeDataSyncID("page||account") == "account"
+        report.append("spotify.link=\(spotifyLinkOK)")
+        report.append("spotify.uri=\(spotifyURIOK)")
+        report.append("spotify.reject=\(spotifyRejectOK)")
+        report.append("auth.dataSyncNormalize=\(dataSyncOK)")
 
         func shot(_ name: String) {
             write(window: window, name: name, directory: directory)
