@@ -18,6 +18,9 @@ final class ReplayViewController: UIViewController {
         super.viewDidLoad()
         title = "Replay"
         view.backgroundColor = Theme.background
+        navigationItem.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .action,
+                                                            target: self,
+                                                            action: #selector(shareReplay))
 
         headerLabel.translatesAutoresizingMaskIntoConstraints = false
         headerLabel.font = Theme.font(13, weight: .medium)
@@ -103,6 +106,17 @@ final class ReplayViewController: UIViewController {
             }
         }
         navigationController?.pushViewController(controller, animated: true)
+    }
+
+    @objc private func shareReplay() {
+        let top = ReplayViewController.entries().prefix(5).map { entry in
+            "\(entry.plays)× \(entry.track.title) — \(entry.track.artist)"
+        }
+        let text = "My BitChord Replay\n\(ReplayViewController.summaryText)\n\n"
+            + top.joined(separator: "\n")
+        let share = UIActivityViewController(activityItems: [text], applicationActivities: nil)
+        share.popoverPresentationController?.barButtonItem = navigationItem.rightBarButtonItem
+        present(share, animated: true, completion: nil)
     }
 }
 

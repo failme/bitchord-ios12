@@ -28,6 +28,15 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         window.rootViewController = RootViewController(nibName: nil, bundle: nil)
         window.makeKeyAndVisible()
         self.window = window
+        if DiwaliGate.shouldPresent() {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak window] in
+                guard let root = window?.rootViewController,
+                      root.presentedViewController == nil else { return }
+                let greeting = DiwaliGreetingViewController()
+                greeting.modalPresentationStyle = .fullScreen
+                root.present(greeting, animated: false, completion: nil)
+            }
+        }
         CacheStore.shared.configure()
         applyReduceAnimation()
         NotificationCenter.default.addObserver(self,

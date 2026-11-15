@@ -681,10 +681,12 @@ final class NowPlayingViewController: UIViewController {
         let fullBleed = SettingsStore.shared.fullBleedArtwork
         let progressive = SettingsStore.shared.bool("BitChord.Appearance.ProgressiveBlur", true)
         let blendOff = SettingsStore.shared.bool("BitChord.Appearance.DisableBlendEffects", false)
+        let liquidGlass = SettingsStore.shared.bool("BitChord.Appearance.LiquidGlass", true)
         artworkFadeView.isHidden = !fullBleed || !progressive || blendOff
         artworkView.contentMode = fullBleed ? .scaleAspectFill : .scaleAspectFit
         artworkView.backgroundColor = fullBleed ? Theme.surface : Theme.background
         glowView.isHidden = blendOff
+        backdropView.alpha = liquidGlass ? 1 : 0
         artworkView.isHidden = lyrics
         artworkFadeView.isHidden = lyrics
         // In lyrics mode the words take the screen: the big title and the
@@ -921,8 +923,15 @@ final class NowPlayingViewController: UIViewController {
             renderQuality: SettingsStore.shared.renderQuality)
         let blurred = Theme.blurredImage(image, radius: radius)
         let theme = SettingsStore.shared.string("BitChord.Appearance.PlayerTheme", "Cover")
+        if theme == "Solid" {
+            backdropView.backgroundColor = Theme.background
+        } else if theme == "Legacy" {
+            backdropView.backgroundColor = Theme.meshFallbackPalette.first ?? Theme.background
+        } else {
+            backdropView.backgroundColor = .clear
+        }
         UIView.transition(with: backdropView, duration: 0.36, options: .transitionCrossDissolve, animations: {
-            self.backdropView.image = theme == "Solid" ? nil : blurred
+            self.backdropView.image = theme == "Cover" ? blurred : nil
         }, completion: nil)
         if let image = image, let edge = Theme.edgeColor(of: image) {
             glowLayer.colors = [edge.withAlphaComponent(0.5).cgColor, UIColor.clear.cgColor]
@@ -1080,8 +1089,10 @@ final class NowPlayingViewController: UIViewController {
     }
 
     @objc private func showOutput() {
+        let names = AVAudioSession.sharedInstance().currentRoute.outputs.map { $0.portName }
+        let route = names.isEmpty ? "this phone" : names.joined(separator: ", ")
         let alert = UIAlertController(title: "Audio output",
-                                      message: "Playing on this phone.",
+                                      message: "Playing on \(route).",
                                       preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "OK", style: .default, handler: nil))
         present(alert, animated: true, completion: nil)

@@ -132,7 +132,7 @@ final class KaraokeLineView: UIView {
         var rects: [CGRect] = []
         for word in line.words {
             if position <= word.start { break }
-            if word.syllables.isEmpty {
+            if word.syllables.isEmpty || !SettingsStore.shared.prioritizeSyllableSync {
                 let chars = position >= word.end
                     ? word.endChar - word.startChar
                     : Int((max(0, (position - word.start) / max(0.001, word.end - word.start)))

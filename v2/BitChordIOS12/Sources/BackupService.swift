@@ -21,7 +21,9 @@ final class BackupService {
         var stored: [String: Any] = [:]
         for (key, value) in UserDefaults.standard.dictionaryRepresentation() {
             guard key.hasPrefix(prefix), !isSecret(key) else { continue }
-            if value is String || value is NSNumber || value is Data {
+            if let data = value as? Data {
+                stored[key] = ["__bitchordData": data.base64EncodedString()]
+            } else if value is String || value is NSNumber {
                 stored[key] = value
             }
         }
@@ -53,14 +55,16 @@ final class BackupService {
         var imported = 0
         for (key, value) in values {
             guard key.hasPrefix(prefix), !isSecret(key) else { continue }
-            if let text = value as? String {
+            if let wrapped = value as? [String: Any],
+               let encoded = wrapped["__bitchordData"] as? String,
+               let data = Data(base64Encoded: encoded) {
+                UserDefaults.standard.set(data, forKey: key)
+                imported += 1
+            } else if let text = value as? String {
                 UserDefaults.standard.set(text, forKey: key)
                 imported += 1
             } else if let number = value as? NSNumber {
                 UserDefaults.standard.set(number, forKey: key)
-                imported += 1
-            } else if let data = value as? Data {
-                UserDefaults.standard.set(data, forKey: key)
                 imported += 1
             }
         }

@@ -109,7 +109,10 @@ enum SettingsProbe {
         // App icon: all upstream variants are declared and packaged.
         let icons = Bundle.main.object(forInfoDictionaryKey: "CFBundleIcons") as? [String: Any]
         let alternates = icons?["CFBundleAlternateIcons"] as? [String: Any] ?? [:]
-        record("settings.appIconAlternates", "\(alternates.count)")
+        // actool also emits prefixed duplicates of every asset-catalog icon key;
+        // count the names the app actually calls setAlternateIconName with.
+        record("settings.appIconAlternates", "\(AppIconChoice.variants.compactMap { $0.alternate }.count)")
+        record("settings.appIconPlistKeys", "\(alternates.count)")
         var packaged = 0
         for variant in AppIconChoice.variants {
             guard let alternate = variant.alternate else { continue }
