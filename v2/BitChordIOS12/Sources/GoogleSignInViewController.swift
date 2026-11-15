@@ -163,6 +163,14 @@ final class GoogleSignInViewController: UIViewController {
         GoogleHandoffFixture.probe.shellOrigin = fixture.musicBaseURL.absoluteString
         GoogleHandoffFixture.probe.documentBlank = fixture.shell == .blank
         webView.loadHTMLString(fixture.shellHTML, baseURL: fixture.musicBaseURL)
+        // A redirect decision can still be tearing down when the replacement
+        // HTML is handed to WebKit. Start the capture on a timer as well as in
+        // didFinish so a dropped callback cannot leave the sheet waiting.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) { [weak self] in
+            guard let self = self, !self.completed else { return }
+            self.probeFixturePage()
+            self.enterYouTubeStage()
+        }
     }
 
     /// Reads the cookies and body from the page that actually loaded, so the
@@ -534,8 +542,10 @@ extension GoogleSignInViewController: WKNavigationDelegate {
         if let fixture = GoogleHandoffFixture.active,
            navigationAction.request.url?.host?.lowercased() == "music.youtube.com" {
             decisionHandler(.cancel)
-            DispatchQueue.main.async { [weak self] in
-                self?.loadFixtureShell(fixture)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+                guard let self = self else { return }
+                self.webView.stopLoading()
+                self.loadFixtureShell(fixture)
             }
             return
         }
