@@ -754,8 +754,23 @@ extension DownloadStore: URLSessionDownloadDelegate {
               let videoID = videoID(for: task),
               let track = pendingTracks[videoID] else { return }
         let ns = error as NSError
-        if ns.domain == NSURLErrorDomain, ns.code == NSURLErrorUnknown,
-           transport[videoID] == "background" {
+        let retryableCodes: Set<Int> = [
+            NSURLErrorUnknown,
+            NSURLErrorCancelled,
+            NSURLErrorNetworkConnectionLost,
+            NSURLErrorTimedOut,
+            NSURLErrorCannotConnectToHost,
+            NSURLErrorNotConnectedToInternet
+        ]
+        // The simulator hands a background task back with a transport error
+        // when the app is relaunched; a real phone can do the same after a
+        // network hand-off. One foreground retry turns that into a completed
+        // download instead of an interrupted row, while a deliberate cancel
+        // still remains a cancel.
+        if ns.domain == NSURLErrorDomain, retryableCodes.contains(ns.code),
+           transport[videoID] == "background",
+           attempts[videoID] == 1,
+           !cancelledByUser.contains(videoID) {
             DispatchQueue.main.async {
                 self.tasks.removeValue(forKey: task.taskIdentifier)
                 self.retryInForeground(videoID: videoID, track: track)
