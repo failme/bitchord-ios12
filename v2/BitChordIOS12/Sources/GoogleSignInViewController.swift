@@ -25,6 +25,7 @@ final class GoogleSignInViewController: UIViewController {
     }
 
     private let webView = WKWebView(frame: .zero, configuration: WKWebViewConfiguration())
+    private var fixtureShellWebView: WKWebView?
     private let progress = UIProgressView(progressViewStyle: .bar)
     private let statusLabel = UILabel()
     private let spinner = UIActivityIndicatorView(style: .white)
@@ -162,7 +163,27 @@ final class GoogleSignInViewController: UIViewController {
         fixtureShellLoaded = true
         GoogleHandoffFixture.probe.shellOrigin = fixture.musicBaseURL.absoluteString
         GoogleHandoffFixture.probe.documentBlank = fixture.shell == .blank
-        webView.loadHTMLString(fixture.shellHTML, baseURL: fixture.musicBaseURL)
+        // WebKit drops an HTML load issued while it is cancelling the Google
+        // redirect, even after the next run loop. A separate web view starts
+        // from idle, so the music origin actually becomes the document under
+        // test instead of leaving the Google page on screen.
+        let shell = WKWebView(frame: .zero, configuration: WKWebViewConfiguration())
+        shell.translatesAutoresizingMaskIntoConstraints = false
+        shell.backgroundColor = Theme.background
+        shell.isOpaque = true
+        shell.customUserAgent = GoogleSignInViewController.safariUserAgent
+        shell.navigationDelegate = self
+        shell.uiDelegate = self
+        view.addSubview(shell)
+        NSLayoutConstraint.activate([
+            shell.topAnchor.constraint(equalTo: webView.topAnchor),
+            shell.leadingAnchor.constraint(equalTo: webView.leadingAnchor),
+            shell.trailingAnchor.constraint(equalTo: webView.trailingAnchor),
+            shell.bottomAnchor.constraint(equalTo: webView.bottomAnchor)
+        ])
+        webView.isHidden = true
+        fixtureShellWebView = shell
+        shell.loadHTMLString(fixture.shellHTML, baseURL: fixture.musicBaseURL)
         // A redirect decision can still be tearing down when the replacement
         // HTML is handed to WebKit. Start the capture on a timer as well as in
         // didFinish so a dropped callback cannot leave the sheet waiting.
@@ -188,7 +209,8 @@ final class GoogleSignInViewController: UIViewController {
           } catch (e) { return ""; }
         })();
         """
-        webView.evaluateJavaScript(script) { value, _ in
+        let active = fixtureShellWebView ?? webView
+        active.evaluateJavaScript(script) { value, _ in
             guard GoogleHandoffFixture.active != nil,
                   let text = value as? String,
                   let data = text.data(using: .utf8),
@@ -329,7 +351,8 @@ final class GoogleSignInViewController: UIViewController {
           } catch (e) { return ""; }
         })();
         """
-        webView.evaluateJavaScript(script) { value, _ in
+        let active = fixtureShellWebView ?? webView
+        active.evaluateJavaScript(script) { value, _ in
             guard let text = value as? String,
                   let data = text.data(using: .utf8),
                   let json = (try? JSONSerialization.jsonObject(with: data, options: [])) as? [String: Any] else {
@@ -362,7 +385,8 @@ final class GoogleSignInViewController: UIViewController {
           } catch (e) { return true; }
         })();
         """
-        webView.evaluateJavaScript(script) { value, _ in
+        let active = fixtureShellWebView ?? webView
+        active.evaluateJavaScript(script) { value, _ in
             completion((value as? Bool) ?? false)
         }
     }
@@ -557,13 +581,14 @@ extension GoogleSignInViewController: WKNavigationDelegate {
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         if GoogleHandoffFixture.active != nil {
-            if fixtureShellLoaded {
+            if webView === fixtureShellWebView, fixtureShellLoaded {
                 spinner.stopAnimating()
                 progress.isHidden = true
                 probeFixturePage()
                 enterYouTubeStage()
                 return
             }
+            if fixtureShellLoaded { return }
             if let url = webView.url, url.scheme == "https" {
                 GoogleHandoffFixture.probe.loginOrigin = url.absoluteString
             }
