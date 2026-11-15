@@ -8,12 +8,14 @@ final class HomeViewController: UIViewController {
     private let emptyLabel = UILabel()
     private let greetingLabel = UILabel()
     private let releasesShelf = CardShelfView()
+    private let remoteHomeShelf = CardShelfView()
     private let topPicks = TopPicksShelfView()
     private let signInHolder = UIView()
     private let accountAvatar = UIButton(type: .system)
     private var albums: [CatalogueAlbum] = []
 
     private var remoteQuickPicks: [Track] = []
+    private var remoteHomeItems: [YouTubeHomeItem] = []
     private var shelfViews: [String: ShelfRowView] = [:]
 
     override func viewDidLoad() {
@@ -149,8 +151,32 @@ final class HomeViewController: UIViewController {
         return part
     }
 
-    /// Live catalog shelf, so Home is not empty on a first launch with no local history.
+    /// Signed in, this is YouTube Music's own home feed, which is what makes
+    /// Top Picks reflect the account instead of a generic yearly chart. Signed
+    /// out, or when the feed answers nothing playable, it falls back to that
+    /// chart so Home is never empty on a first launch.
     private func loadQuickPicks() {
+        guard GoogleAccountStore.shared.isSignedIn else {
+            loadFallbackQuickPicks()
+            return
+        }
+        InnerTube.shared.fetchHome { [weak self] tracks, collections in
+            guard let self = self else { return }
+            if !tracks.isEmpty {
+                self.remoteQuickPicks = Array(tracks.prefix(20))
+                self.topPicks.configure(tracks: self.remoteQuickPicks)
+                self.topPicks.isHidden = false
+                self.scrollView.isHidden = false
+                self.rebuild()
+            }
+            self.showRemoteHome(collections)
+            if tracks.isEmpty {
+                self.loadFallbackQuickPicks()
+            }
+        }
+    }
+
+    private func loadFallbackQuickPicks() {
         let year = Calendar.current.component(.year, from: Date())
         InnerTube.shared.search("Top songs \(year)", filter: .songs) { [weak self] tracks, _ in
             guard let self = self, let tracks = tracks, !tracks.isEmpty else { return }
@@ -162,6 +188,43 @@ final class HomeViewController: UIViewController {
             self.scrollView.isHidden = false
             self.rebuild()
         }
+    }
+
+    private func showRemoteHome(_ items: [YouTubeHomeItem]) {
+        remoteHomeItems = Array(items.prefix(12))
+        guard !remoteHomeItems.isEmpty else {
+            remoteHomeShelf.removeFromSuperview()
+            return
+        }
+        let cards = remoteHomeItems.map { item in
+            CardItem(id: item.browseID ?? item.videoID ?? item.title,
+                     title: item.title,
+                     subtitle: item.subtitle,
+                     artworkURL: item.artworkURL)
+        }
+        remoteHomeShelf.configure(title: "From YouTube Music", items: cards)
+        remoteHomeShelf.onSelect = { [weak self] index in
+            guard let self = self, index < self.remoteHomeItems.count else { return }
+            self.openRemoteHomeItem(self.remoteHomeItems[index])
+        }
+        if remoteHomeShelf.superview == nil {
+            remoteHomeShelf.heightAnchor.constraint(
+                equalToConstant: CardShelfView.rowHeight).isActive = true
+            stack.addArrangedSubview(remoteHomeShelf)
+        }
+    }
+
+    private func openRemoteHomeItem(_ item: YouTubeHomeItem) {
+        guard let browseID = item.browseID else { return }
+        let controller = CollectionViewController(title: item.title,
+                                                  subtitle: item.subtitle,
+                                                  artwork: item.artworkURL)
+        controller.loader = { completion in
+            InnerTube.shared.fetchCollection(browseID) { tracks, _ in
+                completion(tracks ?? [])
+            }
+        }
+        navigationController?.pushViewController(controller, animated: true)
     }
 
     /// A second shelf straight from the catalogue, so a first launch has more
@@ -222,6 +285,8 @@ final class HomeViewController: UIViewController {
 
     @objc private func accountChanged() {
         applyAccountState()
+        remoteHomeShelf.removeFromSuperview()
+        loadQuickPicks()
     }
 
     private func applyAccountState() {

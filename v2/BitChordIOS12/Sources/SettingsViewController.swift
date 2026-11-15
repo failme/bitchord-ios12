@@ -169,6 +169,26 @@ final class SettingsViewController: UIViewController {
         present(alert, animated: true, completion: nil)
     }
 
+    private func textPrompt(item: SettingItem, message: String, placeholder: String, secret: Bool) {
+        let current = SettingsStore.shared.string(item.key, "")
+        let alert = UIAlertController(title: item.title, message: message, preferredStyle: .alert)
+        alert.addTextField { field in
+            field.placeholder = placeholder
+            field.text = secret ? "" : current
+            field.autocapitalizationType = .none
+            field.autocorrectionType = .no
+            field.isSecureTextEntry = secret
+            if secret { field.placeholder = current.isEmpty ? placeholder : "Set — enter a new value" }
+        }
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel, handler: nil))
+        alert.addAction(UIAlertAction(title: "Save", style: .default) { [weak self] _ in
+            let text = (alert.textFields?.first?.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            SettingsStore.shared.set(text, for: item.key)
+            self?.tableView.reloadData()
+        })
+        present(alert, animated: true, completion: nil)
+    }
+
     private func choose(item: SettingItem, options: [String]) {
         let sheet = UIAlertController(title: item.title, message: nil, preferredStyle: .actionSheet)
         for option in options {
@@ -287,6 +307,9 @@ extension SettingsViewController: UITableViewDataSource, UITableViewDelegate {
         if case .choice(let fallback, let options) = item.kind {
             choose(item: item, options: options)
             _ = SettingsStore.shared.string(item.key, fallback)
+        }
+        if case .text(let message, let placeholder, let secret) = item.kind {
+            textPrompt(item: item, message: message, placeholder: placeholder, secret: secret)
         }
     }
 }
@@ -473,6 +496,12 @@ final class SettingsCell: UITableViewCell {
         case .cache:
             let size = ByteCountFormatter.string(fromByteCount: CacheStore.shared.sizeBytes, countStyle: .file)
             detailLabel.text = "\(size) cached"
+            showsChevron = true
+        case .text(_, let placeholder, let secret):
+            let value = SettingsStore.shared.string(item.key, "")
+            detailLabel.text = value.isEmpty
+                ? (secret ? "Not set" : placeholder)
+                : (secret ? "Set" : value)
             showsChevron = true
         case .unavailable:
             // The real app greys the row out; a subtitle, where it has one,

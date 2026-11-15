@@ -13,6 +13,9 @@ enum SettingKind {
     case storage
     /// A row that prompts for the addon server that supplies lossless tiers.
     case addon
+    /// A free-text setting: explanation, placeholder, and whether the stored
+    /// value is a credential that should only read back as Set / Not set.
+    case text(String, String, Bool)
     /// A row that clears one of the app's caches: "song" or "image".
     case cache(String)
     /// Row is shown for parity but has no effect here; the reason is surfaced to the user.
@@ -262,29 +265,50 @@ enum SettingsCatalog {
 
         SettingSection(title: "Integrations", items: [
             SettingItem(key: "BitChord.LastFm.Enabled", title: "Last.fm scrobbling",
-                        kind: .unavailable("Scrobbler is not ported.")),
+                        detail: "Needs an API key, secret and session key",
+                        kind: .toggle(false)),
+            SettingItem(key: "BitChord.LastFm.NowPlaying", title: "Last.fm now playing",
+                        detail: "Show the current song on your Last.fm profile",
+                        kind: .toggle(true)),
+            SettingItem(key: "BitChord.LastFm.PrimaryArtistOnly", title: "Primary artist only",
+                        detail: "Drop featured credits before scrobbling",
+                        kind: .toggle(false)),
             SettingItem(key: "BitChord.LastFm.Username", title: "Last.fm username",
-                        kind: .unavailable("Scrobbler is not ported.")),
-            SettingItem(key: "BitChord.LastFm.SessionKey", title: "Last.fm session",
-                        kind: .unavailable("Scrobbler is not ported.")),
+                        kind: .text("Your Last.fm name, for reference on this device.", "Username", false)),
+            SettingItem(key: "BitChord.LastFm.ApiKey", title: "Last.fm API key",
+                        kind: .text("The API key from your Last.fm API account.", "API key", true)),
+            SettingItem(key: "BitChord.LastFm.Secret", title: "Last.fm shared secret",
+                        kind: .text("The shared secret paired with the API key.", "Shared secret", true)),
+            SettingItem(key: "BitChord.LastFm.SessionKey", title: "Last.fm session key",
+                        detail: "From last.fm/api/auth with this API key",
+                        kind: .text("Paste a session key created for this API key. BitChord signs scrobbles locally and never sends the secret anywhere else.", "Session key", true)),
+            SettingItem(key: "BitChord.LastFm.Endpoint", title: "Last.fm endpoint",
+                        detail: "libre.fm works too",
+                        kind: .text("Leave empty for https://ws.audioscrobbler.com/2.0/. For Libre.fm use https://libre.fm/2.0/.", "https://ws.audioscrobbler.com/2.0/", false)),
             SettingItem(key: "BitChord.ListenBrainz.Enabled", title: "ListenBrainz",
-                        kind: .unavailable("Scrobbler is not ported.")),
+                        detail: "Submit plays as they happen",
+                        kind: .toggle(false)),
             SettingItem(key: "BitChord.ListenBrainz.Token", title: "ListenBrainz token",
-                        kind: .unavailable("Scrobbler is not ported.")),
+                        detail: "From listenbrainz.org/settings",
+                        kind: .text("Your user token from ListenBrainz settings.", "Token", true)),
+            SettingItem(key: "BitChord.ListenBrainz.PrimaryArtistOnly", title: "ListenBrainz primary artist only",
+                        kind: .toggle(false)),
             SettingItem(key: "BitChord.Spotify.Connected", title: "Spotify",
-                        kind: .unavailable("Spotify import is not ported.")),
+                        detail: "Public playlist import is in Library",
+                        icon: .spotify,
+                        kind: .page("Open Library → Import Spotify, paste a public playlist link, and BitChord matches its rows on YouTube Music. No Spotify sign-in is needed.")),
             SettingItem(key: "BitChord.Spotify.Username", title: "Spotify username",
-                        kind: .unavailable("Spotify import is not ported.")),
+                        kind: .unavailable("Only public playlists can be imported without a Spotify developer app.")),
             SettingItem(key: "BitChord.Spotify.DisplayName", title: "Spotify display name",
-                        kind: .unavailable("Spotify import is not ported.")),
+                        kind: .unavailable("Only public playlists can be imported without a Spotify developer app.")),
             SettingItem(key: "BitChord.Spotify.AvatarURL", title: "Spotify avatar",
-                        kind: .unavailable("Spotify import is not ported.")),
+                        kind: .unavailable("Only public playlists can be imported without a Spotify developer app.")),
             SettingItem(key: "BitChord.Spotify.AccessToken", title: "Spotify token",
-                        kind: .unavailable("Spotify import is not ported.")),
+                        kind: .unavailable("Authenticated Spotify library sync is not enabled in this build.")),
             SettingItem(key: "BitChord.Spotify.CookieSPDC", title: "Spotify cookie",
-                        kind: .unavailable("Spotify import is not ported.")),
+                        kind: .unavailable("Authenticated Spotify library sync is not enabled in this build.")),
             SettingItem(key: "BitChord.Discord.Enabled", title: "Discord presence",
-                        kind: .unavailable("Discord is not ported."))
+                        kind: .unavailable("Discord's IPC transport does not exist on iOS."))
         ]),
 
         SettingSection(title: "Appearance", items: [

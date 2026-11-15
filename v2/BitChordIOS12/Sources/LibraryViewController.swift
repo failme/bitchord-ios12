@@ -10,8 +10,12 @@ final class LibraryViewController: UIViewController {
     private weak var statsScroller: UIScrollView?
     private let playlistGrid = UIStackView()
     private let accountAvatar = UIButton(type: .custom)
+    private let importOverlay = UIView()
+    private let importSpinner = UIActivityIndicatorView(activityIndicatorStyle: .white)
+    private let importLabel = UILabel()
 
     private var playlists: [Playlist] = []
+    private var isImportingSpotify = false
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -46,6 +50,7 @@ final class LibraryViewController: UIViewController {
         buildStats()
         buildRows()
         buildPlaylists()
+        buildImportOverlay()
 
         NotificationCenter.default.addObserver(self,
                                               selector: #selector(reload),
@@ -177,15 +182,17 @@ final class LibraryViewController: UIViewController {
     private func buildRows() {
         rowsHolder.axis = .vertical
         rowsHolder.alignment = .fill
-        let rows = ["Downloads", "Local Music"]
-        var index = 0
-        for title in rows {
-            let row = LibraryRowButton(title: title,
-                                       icon: index == 0 ? .download : .folder)
-            row.addTarget(self, action: #selector(rowTapped(_:)), for: .touchUpInside)
-            row.tag = index
-            rowsHolder.addArrangedSubview(row)
-            index += 1
+        let rows: [(String, Icons.Kind)] = [
+            ("Downloads", .download),
+            ("Local Music", .folder),
+            ("Liked Music", .heart),
+            ("History", .history)
+        ]
+        for (index, row) in rows.enumerated() {
+            let button = LibraryRowButton(title: row.0, icon: row.1)
+            button.addTarget(self, action: #selector(rowTapped(_:)), for: .touchUpInside)
+            button.tag = index
+            rowsHolder.addArrangedSubview(button)
         }
         // The real rows sit just under the stats card, with the breathing
         // room the card itself lost when it was measured.
@@ -251,6 +258,7 @@ final class LibraryViewController: UIViewController {
                            memberValue: "")
         }
 
+        updateRemoteRows()
         rebuildGrid()
     }
 
@@ -276,13 +284,7 @@ final class LibraryViewController: UIViewController {
         let importCard = PlaylistCard(title: "Import Spotify",
                                             caption: "From a playlist link",
                                             icon: .spotify)
-        importCard.onTap = { [weak self] in
-            let alert = UIAlertController(title: "Import Spotify",
-                                          message: "Importing from a Spotify link is not available in this build.",
-                                          preferredStyle: .alert)
-            alert.addAction(UIAlertAction(title: "OK", style: .default))
-            self?.present(alert, animated: true)
-        }
+        importCard.onTap = { [weak self] in self?.importSpotifyPrompt() }
         firstRow.addArrangedSubview(importCard)
         playlistGrid.addArrangedSubview(firstRow)
 
@@ -343,17 +345,169 @@ final class LibraryViewController: UIViewController {
         present(alert, animated: true, completion: nil)
     }
 
+    // MARK: - Spotify import
+
+    private func buildImportOverlay() {
+        importOverlay.backgroundColor = Theme.surface
+        importOverlay.layer.cornerRadius = 16
+        importOverlay.layer.shadowColor = UIColor.black.cgColor
+        importOverlay.layer.shadowOpacity = 0.35
+        importOverlay.layer.shadowRadius = 18
+        importOverlay.layer.shadowOffset = CGSize(width: 0, height: 8)
+        importOverlay.isHidden = true
+        importOverlay.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(importOverlay)
+
+        importSpinner.color = Theme.primaryText
+        importSpinner.translatesAutoresizingMaskIntoConstraints = false
+        importOverlay.addSubview(importSpinner)
+
+        importLabel.text = "Reading playlist…"
+        importLabel.font = Theme.font(15, weight: .semibold)
+        importLabel.textColor = Theme.primaryText
+        importLabel.textAlignment = .center
+        importLabel.numberOfLines = 2
+        importLabel.translatesAutoresizingMaskIntoConstraints = false
+        importOverlay.addSubview(importLabel)
+
+        NSLayoutConstraint.activate([
+            importOverlay.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            importOverlay.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+            importOverlay.widthAnchor.constraint(equalToConstant: 236),
+            importOverlay.heightAnchor.constraint(equalToConstant: 108),
+
+            importSpinner.centerXAnchor.constraint(equalTo: importOverlay.centerXAnchor),
+            importSpinner.topAnchor.constraint(equalTo: importOverlay.topAnchor, constant: 24),
+
+            importLabel.topAnchor.constraint(equalTo: importSpinner.bottomAnchor, constant: 12),
+            importLabel.leadingAnchor.constraint(equalTo: importOverlay.leadingAnchor, constant: 16),
+            importLabel.trailingAnchor.constraint(equalTo: importOverlay.trailingAnchor, constant: -16)
+        ])
+    }
+
+    private func importSpotifyPrompt() {
+        guard !isImportingSpotify else { return }
+        let alert = UIAlertController(title: "Import Spotify playlist",
+                                      message: "Paste a public Spotify playlist link. It is matched against YouTube Music; no Spotify sign-in is needed.",
+                                      preferredStyle: .alert)
+        alert.addTextField { field in
+            field.placeholder = "https://open.spotify.com/playlist/…"
+            field.autocapitalizationType = .none
+            field.autocorrectionType = .no
+            field.keyboardType = .URL
+        }
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel, handler: nil))
+        alert.addAction(UIAlertAction(title: "Import", style: .default) { [weak self, weak alert] _ in
+            let text = alert?.textFields?.first?.text ?? ""
+            self?.beginSpotifyImport(link: text)
+        })
+        present(alert, animated: true, completion: nil)
+    }
+
+    private func beginSpotifyImport(link: String) {
+        guard let playlistID = SpotifyImporter.extractPlaylistID(link) else {
+            let alert = UIAlertController(title: "Import Spotify playlist",
+                                          message: "That does not look like a Spotify playlist link. Open the playlist's Share menu and copy its link.",
+                                          preferredStyle: .alert)
+            alert.addAction(UIAlertAction(title: "OK", style: .default))
+            present(alert, animated: true)
+            return
+        }
+        isImportingSpotify = true
+        importLabel.text = "Reading playlist…"
+        importOverlay.isHidden = false
+        importSpinner.startAnimating()
+
+        SpotifyImporter.fetchPlaylist(id: playlistID) { [weak self] title, tracks, error in
+            guard let self = self else { return }
+            if let error = error {
+                self.finishSpotifyImport(message: error)
+                return
+            }
+            self.importLabel.text = "Matching 0 of \(tracks.count)…"
+            SpotifyImporter.resolve(tracks, progress: { done, total in
+                self.importLabel.text = "Matching \(done) of \(total)…"
+            }, completion: { songs, unmatched in
+                guard !songs.isEmpty else {
+                    self.finishSpotifyImport(message: "No songs from that playlist could be matched on YouTube Music.")
+                    return
+                }
+                let importedName = (title ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                let playlist = LibraryStore.shared.createPlaylist(
+                    title: importedName.isEmpty ? "Imported Spotify Playlist" : importedName,
+                    playlistDescription: "Imported from Spotify")
+                for song in songs {
+                    LibraryStore.shared.add(song, toPlaylistWith: playlist.id)
+                }
+                var message = "Imported \(songs.count) of \(tracks.count) tracks into \(playlist.title)."
+                if !unmatched.isEmpty {
+                    let names = unmatched.prefix(4).map { "\($0.title) — \($0.artist)" }.joined(separator: "\n")
+                    message += "\n\nNot found on YouTube Music:\n\(names)"
+                    if unmatched.count > 4 { message += "\nand \(unmatched.count - 4) more." }
+                }
+                self.finishSpotifyImport(message: message)
+            })
+        }
+    }
+
+    private func finishSpotifyImport(message: String) {
+        isImportingSpotify = false
+        importSpinner.stopAnimating()
+        importOverlay.isHidden = true
+        let alert = UIAlertController(title: "Spotify import", message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        present(alert, animated: true)
+    }
+
     @objc private func rowTapped(_ sender: LibraryRowButton) {
         switch sender.tag {
         case 0:
             navigationController?.pushViewController(DownloadsViewController(), animated: true)
-        default:
+        case 1:
             navigationController?.pushViewController(LocalMusicViewController(), animated: true)
+        case 2:
+            loadRemoteLibrary(title: "Liked Music") { completion in
+                InnerTube.shared.fetchLikedMusic(completion: completion)
+            }
+        default:
+            loadRemoteLibrary(title: "History") { completion in
+                InnerTube.shared.fetchRemoteHistory(completion: completion)
+            }
+        }
+    }
+
+    private func loadRemoteLibrary(title: String,
+                                   loader: @escaping (@escaping ([Track], String?) -> Void) -> Void) {
+        guard !isImportingSpotify else { return }
+        isImportingSpotify = true
+        importLabel.text = "Loading \(title)…"
+        importOverlay.isHidden = false
+        importSpinner.startAnimating()
+        loader { [weak self] tracks, error in
+            guard let self = self else { return }
+            self.isImportingSpotify = false
+            self.importSpinner.stopAnimating()
+            self.importOverlay.isHidden = true
+            if let error = error {
+                let alert = UIAlertController(title: title, message: error, preferredStyle: .alert)
+                alert.addAction(UIAlertAction(title: "OK", style: .default))
+                self.present(alert, animated: true)
+                return
+            }
+            self.push(tracks, title: title, empty: "This list is empty.")
         }
     }
 
     @objc private func accountChanged() {
         GoogleAccountStore.shared.updateAvatarButton(accountAvatar, size: 34, background: Theme.outline)
+        updateRemoteRows()
+    }
+
+    private func updateRemoteRows() {
+        let signedIn = GoogleAccountStore.shared.isSignedIn
+        for index in 2..<rowsHolder.arrangedSubviews.count {
+            rowsHolder.arrangedSubviews[index].isHidden = !signedIn
+        }
     }
 
     @objc private func openHistory() {

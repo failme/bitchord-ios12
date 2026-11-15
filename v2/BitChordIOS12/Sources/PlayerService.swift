@@ -92,6 +92,10 @@ final class PlayerService: NSObject {
                 self.duration = total
                 LibraryStore.shared.updateProgress(position: position, duration: total)
             }
+            if let track = self.currentTrack {
+                ScrobbleService.shared.trackDidAdvance(position: position,
+                                                      duration: total > 0 ? total : (track.durationSeconds ?? 0))
+            }
             NotificationCenter.default.post(name: .playerTimeDidChange, object: nil)
         }
 
@@ -485,6 +489,7 @@ final class PlayerService: NSObject {
         isPlaying = false
         lyrics = []
         lyricsAreSynced = false
+        ScrobbleService.shared.trackDidStop()
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
         postChange()
     }
@@ -523,6 +528,7 @@ final class PlayerService: NSObject {
 
         LibraryStore.shared.recordPlayback(track)
         PlaybackHistoryStore.shared.record(track)
+        ScrobbleService.shared.trackDidStart(track)
         AudioEngine.shared.play(track: track)
         loadLyrics(for: track)
     }
