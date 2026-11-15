@@ -33,7 +33,7 @@ The screens were measured against the running Android app in the emulator
 heights, banner and card origins, list rows, settings rows, player transport
 and footer were moved onto the reference bounds; `home.png`, `library.png`, `explore.png`, `search.png`,
 `settings.png`, `downloads-empty.png`, `local-music.png` and `now-playing.png`
-in `_ci_tmp/run-60d569d/green/shots/` are the resulting captures. Home's account button is 36pt, the Top Picks card is
+in `_ci_tmp/run-eade/green/shots/` are the resulting captures. Home's account button is 36pt, the Top Picks card is
 240x320pt (upstream's `min(width * 0.60, 280)` at 402pt by its 0.75 aspect),
 and the album shelf follows the card row at 16pt rather than the feed's 28pt
 rhythm. Explore keeps the 1.72:1 mood card and 18pt radius from
@@ -93,7 +93,7 @@ listener to enter their own Google password/2FA on the device.
 A separate `-BCMotion` launch drives every transition through the real control
 (`MotionHarness`). It writes an origin frame, at least one mid frame and the
 settled frame, and records presentation-layer values in
-`_ci_tmp/run-60d569d/green/shots/motion-report.txt`. CI fails if any flag is
+`_ci_tmp/run-eade/green/shots/motion-report.txt`. CI fails if any flag is
 false or any of the 46
 frames is missing, so a transition that snapped cannot pass as animated. The
 tab pill's 0.42s spring was checked against an emulator screen recording of the
@@ -202,8 +202,9 @@ window, rather than leaving a failed `test` as the last command in a chain.
 
 ## Settings
 
-All 73 upstream keys. Wired: playback speed, sleep timer, download quality,
-storage limit, Wi-Fi-only, autoplay, show queue history, addon URL, cache
+All 73 upstream keys are present. Wired: playback speed, sleep timer,
+download quality, storage limit, Wi-Fi-only, autoplay, show queue history,
+addon URL, cache
 limit, storage used, local-music filter, Appearance → Font, Reduce animation,
 Hide volume, Hide song status, Hide status bar in player, the Google account
 row, Last.fm (toggle, now-playing, primary artist, username, API key, secret,
@@ -231,7 +232,7 @@ silently left out.
 | Upstream folder | Contains | iOS port and remaining gap |
 | --- | --- | --- |
 | `app/.../auth` | Google web login, account sessions, Spotify/Discord sign-in | Google web login, keychain session, account identity and channel switching are ported. Spotify uses public embed import without OAuth; Discord and authenticated Spotify library sync are absent. |
-| `app/.../data/innertube` | Search, browse, home, library, account, write actions | Search, browse, collection pages, home feed, liked music, history, saved playlists/albums/artists and channel enumeration are ported. Continuations and write actions (rate, save, feedback tokens, create/rename playlists remotely) are not. |
+| `app/.../data/innertube` | Search, browse, home, library, account, write actions | Search, browse, collection pages, home feed, liked music, history, saved playlists/albums/artists and channel enumeration are ported. Remote playlist creation is ported; continuations beyond the ported pages and the other write actions (rate, save, feedback tokens, remote rename) are not. |
 | `app/.../data/jiosaavn`, `data/sources`, `data/webdav`, `data/remote` | Catalogue, addon, WebDAV, Jellyfin | Ported: JioSaavn search/streams, addon tiers, WebDAV and Jellyfin browsers. SMB has no client. |
 | `app/.../data/scrobbling` | Last.fm, Libre.fm, ListenBrainz | Ported: now-playing, half-track scrobble with the four-minute cap, primary-artist option, configurable Last.fm endpoint. Last.fm needs the listener's own API key/secret/session key; ListenBrainz needs only a token. |
 | `app/.../data/spotify` | Public embed import and authenticated library | Public playlist import is ported through the embed page, including its 100-row token continuation and YouTube matching. Authenticated Spotify library/canvas remains unported. |
@@ -250,7 +251,7 @@ silently left out.
 
 ## What CI measured, and what it did not
 
-Measured in the simulator (`_ci_tmp/run-60d569d/green/shots/download-report.txt`
+Measured in the simulator (`_ci_tmp/run-eade/green/shots/download-report.txt`
 and the background reports), with the run above:
 
 - Song menu: `menu.items=Play next|Add to queue|Add to playlist|Like|Open
