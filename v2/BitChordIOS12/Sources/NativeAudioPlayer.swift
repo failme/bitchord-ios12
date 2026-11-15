@@ -122,7 +122,8 @@ final class NativeAudioPlayer: NSObject {
         // fallback for catalogue gaps.
         JioSaavnService.shared.resolve(title: track.title,
                                        artist: track.artist,
-                                       durationSeconds: track.durationSeconds) { [weak self] url, _ in
+                                       durationSeconds: track.durationSeconds,
+                                       preferredKbps: NetworkStatus.playbackKbps) { [weak self] url, _ in
             guard let self = self, self.requestTicket == ticket else { return }
             if let url = url, let scheme = url.scheme, scheme.hasPrefix("http") {
                 self.sourceLabel = JioSaavnService.shared.lastQualityLabel

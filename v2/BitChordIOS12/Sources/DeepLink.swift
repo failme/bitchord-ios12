@@ -68,8 +68,9 @@ enum DeepLink {
         case "browse":
             return parts.dropFirst().first.flatMap { $0.isEmpty ? nil : .album($0) }
         case "search":
-            return value("q")?.trimmingCharacters(in: .whitespacesAndNewlines)
-                .flatMap { $0.isEmpty ? nil : .search($0) }
+            guard let text = value("q")?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !text.isEmpty else { return nil }
+            return .search(text)
         default:
             return playlist(list)
         }

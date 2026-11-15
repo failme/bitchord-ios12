@@ -2,7 +2,7 @@ import Foundation
 
 /// One separately timed piece of a word: characters `startChar..<endChar` sung
 /// from `start` to `end`. Apple's TTML splits long words into these.
-struct LyricSyllable {
+struct LyricSyllable: Codable {
     let start: TimeInterval
     let end: TimeInterval
     let startChar: Int
@@ -11,7 +11,7 @@ struct LyricSyllable {
 
 /// A word of a line with its own stretch of the song, and the syllables it was
 /// split into where the provider supplied them.
-struct LyricWord {
+struct LyricWord: Codable {
     let start: TimeInterval
     let end: TimeInterval
     let text: String
@@ -20,7 +20,7 @@ struct LyricWord {
     let syllables: [LyricSyllable]
 }
 
-struct WordLyricLine {
+struct WordLyricLine: Codable {
     let time: TimeInterval
     let text: String
     let words: [LyricWord]
@@ -72,7 +72,7 @@ struct WordLyricLine {
     }
 }
 
-struct LyricsResult {
+struct LyricsResult: Codable {
     let lines: [WordLyricLine]
     let isSynced: Bool
     let source: String
@@ -108,29 +108,64 @@ final class LyricsService {
     // MARK: - Entry point
 
     func fetch(track: Track, completion: @escaping (LyricsResult?, String?) -> Void) {
+        let finish: (LyricsResult?, String?) -> Void = { [weak self] result, error in
+            if let result = result {
+                self?.store(result, for: track)
+            }
+            completion(result, error)
+        }
+        if SettingsStore.shared.bool("BitChord.Lyrics.AutoDownloadToStorage", false),
+           let cached = cached(track) {
+            completion(cached, nil)
+            return
+        }
         let duration = track.durationSeconds ?? 0
         let title = LyricsService.searchTitle(track.title)
         let artist = LyricsService.searchArtist(track.artist)
 
+        if SettingsStore.shared.string("BitChord.Lyrics.ActiveSource", "Automatic") == "LRCLIB" {
+            lrcLib(track: track, completion: finish)
+            return
+        }
+
         lrcRed(title: title, artist: artist, duration: duration) { [weak self] result in
             if let result = result, !result.lines.isEmpty {
-                completion(result, nil)
+                finish(result, nil)
                 return
             }
             self?.lyricsPlus(title: title, artist: artist, duration: duration) { result in
                 if let result = result, !result.lines.isEmpty {
-                    completion(result, nil)
+                    finish(result, nil)
                     return
                 }
                 self?.unison(title: title, artist: artist, duration: duration) { result in
                     if let result = result, !result.lines.isEmpty {
-                        completion(result, nil)
+                        finish(result, nil)
                         return
                     }
-                    self?.lrcLib(track: track, completion: completion)
+                    self?.lrcLib(track: track, completion: finish)
                 }
             }
         }
+    }
+
+    // MARK: - Offline cache
+
+    private func cacheKey(_ track: Track) -> String {
+        return "BitChord.Lyrics.Cache." + track.videoID
+    }
+
+    private func cached(_ track: Track) -> LyricsResult? {
+        guard let data = UserDefaults.standard.data(forKey: cacheKey(track)),
+              let result = try? JSONDecoder().decode(LyricsResult.self, from: data),
+              !result.lines.isEmpty else { return nil }
+        return result
+    }
+
+    private func store(_ result: LyricsResult, for track: Track) {
+        guard !result.lines.isEmpty,
+              let data = try? JSONEncoder().encode(result) else { return }
+        UserDefaults.standard.set(data, forKey: cacheKey(track))
     }
 
     // MARK: - lrc.red (Apple TTML)

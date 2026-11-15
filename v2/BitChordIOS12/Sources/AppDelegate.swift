@@ -16,6 +16,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         }
         appliedTheme = Theme.mode
         Theme.configureBars()
+        applyStatusBarStyle()
 
         // The 320x568 capture run shrinks the window itself: same code, same
         // layout, the size an iPhone SE is actually given.
@@ -73,6 +74,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         let old = window.rootViewController
         old?.dismiss(animated: false, completion: nil)
         Theme.configureBars()
+        applyStatusBarStyle()
         let root = RootViewController(nibName: nil, bundle: nil)
         UIView.transition(with: window, duration: 0.22,
                           options: [.transitionCrossDissolve, .allowAnimatedContent]) {
@@ -80,6 +82,13 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
             window.backgroundColor = Theme.background
         }
         old?.view.removeFromSuperview()
+    }
+
+    /// `Info.plist` opts out of view-controller status-bar appearance, so the
+    /// palette has to drive the app-wide style directly. Midnight and the
+    /// light theme need opposite status-bar glyphs.
+    private func applyStatusBarStyle() {
+        UIApplication.shared.statusBarStyle = Theme.isDark ? .lightContent : .default
     }
 
     func application(_ app: UIApplication,

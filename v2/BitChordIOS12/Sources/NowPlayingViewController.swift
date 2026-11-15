@@ -1109,7 +1109,8 @@ extension NowPlayingViewController: UITableViewDataSource, UITableViewDelegate {
                                 position: cellPosition)
             // `UNSUNG_ALPHA` upstream is 0.45: every row waits there and the
             // karaoke overlay turns the words white as they are sung.
-            lyricCell.dimmed = UIColor(white: 1, alpha: 0.45)
+            let blurUnfocused = SettingsStore.shared.bool("BitChord.Lyrics.BlurUnfocused", true)
+            lyricCell.dimmed = UIColor(white: 1, alpha: blurUnfocused ? 0.28 : 0.45)
         }
         return cell
     }
