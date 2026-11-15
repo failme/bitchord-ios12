@@ -338,12 +338,46 @@ final class LibraryViewController: UIViewController {
         let alert = UIAlertController(title: "New playlist", message: nil, preferredStyle: .alert)
         alert.addTextField { field in field.placeholder = "Playlist name" }
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel, handler: nil))
-        alert.addAction(UIAlertAction(title: "Create", style: .default) { _ in
+        alert.addAction(UIAlertAction(title: "Create", style: .default) { [weak self] _ in
             let name = alert.textFields?.first?.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             guard !name.isEmpty else { return }
-            LibraryStore.shared.createPlaylist(title: name)
+            self?.createPlaylist(named: name)
         })
         present(alert, animated: true, completion: nil)
+    }
+
+    /// Signed in, the new card is a real YouTube Music playlist: the local row
+    /// is written only after YouTube returns its id. Signed out, it stays a
+    /// device-only playlist, which is what the card's caption already says.
+    private func createPlaylist(named name: String) {
+        guard GoogleAccountStore.shared.isSignedIn else {
+            LibraryStore.shared.createPlaylist(title: name)
+            return
+        }
+        guard !isImportingSpotify else { return }
+        isImportingSpotify = true
+        importLabel.text = "Creating playlist…"
+        importOverlay.isHidden = false
+        importSpinner.startAnimating()
+        InnerTube.shared.createRemotePlaylist(title: name, description: nil) { [weak self] remoteID, error in
+            guard let self = self else { return }
+            self.finishRemoteAction()
+            if let remoteID = remoteID {
+                LibraryStore.shared.createPlaylist(title: name, remoteID: remoteID)
+            } else {
+                let alert = UIAlertController(title: "New playlist",
+                                              message: error ?? "YouTube Music did not create the playlist.",
+                                              preferredStyle: .alert)
+                alert.addAction(UIAlertAction(title: "OK", style: .default))
+                self.present(alert, animated: true)
+            }
+        }
+    }
+
+    private func finishRemoteAction() {
+        isImportingSpotify = false
+        importSpinner.stopAnimating()
+        importOverlay.isHidden = true
     }
 
     // MARK: - Spotify import

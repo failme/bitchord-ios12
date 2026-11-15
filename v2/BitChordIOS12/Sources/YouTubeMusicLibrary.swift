@@ -43,6 +43,45 @@ extension InnerTube {
         fetchPersonalBrowse(id: "FEmusic_liked_videos", completion: completion)
     }
 
+    /// Creates a playlist on the signed-in YouTube Music account. The local
+    /// card is only written after this returns an id, so it never claims a
+    /// remote playlist that was refused.
+    func createRemotePlaylist(title: String,
+                              description: String?,
+                              videoIDs: [String] = [],
+                              completion: @escaping (String?, String?) -> Void) {
+        guard GoogleAccountStore.shared.isSignedIn else {
+            completion(nil, "Sign in with Google to create a YouTube Music playlist.")
+            return
+        }
+        var body: [String: Any] = [
+            "context": [
+                "client": [
+                    "clientName": "WEB_REMIX",
+                    "clientVersion": "1.20241011.01.00",
+                    "hl": "en",
+                    "gl": "US"
+                ]
+            ],
+            "title": title,
+            "description": description ?? "",
+            "privacyStatus": "PRIVATE"
+        ]
+        if !videoIDs.isEmpty { body["videoIds"] = videoIDs }
+        post(path: "playlist/create", body: body, userAgent: InnerTube.browserUserAgent) { [weak self] json, error in
+            guard let self = self, let json = json else {
+                completion(nil, error ?? "YouTube Music did not create the playlist.")
+                return
+            }
+            let identifier = (json["playlistId"] as? String) ?? self.findString("playlistId", in: json)
+            if let identifier = identifier, !identifier.isEmpty {
+                completion(identifier.hasPrefix("VL") ? identifier : "VL" + identifier, nil)
+            } else {
+                completion(nil, "YouTube Music created the playlist but returned no id.")
+            }
+        }
+    }
+
     /// One saved-library feed: playlists, albums or artists. Each row keeps the
     /// browse id that opens it and the artwork the account already saved.
     func fetchLibraryCollections(feedID: String,

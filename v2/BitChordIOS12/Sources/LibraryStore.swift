@@ -102,8 +102,9 @@ final class LibraryStore {
 
     // MARK: - Playlists
 
-    func createPlaylist(title: String, playlistDescription: String? = nil) -> Playlist {
-        let playlist = Playlist(id: UUID().uuidString,
+    func createPlaylist(title: String, playlistDescription: String? = nil, remoteID: String? = nil) -> Playlist {
+        let identifier = (remoteID?.isEmpty == false ? remoteID : nil) ?? UUID().uuidString
+        let playlist = Playlist(id: identifier,
                                 title: title,
                                 author: "You",
                                 playlistDescription: playlistDescription,

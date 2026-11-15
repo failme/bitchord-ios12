@@ -63,6 +63,16 @@ scale on press, the stats carousel snaps and onboarding steps fade.
 
 ## Google account
 
+The white page after a successful Google login is treated as what it is: the
+YouTube Music shell failing to paint, not a failed Google sign-in. The login
+now watches the cookie store while navigation reaches any YouTube host,
+captures a complete session as soon as an API SID exists, and — if the shell
+stays blank — fetches `music.youtube.com` itself and reads the same
+`LOGGED_IN`, `SESSION_INDEX`, `DATASYNC_ID`, `DELEGATED_SESSION_ID` and
+`VISITOR_DATA` values from `ytcfg`. The captured cookie carries the Google
+identity cookies only when the YouTube jar has no API SID of its own. The
+manual **Done** path remains as a fallback.
+
 The account surface follows the Android app rather than inventing an OAuth
 client. **Sign in with Google** opens `accounts.google.com/ServiceLogin` in a
 `WKWebView` with a Safari user agent, continues to `music.youtube.com`, and
@@ -124,12 +134,12 @@ window, rather than leaving a failed `test` as the last command in a chain.
 
 | Upstream | Port | State |
 | --- | --- | --- |
-| `sharedUi/HomeScreen.kt` | `HomeViewController`, `ShelfRowView`, `TopPicksShelf`, `SignInBannerView` | Asserted - `home.png` |
+| `sharedUi/HomeScreen.kt` | `HomeViewController`, `ShelfRowView`, `TopPicksShelf`, `SignInBannerView` | Asserted - `home.png`; signed in, Top Picks and the collection shelf read `FEmusic_home` |
 | `sharedUi/ExploreScreen.kt` | `ExploreViewController`, `MoodTileView` | Asserted - `moods.png`, `moods.tracks=20` |
 | `sharedUi/SearchScreen.kt` | `SearchViewController`, `InnerTube`, `CatalogueSearch` | Asserted - `search.png` |
-| `sharedUi/LibraryScreen.kt`, `LibraryPhoneParts.kt` | `LibraryViewController`, `LibraryStore` | Asserted - `library.png`, `library-synced.png` |
+| `sharedUi/LibraryScreen.kt`, `LibraryPhoneParts.kt` | `LibraryViewController`, `LibraryStore`, `SavedLibraryViewController` | Asserted - `library.png`, `library-synced.png`; signed in, rows open Liked Music, History and the saved playlist/album/artist feeds |
 | `ui/screens/HistoryScreen.kt` | `HistoryViewController` | Asserted - `history.png`, `history-empty.png`, `historyPage.*` |
-| `AccountAndScrobblingScreen.kt` | `AccountViewController`, `GoogleAccountStore`, `GoogleSignInViewController` | Asserted signed out - `small-account.png`, `auth.accountSheet=true`. A real Google login needs the listener's password/2FA on the device |
+| `AccountAndScrobblingScreen.kt` | `AccountViewController`, `GoogleAccountStore`, `GoogleSignInViewController`, `ScrobbleService` | Asserted signed out - `small-account.png`, `auth.accountSheet=true`. Signed in, the account page switches channels and Settings configures Last.fm/ListenBrainz; a real Google login still needs the listener's password/2FA on the device |
 | `ui/screens/LocalFolder.kt` | `LocalMusicViewController`, `LocalMusicStore` | Asserted - `local-music.png`, `local-songs.png`, `local.playing=true` |
 | `ui/screens/DetailScreen.kt` | `CollectionViewController`, `ArtistPage` | Asserted - `artist.png`, `artist.loaded=5` |
 | `ui/replay/*` | `ReplayViewController` | Asserted - `replay.png`, `replay.entries`, `replay.plays` |
@@ -137,7 +147,7 @@ window, rather than leaving a failed `test` as the last command in a chain.
 | `ui/screens/EqualizerScreen.kt` | Disabled row with reason | iOS 12 block - `AVPlayer` has no EQ tap |
 | `ListenTogetherScreen.kt`, `PartySync.kt` | Absent | Account/credential - needs a party server |
 | `DiscordScreen.kt`, `data/discord` | Disabled row | Android-only - Discord RPC uses local Android IPC |
-| `SpotifyLibraryScreen.kt`, `SpotifyCanvasAuthScreen.kt` | Disabled row; sync by public YT Music link | Account/credential - Spotify OAuth client |
+| `SpotifyLibraryScreen.kt`, `SpotifyCanvasAuthScreen.kt` | `SpotifyImporter`, Library's **Import Spotify** card; sync by public YT Music link | Public playlist import is ported (embed page, matching, 100-row continuation). Authenticated Spotify library and Canvas need an OAuth client this build does not ship |
 | `SourcesScreen.kt`, `data/sources`, `data/webdav`, `data/remote` | `AddonService`, `WebDAVClient`, `WebDAVStore`, `JellyfinClient`, `JellyfinStore`, `JellyfinViewController`, `SourcesViewController` | Asserted - WebDAV: `webdav-tree.png`, `webdav-playing.png`, `webdav-error.png`; PROPFIND list, folder browse, streamed `track.m4a`, bad-password message. Jellyfin: native API sign-in, library/folder/album browse, streamed `track.m4a` with `isPlaying=true`, expired/wrong-password/unreachable messages, `jellyfin-tree/playing/error/small.png`. SMB not shipped (see Remaining) |
 | `WearOsSettings.kt`, `ui/widget`, `wearos/`, `tv/` | Absent | Android-only - separate apps/surfaces |
 
@@ -190,11 +200,13 @@ window, rather than leaving a failed `test` as the last command in a chain.
 
 ## Settings
 
-All 73 upstream keys, 82 rows. Wired: playback speed, sleep timer, download
-quality, storage limit, Wi-Fi-only, autoplay, show queue history, addon URL,
-cache limit, storage used, local-music filter, and the Google account row.
-Disabled rows state what is missing: DSP, DAC, Last.fm/ListenBrainz keys,
-Spotify, Cast, Discord.
+All 73 upstream keys. Wired: playback speed, sleep timer, download quality,
+storage limit, Wi-Fi-only, autoplay, show queue history, addon URL, cache
+limit, storage used, local-music filter, Appearance → Font, the Google account
+row, Last.fm (toggle, now-playing, primary artist, username, API key, secret,
+session key, endpoint) and ListenBrainz (toggle, token, primary artist).
+Disabled rows still state what is missing: DSP, DAC, authenticated Spotify,
+Canvas, Cast, Discord and the party server.
 
 ## Remaining differences (iOS permits them; not built in this pass)
 
@@ -204,7 +216,33 @@ Named rather than hidden:
 | --- | --- | --- |
 | SMB source (`data/smb`) | Needs its own protocol client; WebDAV and Jellyfin were the two built in this pass | WebDAV and Jellyfin browsers plus the addon stream and local locker |
 | Universal links (`applinks:`) | Associated-domains entitlement and iOS 13-era handling | The `bitchord://` scheme is the iOS 12 substitute; SpringBoard confirms it before opening |
-| Listen Together, Spotify import, scrobbling, Discord, Cast | Accounts, OAuth clients or servers this build does not ship | Disabled rows naming the missing piece |
+| Listen Together, authenticated Spotify library/Canvas, Discord, Cast | Accounts, OAuth clients or servers this build does not ship | Public Spotify playlist import and Last.fm/ListenBrainz scrobbling now work; the rest have disabled rows naming the missing piece |
+
+## Upstream folder coverage
+
+A folder-by-folder pass over `_reference/BitChord`, not just the screens. The
+port is a single iOS app; Android-only surfaces are named as such rather than
+silently left out.
+
+| Upstream folder | Contains | iOS port and remaining gap |
+| --- | --- | --- |
+| `app/.../auth` | Google web login, account sessions, Spotify/Discord sign-in | Google web login, keychain session, account identity and channel switching are ported. Spotify uses public embed import without OAuth; Discord and authenticated Spotify library sync are absent. |
+| `app/.../data/innertube` | Search, browse, home, library, account, write actions | Search, browse, collection pages, home feed, liked music, history, saved playlists/albums/artists and channel enumeration are ported. Continuations and write actions (rate, save, feedback tokens, create/rename playlists remotely) are not. |
+| `app/.../data/jiosaavn`, `data/sources`, `data/webdav`, `data/remote` | Catalogue, addon, WebDAV, Jellyfin | Ported: JioSaavn search/streams, addon tiers, WebDAV and Jellyfin browsers. SMB has no client. |
+| `app/.../data/scrobbling` | Last.fm, Libre.fm, ListenBrainz | Ported: now-playing, half-track scrobble with the four-minute cap, primary-artist option, configurable Last.fm endpoint. Last.fm needs the listener's own API key/secret/session key; ListenBrainz needs only a token. |
+| `app/.../data/spotify` | Public embed import and authenticated library | Public playlist import is ported through the embed page, including its 100-row token continuation and YouTube matching. Authenticated Spotify library/canvas remains unported. |
+| `app/.../data/lyrics`, `data/stats` | Lyrics providers, Replay | Ported with live providers, karaoke and Replay. |
+| `app/.../data/listentogether`, `data/presence`, `backend/` | Party protocol, presence, server | Absent: needs the party server and a shared signed-in identity on every device. |
+| `app/.../data/canvas`, `data/discord` | Canvas clips, Discord RPC | Absent: Canvas needs Spotify's authenticated media API; Discord RPC is local Android IPC. |
+| `app/.../download` | Queue, background transfers, offline files, playlist sync | Ported with background `URLSession`, quality/Wi-Fi/cap rules and synced playlists. |
+| `app/.../playback` | Queue, radio, crossfade/DSP, Cast, DSD, loop mix, smart transitions | Queue, autoplay/radio, sleep timer and speed are ported. `audio` DSP, `cast`, `dsd`, `loopmix` and `smart` are blocked by the WebKit/AVPlayer pipeline. |
+| `app/.../ui/screens`, `ui/player`, `ui/components`, `ui/replay`, `ui/onboarding`, `ui/theme` | The Android UI | Ported and asserted by the screen/motion runs, including themes' font choice. `ui/festive` and `ui/performance` overlays are absent. |
+| `app/.../widget`, `wear`, `wearos/`, `tv/` | Home-screen widget, watch and TV apps | Android-only surfaces; not part of the iPhone app. |
+| `shared/src/commonMain` | Models, settings, party, smart playback | Models/settings are mirrored. Party and smart/Automix models are not used because their engines are absent. |
+| `shared/src/jvmSharedMain` | InnerTube, Spotify, downloads on JVM | The API shapes informed the iOS clients; JVM-only HTTP/storage code is not shipped. |
+| `sharedUi` | Compose screens and resources | Served as the visual reference; UIKit replacements are listed in the screen matrix. |
+| `web/` | Browser client, extension, docs | A separate web product; not part of the iOS app. |
+| `native/` | FFmpeg decoder, analyzer, loop-mix native code | Not linked: the iOS player uses WebKit/AVPlayer rather than a native media3/FFmpeg pipeline. |
 
 ## What CI measured, and what it did not
 
