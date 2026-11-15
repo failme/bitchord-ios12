@@ -166,17 +166,33 @@ final class InnerTube {
     }
 
     private func continuationToken(in node: Any) -> String? {
+        // Filter chips also carry a continuationCommand. Only the explicit
+        // continuationItemRenderer belongs to the result shelf; using a chip's
+        // token asks for a filter page and returns no rows.
+        for item in renderers(named: "continuationItemRenderer", in: node) {
+            if let command = item["continuationEndpoint"] as? [String: Any],
+               let continuation = command["continuationCommand"] as? [String: Any],
+               let token = continuation["token"] as? String, !token.isEmpty {
+                return token
+            }
+        }
+        return nil
+    }
+
+    /// First token anywhere in a web results document, where filter chips and
+    /// the result shelf both expose one.
+    private func anyContinuationToken(in node: Any) -> String? {
         if let dict = node as? [String: Any] {
             if let command = dict["continuationCommand"] as? [String: Any],
                let token = command["token"] as? String, !token.isEmpty {
                 return token
             }
             for (_, child) in dict {
-                if let found = continuationToken(in: child) { return found }
+                if let found = anyContinuationToken(in: child) { return found }
             }
         } else if let array = node as? [Any] {
             for child in array {
-                if let found = continuationToken(in: child) { return found }
+                if let found = anyContinuationToken(in: child) { return found }
             }
         }
         return nil
@@ -213,7 +229,7 @@ final class InnerTube {
                   let end = html.range(of: ";</script>", range: start..<html.endIndex)?.lowerBound,
                   let jsonData = String(html[start..<end]).data(using: .utf8),
                   let json = (try? JSONSerialization.jsonObject(with: jsonData)) as? [String: Any],
-                  let token = self.continuationToken(in: json) else {
+                  let token = self.continuationToken(in: json) ?? self.anyContinuationToken(in: json) else {
                 DispatchQueue.main.async { completion([], false, "No more search results.") }
                 return
             }
