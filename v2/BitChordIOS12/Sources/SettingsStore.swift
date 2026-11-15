@@ -359,7 +359,8 @@ enum SettingsCatalog {
             SettingItem(key: "BitChord.Appearance.Font", title: "Font",
                         kind: .choice("System", ["System", "Rounded", "Serif"])),
             SettingItem(key: "BitChord.Appearance.AppIcon", title: "App icon",
-                        kind: .unavailable("Alternate icons need an asset catalog port.")),
+                        detail: "Default or monochrome",
+                        kind: .choice(AppIconChoice.fallback, ["Default", "Monochrome"])),
             SettingItem(key: "BitChord.Appearance.AnimatedCover", title: "Animated cover",
                         kind: .unavailable("Animated artwork is not ported.")),
             SettingItem(key: "BitChord.Appearance.AnimatedCoverCellular", title: "Animated cover on cellular",
@@ -367,13 +368,13 @@ enum SettingsCatalog {
             SettingItem(key: "BitChord.Appearance.SpotifyCanvas", title: "Spotify Canvas",
                         kind: .unavailable("Not ported.")),
             SettingItem(key: "BitChord.Appearance.LiquidGlass", title: "Liquid glass",
-                        kind: .unavailable("Materials ported as flat colour; no blur stack.")),
+                        detail: "Blurred cover backdrop behind the player", kind: .toggle(true)),
             SettingItem(key: "BitChord.Appearance.LegacyMesh", title: "Legacy mesh gradient",
-                        kind: .unavailable("Mesh gradient is not ported.")),
+                        detail: "Use the stock mesh instead of cover colours", kind: .toggle(false)),
             SettingItem(key: "BitChord.Appearance.ReduceAnimation", title: "Reduce animation",
                         kind: .toggle(false)),
             SettingItem(key: "BitChord.Appearance.ReduceDynamicBlur", title: "Reduce dynamic blur",
-                        kind: .unavailable("Depends on the mesh/motion work."))
+                        detail: "Uses a lighter backdrop blur", kind: .toggle(false))
         ]),
 
         SettingSection(title: "Misc", items: [

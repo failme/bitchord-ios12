@@ -68,6 +68,12 @@ final class NowPlayingViewController: UIViewController {
     private var toggleUnderTitle: NSLayoutConstraint?
     private var toggleInHeader: NSLayoutConstraint?
 
+    /// The lyrics table is either the full column or the one line that is
+    /// being sung, as the Lyrics → Show full lyrics setting asks.
+    private var showsFullLyrics: Bool {
+        return SettingsStore.shared.bool("BitChord.Lyrics.ShowFullLyrics", true)
+    }
+
     override var prefersStatusBarHidden: Bool {
         return SettingsStore.shared.bool("BitChord.Misc.HideStatusBarInPlayer", false)
     }
@@ -883,10 +889,12 @@ final class NowPlayingViewController: UIViewController {
             artworkView.image = image
         }
         headerArtwork.image = image
-        meshView.palette = Theme.meshPalette(of: image)
+        let legacyMesh = SettingsStore.shared.bool("BitChord.Appearance.LegacyMesh", false)
+        meshView.palette = legacyMesh ? Theme.meshFallbackPalette : Theme.meshPalette(of: image)
         // One blurred still per song, not a live dark blur: this is what keeps
         // the lyrics backdrop in the artwork's colours.
-        let blurred = Theme.blurredImage(image, radius: 42)
+        let reduceBlur = SettingsStore.shared.bool("BitChord.Appearance.ReduceDynamicBlur", false)
+        let blurred = Theme.blurredImage(image, radius: reduceBlur ? 18 : 42)
         UIView.transition(with: backdropView, duration: 0.36, options: .transitionCrossDissolve, animations: {
             self.backdropView.image = blurred
         }, completion: nil)
@@ -949,7 +957,9 @@ final class NowPlayingViewController: UIViewController {
             // The active line is set larger, so its measured height is stale.
             lyricHeights.removeAll()
             lyricsTable.reloadData()
-            if index >= 0, !userScrolling {
+            // With "Show full lyrics" off the table is a single live line, so
+            // there is no column to keep scrolled under the active row.
+            if index >= 0, !userScrolling, showsFullLyrics {
                 lyricsTable.scrollToRow(at: IndexPath(row: index, section: 0), at: .middle, animated: true)
             }
             return
@@ -1095,14 +1105,15 @@ extension NowPlayingViewController {
 
 extension NowPlayingViewController: UITableViewDataSource, UITableViewDelegate {
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+        if !showsFullLyrics { return currentLyrics.isEmpty ? 0 : 1 }
         return currentLyrics.count
     }
 
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: KaraokeLyricCell.reuseIdentifier,
                                                  for: indexPath)
-        if let lyricCell = cell as? KaraokeLyricCell, indexPath.row < currentLyrics.count {
-            let row = indexPath.row
+        let row = showsFullLyrics ? indexPath.row : max(0, lyricHighlight)
+        if let lyricCell = cell as? KaraokeLyricCell, row < currentLyrics.count {
             let cellPosition = row == lyricHighlight ? PlayerService.shared.currentTime : -1
             lyricCell.configure(line: currentLyrics[row],
                                 font: NowPlayingViewController.lyricFont(synced: lyricsSynced),
@@ -1116,14 +1127,15 @@ extension NowPlayingViewController: UITableViewDataSource, UITableViewDelegate {
     }
 
     func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
-        if let cached = lyricHeights[indexPath.row] { return cached }
-        guard indexPath.row < currentLyrics.count else { return 34 }
+        let row = showsFullLyrics ? indexPath.row : max(0, lyricHighlight)
+        if let cached = lyricHeights[row] { return cached }
+        guard row < currentLyrics.count else { return 34 }
         let width = max(1, tableView.bounds.width - 60)
         let height = KaraokeLineView.height(
-            text: currentLyrics[indexPath.row].text,
+            text: currentLyrics[row].text,
             font: NowPlayingViewController.lyricFont(synced: lyricsSynced),
             width: width)
-        lyricHeights[indexPath.row] = height
+        lyricHeights[row] = height
         return height
     }
 

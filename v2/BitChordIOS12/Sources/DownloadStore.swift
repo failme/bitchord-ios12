@@ -143,6 +143,9 @@ final class DownloadStore: NSObject {
         let handle: FileHandle
         let partURL: URL
         var received: Int64
+        /// The catalogue CDN does not always send Content-Length; without a
+        /// denominator the paced transport would report 0% for the whole file.
+        let expectedBytes: Int64
     }
     private var paced: [Int: PacedTransfer] = [:]
 
@@ -420,8 +423,11 @@ final class DownloadStore: NSObject {
         }
         let task = pacedSession.dataTask(with: url)
         task.taskDescription = track.videoID
+        let quality = DownloadQuality(setting: SettingsStore.shared.string("BitChord.Download.Quality",
+                                                                         DownloadQuality.high.rawValue))
         paced[task.taskIdentifier] = PacedTransfer(videoID: track.videoID, track: track,
-                                                  handle: handle, partURL: partURL, received: 0)
+                                                  handle: handle, partURL: partURL, received: 0,
+                                                  expectedBytes: estimatedBytes(for: track, quality: quality))
         tasks[task.taskIdentifier] = track.videoID
         task.resume()
     }
@@ -782,7 +788,9 @@ extension DownloadStore: URLSessionDataDelegate {
                     didReceive data: Data) {
         guard var transfer = paced[dataTask.taskIdentifier] else { return }
         let chunkSize = 32 * 1024
-        let expected = dataTask.countOfBytesExpectedToReceive
+        let expected = dataTask.countOfBytesExpectedToReceive > 0
+            ? dataTask.countOfBytesExpectedToReceive
+            : transfer.expectedBytes
         var offset = 0
         while offset < data.count {
             let end = min(offset + chunkSize, data.count)

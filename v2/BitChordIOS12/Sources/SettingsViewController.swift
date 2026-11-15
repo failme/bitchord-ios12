@@ -195,6 +195,19 @@ final class SettingsViewController: UIViewController {
         let sheet = UIAlertController(title: item.title, message: nil, preferredStyle: .actionSheet)
         for option in options {
             sheet.addAction(UIAlertAction(title: option, style: .default) { _ in
+                if item.key == AppIconChoice.key {
+                    AppIconChoice.apply(option) { error in
+                        if let error = error {
+                            let alert = UIAlertController(title: "App icon",
+                                                          message: error,
+                                                          preferredStyle: .alert)
+                            alert.addAction(UIAlertAction(title: "OK", style: .default, handler: nil))
+                            self.present(alert, animated: true, completion: nil)
+                        }
+                        self.tableView.reloadData()
+                    }
+                    return
+                }
                 SettingsStore.shared.set(option, for: item.key)
                 // The cache bound is applied the moment it changes, not at the
                 // next launch, so the size shown is the one just chosen.
