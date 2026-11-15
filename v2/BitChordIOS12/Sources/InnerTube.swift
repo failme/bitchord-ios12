@@ -77,6 +77,14 @@ final class InnerTube {
     /// supplied one. Cleared by a new query.
     private(set) var searchContinuation: String?
 
+    /// The current query and the web client's continuation, used when the
+    /// WEB_REMIX search response carries no token of its own. YouTube's web
+    /// results page still paginates, so Load more stays real instead of
+    /// silently stopping after the first 20 rows.
+    private var webQuery: String?
+    private var webContinuation: String?
+    private var webClientVersion = "2.20261112.10.00"
+
     func search(_ query: String,
                 filter: SearchFilter? = nil,
                 completion: @escaping ([Track]?, String?) -> Void) {
@@ -100,6 +108,8 @@ final class InnerTube {
             body["params"] = params
         }
         searchContinuation = nil
+        webContinuation = nil
+        webQuery = trimmed
         post(path: "search", body: body, userAgent: InnerTube.browserUserAgent) { json, error in
             guard let json = json else {
                 completion(nil, error ?? "Search failed.")
@@ -119,7 +129,11 @@ final class InnerTube {
     /// only advances the token so a repeated call cannot loop on the same page.
     func searchNext(completion: @escaping ([Track]?, Bool, String?) -> Void) {
         guard let token = searchContinuation, !token.isEmpty else {
-            completion([], false, nil)
+            if let query = webQuery {
+                fetchWebSearchNext(query: query, completion: completion)
+            } else {
+                completion([], false, nil)
+            }
             return
         }
         let body: [String: Any] = [
@@ -158,6 +172,114 @@ final class InnerTube {
             for child in array {
                 if let found = continuationToken(in: child) { return found }
             }
+        }
+        return nil
+    }
+
+    /// WEB_REMIX search currently returns a single shelf and no continuation.
+    /// The regular YouTube results page still exposes a real continuation
+    /// token; this fetches that page once, then asks the web search endpoint
+    /// for the next page and maps its `videoRenderer` rows to tracks.
+    private func fetchWebSearchNext(query: String,
+                                    completion: @escaping ([Track]?, Bool, String?) -> Void) {
+        if let token = webContinuation, !token.isEmpty {
+            postWebContinuation(token, completion: completion)
+            return
+        }
+        var components = URLComponents(string: "https://www.youtube.com/results")!
+        components.queryItems = [URLQueryItem(name: "search_query", value: query)]
+        var request = URLRequest(url: components.url!)
+        request.setValue(InnerTube.browserUserAgent, forHTTPHeaderField: "User-Agent")
+        request.setValue("en-US,en;q=0.9", forHTTPHeaderField: "Accept-Language")
+        session.dataTask(with: request) { [weak self] data, _, error in
+            guard let self = self else { return }
+            guard let data = data, let html = String(data: data, encoding: .utf8) else {
+                DispatchQueue.main.async { completion(nil, false, error?.localizedDescription ?? "Search page failed.") }
+                return
+            }
+            if let range = html.range(of: "INNERTUBE_CLIENT_VERSION\":\"") {
+                let tail = html[range.upperBound...]
+                if let end = tail.range(of: "\"") {
+                    self.webClientVersion = String(tail[..<end.lowerBound])
+                }
+            }
+            guard let start = html.range(of: "var ytInitialData = ")?.upperBound,
+                  let end = html.range(of: ";</script>", range: start..<html.endIndex)?.lowerBound,
+                  let jsonData = String(html[start..<end]).data(using: .utf8),
+                  let json = (try? JSONSerialization.jsonObject(with: jsonData)) as? [String: Any],
+                  let token = self.continuationToken(in: json) else {
+                DispatchQueue.main.async { completion([], false, "No more search results.") }
+                return
+            }
+            self.postWebContinuation(token, completion: completion)
+        }.resume()
+    }
+
+    private func postWebContinuation(_ token: String,
+                                     completion: @escaping ([Track]?, Bool, String?) -> Void) {
+        let body: [String: Any] = [
+            "context": [
+                "client": [
+                    "clientName": "WEB",
+                    "clientVersion": webClientVersion,
+                    "hl": "en",
+                    "gl": "US"
+                ]
+            ],
+            "continuation": token
+        ]
+        var request = URLRequest(url: URL(string: "https://www.youtube.com/youtubei/v1/search?prettyPrint=false")!)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(InnerTube.browserUserAgent, forHTTPHeaderField: "User-Agent")
+        request.setValue("https://www.youtube.com", forHTTPHeaderField: "Origin")
+        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        session.dataTask(with: request) { [weak self] data, _, error in
+            guard let self = self else { return }
+            guard let data = data,
+                  let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
+                DispatchQueue.main.async { completion(nil, self.webContinuation != nil, error?.localizedDescription ?? "Search page failed.") }
+                return
+            }
+            let tracks = self.parseWebSearch(json)
+            self.webContinuation = self.continuationToken(in: json)
+            DispatchQueue.main.async {
+                completion(tracks, self.webContinuation != nil, nil)
+            }
+        }.resume()
+    }
+
+    private func parseWebSearch(_ json: [String: Any]) -> [Track] {
+        var output: [Track] = []
+        var seen = Set<String>()
+        for renderer in renderers(named: "videoRenderer", in: json) {
+            guard let id = renderer["videoId"] as? String, id.count == 11,
+                  !seen.contains(id) else { continue }
+            let title = text(in: renderer["title"]) ?? ""
+            guard !title.isEmpty else { continue }
+            let artist = text(in: renderer["ownerText"])
+                ?? text(in: renderer["longBylineText"])
+                ?? "YouTube"
+            let length = text(in: renderer["lengthText"])
+            let thumbnails = value(renderer, ["thumbnail", "thumbnails"]) as? [[String: Any]]
+            let artwork = (thumbnails?.last?["url"] as? String).flatMap(URL.init(string:))
+            seen.insert(id)
+            output.append(Track(videoID: id,
+                                title: title,
+                                artist: artist,
+                                durationSeconds: length.flatMap(InnerTube.parseDuration),
+                                artwork: artwork?.absoluteString))
+        }
+        return output
+    }
+
+    private func text(in node: Any?) -> String? {
+        if let text = node as? String { return text }
+        guard let dict = node as? [String: Any] else { return nil }
+        if let simple = dict["simpleText"] as? String { return simple }
+        if let runs = dict["runs"] as? [[String: Any]] {
+            let joined = runs.compactMap { $0["text"] as? String }.joined()
+            return joined.isEmpty ? nil : joined
         }
         return nil
     }
