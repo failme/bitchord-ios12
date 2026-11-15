@@ -10,6 +10,20 @@ struct YouTubeHomeItem {
     let videoID: String?
 }
 
+/// One Google account or brand channel the login can act as, as the account
+/// switcher lists it. `pageId` and `dataSyncId` are the identity a request has
+/// to carry to act as that channel.
+struct YouTubeChannel {
+    let name: String
+    let subtitle: String
+    let avatarURL: URL?
+    let pageId: String?
+    let dataSyncId: String?
+    let isSelected: Bool
+
+    var key: String { return pageId ?? dataSyncId ?? name }
+}
+
 /// The signed-in YouTube Music library, read through the same InnerTube browse
 /// endpoint upstream's `YtMusicRepository.library()` uses.
 extension InnerTube {
@@ -27,6 +41,87 @@ extension InnerTube {
     /// Songs explicitly added to the library, distinct from Liked Music.
     func fetchLibrarySongs(completion: @escaping ([Track], String?) -> Void) {
         fetchPersonalBrowse(id: "FEmusic_liked_videos", completion: completion)
+    }
+
+    /// The accounts and brand channels this Google login can act as.
+    func fetchAccountChannels(completion: @escaping ([YouTubeChannel], String?) -> Void) {
+        guard GoogleAccountStore.shared.isSignedIn else {
+            completion([], "Sign in with Google first.")
+            return
+        }
+        let body: [String: Any] = [
+            "context": [
+                "client": [
+                    "clientName": "WEB_REMIX",
+                    "clientVersion": "1.20241011.01.00",
+                    "hl": "en",
+                    "gl": "US"
+                ]
+            ]
+        ]
+        post(path: "account/accounts_list", body: body, userAgent: InnerTube.browserUserAgent) { [weak self] json, error in
+            guard let self = self, let json = json else {
+                completion([], error ?? "Could not load this account's channels.")
+                return
+            }
+            var channels: [YouTubeChannel] = []
+            var seen = Set<String>()
+            for item in self.renderers(named: "accountItem", in: json) {
+                let name = self.channelText(item["accountName"]) ?? ""
+                guard !name.isEmpty else { continue }
+                let pageID = self.findString("pageId", in: item)
+                let dataSync = GoogleAccountStore.normalizeDataSyncID(self.findString("datasyncIdToken", in: item))
+                guard pageID != nil || dataSync != nil else { continue }
+                let subtitle = self.channelText(item["channelHandle"])
+                    ?? self.channelText(item["accountByline"])
+                    ?? ""
+                let selected: Bool
+                if let value = item["isSelected"] as? Bool {
+                    selected = value
+                } else {
+                    selected = (item["isSelected"] as? String) == "true"
+                }
+                let channel = YouTubeChannel(name: name,
+                                             subtitle: subtitle,
+                                             avatarURL: self.avatarURL(in: item["accountPhoto"]),
+                                             pageId: pageID,
+                                             dataSyncId: dataSync,
+                                             isSelected: selected)
+                if seen.insert(channel.key).inserted { channels.append(channel) }
+            }
+            completion(channels, channels.isEmpty ? "This login lists no channels." : nil)
+        }
+    }
+
+    private func channelText(_ node: Any?) -> String? {
+        guard let dict = node as? [String: Any] else { return nil }
+        if let simple = dict["simpleText"] as? String, !simple.isEmpty { return simple }
+        if let runs = dict["runs"] as? [[String: Any]] {
+            let text = runs.compactMap { $0["text"] as? String }.joined()
+            return text.isEmpty ? nil : text
+        }
+        return nil
+    }
+
+    private func findString(_ key: String, in node: Any) -> String? {
+        if let dict = node as? [String: Any] {
+            if let value = dict[key] as? String, !value.isEmpty { return value }
+            for value in dict.values {
+                if let found = findString(key, in: value) { return found }
+            }
+        } else if let array = node as? [Any] {
+            for value in array {
+                if let found = findString(key, in: value) { return found }
+            }
+        }
+        return nil
+    }
+
+    private func avatarURL(in node: Any?) -> URL? {
+        guard let dict = node as? [String: Any],
+              let thumbnails = dict["thumbnails"] as? [[String: Any]] else { return nil }
+        guard let raw = thumbnails.last?["url"] as? String else { return nil }
+        return URL(string: raw.hasPrefix("//") ? "https:" + raw : raw)
     }
 
     /// The personalised home feed. Songs become Top Picks; albums, playlists

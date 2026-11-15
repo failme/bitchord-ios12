@@ -65,6 +65,49 @@ final class GoogleAccountStore {
 
     var authUser: String { return session?.authUser ?? "0" }
 
+    /// The account identity YouTube Music's shell reported. The API needs it
+    /// as `context.user.onBehalfOfUser`; without it a request is answered for
+    /// whichever Google account owns the first cookie rather than this one.
+    var dataSyncId: String? {
+        return GoogleAccountStore.normalizeDataSyncID(session?.dataSyncId)
+    }
+
+    var pageId: String? {
+        guard let value = session?.pageId, !value.isEmpty else { return nil }
+        return value
+    }
+
+    /// Switches the active library to one of the login's other accounts or
+    /// brand channels. The cookie stays the same; only the identity sent with
+    /// each later request changes.
+    func selectChannel(_ channel: YouTubeChannel) {
+        guard var current = session else { return }
+        current.pageId = channel.pageId
+        current.dataSyncId = channel.dataSyncId
+        current.name = channel.name
+        if !channel.subtitle.isEmpty { current.email = channel.subtitle }
+        if let avatar = channel.avatarURL?.absoluteString { current.avatar = avatar }
+        session = current
+        persist()
+        NotificationCenter.default.post(name: .googleAccountDidChange, object: nil)
+        refreshProfile()
+    }
+
+    func fetchChannels(completion: @escaping ([YouTubeChannel], String?) -> Void) {
+        InnerTube.shared.fetchAccountChannels(completion: completion)
+    }
+
+    /// `datasyncIdToken` is sometimes `page||account`; the account half is the
+    /// value `onBehalfOfUser` expects.
+    static func normalizeDataSyncID(_ raw: String?) -> String? {
+        guard let value = raw, !value.isEmpty else { return nil }
+        guard value.contains("||") else { return value }
+        let after = value.components(separatedBy: "||").last ?? ""
+        if !after.isEmpty { return after }
+        let before = value.components(separatedBy: "||").first ?? ""
+        return before.isEmpty ? nil : before
+    }
+
     /// The cookies are stored as one header, exactly as the page's jar presents
     /// them. The API SID is the signing secret; without it YouTube answers as a
     /// stranger even though the request carries a cookie.
@@ -116,13 +159,17 @@ final class GoogleAccountStore {
               let sid = GoogleAccountStore.apiSID(in: session.cookie) else { return [:] }
         let timestamp = Int(Date().timeIntervalSince1970)
         let digest = GoogleAccountStore.sha1Hex("\(timestamp) \(sid) \(origin)")
-        return [
+        var headers = [
             "Cookie": session.cookie,
             "Authorization": "SAPISIDHASH \(timestamp)_\(digest)",
             "X-Goog-AuthUser": session.authUser,
             "X-Origin": origin,
             "Referer": origin + "/"
         ]
+        if let page = session.pageId, !page.isEmpty {
+            headers["X-Goog-PageId"] = page
+        }
+        return headers
     }
 
     /// Reads the display name and avatar from the live account rather than

@@ -11,7 +11,7 @@ final class LibraryViewController: UIViewController {
     private let playlistGrid = UIStackView()
     private let accountAvatar = UIButton(type: .custom)
     private let importOverlay = UIView()
-    private let importSpinner = UIActivityIndicatorView(activityIndicatorStyle: .white)
+    private let importSpinner = UIActivityIndicatorView(style: .white)
     private let importLabel = UILabel()
 
     private var playlists: [Playlist] = []

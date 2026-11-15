@@ -72,7 +72,7 @@ enum Theme {
     }
 
     static func font(_ style: TextStyle) -> UIFont {
-        return UIFont.systemFont(ofSize: style.size, weight: style.weight)
+        return font(style.size, weight: style.weight)
     }
 
     static func kerning(_ style: TextStyle) -> CGFloat {
@@ -86,8 +86,29 @@ enum Theme {
                                                 .kern: style.kerning])
     }
 
+    /// Upstream's Appearance → Font choice. Rounded is a system design on
+    /// iOS 13; on iOS 12 it falls back to the system face rather than crashing
+    /// or shipping a custom font. Serif uses Georgia, which is on every iOS 12
+    /// install. The chosen cut is read at draw time, so a newly opened screen
+    /// picks it up without a relaunch.
     static func font(_ size: CGFloat, weight: UIFont.Weight = .regular) -> UIFont {
-        return UIFont.systemFont(ofSize: size, weight: weight)
+        let choice = UserDefaults.standard.string(forKey: "BitChord.Appearance.Font") ?? "System"
+        switch choice {
+        case "Rounded":
+            if #available(iOS 13.0, *) {
+                let base = UIFont.systemFont(ofSize: size, weight: weight)
+                if let descriptor = base.fontDescriptor.withDesign(.rounded) {
+                    return UIFont(descriptor: descriptor, size: size)
+                }
+            }
+            return UIFont.systemFont(ofSize: size, weight: weight)
+        case "Serif":
+            let bold = weight == .semibold || weight == .bold || weight == .heavy || weight == .black
+            return UIFont(name: bold ? "Georgia-Bold" : "Georgia", size: size)
+                ?? UIFont.systemFont(ofSize: size, weight: weight)
+        default:
+            return UIFont.systemFont(ofSize: size, weight: weight)
+        }
     }
 
     static func monoDigits(_ size: CGFloat, weight: UIFont.Weight = .regular) -> UIFont {

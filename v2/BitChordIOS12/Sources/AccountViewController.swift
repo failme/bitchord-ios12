@@ -9,6 +9,7 @@ final class AccountViewController: UIViewController {
     private let statusLabel = UILabel()
     private let signInButton = UIButton(type: .custom)
     private let signOutButton = UIButton(type: .system)
+    private let channelButton = UIButton(type: .system)
     private let noteLabel = UILabel()
     private var avatarTask: URLSessionDataTask?
 
@@ -89,6 +90,14 @@ final class AccountViewController: UIViewController {
         signOutButton.addTarget(self, action: #selector(signOut), for: .touchUpInside)
         view.addSubview(signOutButton)
 
+        channelButton.translatesAutoresizingMaskIntoConstraints = false
+        channelButton.setTitle("Switch channel", for: .normal)
+        channelButton.setTitleColor(Theme.primaryText, for: .normal)
+        channelButton.titleLabel?.font = Theme.font(14, weight: .semibold)
+        channelButton.addTarget(self, action: #selector(switchChannel), for: .touchUpInside)
+        channelButton.isHidden = true
+        view.addSubview(channelButton)
+
         noteLabel.translatesAutoresizingMaskIntoConstraints = false
         noteLabel.font = Theme.font(12)
         noteLabel.textColor = UIColor(white: 1, alpha: 0.38)
@@ -124,6 +133,10 @@ final class AccountViewController: UIViewController {
             signOutButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             signOutButton.heightAnchor.constraint(equalToConstant: 36),
 
+            channelButton.topAnchor.constraint(equalTo: signOutButton.bottomAnchor, constant: 2),
+            channelButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            channelButton.heightAnchor.constraint(equalToConstant: 34),
+
             noteLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 32),
             noteLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -32),
             noteLabel.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -20)
@@ -153,6 +166,7 @@ final class AccountViewController: UIViewController {
             statusLabel.text = "SIGNED IN"
             signInButton.isHidden = true
             signOutButton.isHidden = false
+            channelButton.isHidden = false
             noteLabel.text = "BitChord uses this session for your YouTube Music library, likes and history. Signing out here does not sign you out of Google."
             if let url = store.avatarURL {
                 avatarTask = ArtworkLoader.shared.load(url) { [weak self] image in
@@ -166,6 +180,7 @@ final class AccountViewController: UIViewController {
             statusLabel.textColor = Theme.secondaryText
             signInButton.isHidden = false
             signOutButton.isHidden = true
+            channelButton.isHidden = true
             noteLabel.text = "BitChord opens Google's own sign-in page. Your password and two-factor codes are entered there, never in the app."
         }
         if signedIn {
@@ -179,6 +194,38 @@ final class AccountViewController: UIViewController {
 
     @objc private func signIn() {
         GoogleAccountStore.shared.presentSignIn(from: self)
+    }
+
+    @objc private func switchChannel() {
+        guard signedIn else { return }
+        channelButton.isEnabled = false
+        channelButton.setTitle("Loading channels…", for: .normal)
+        GoogleAccountStore.shared.fetchChannels { [weak self] channels, error in
+            guard let self = self else { return }
+            self.channelButton.isEnabled = true
+            self.channelButton.setTitle("Switch channel", for: .normal)
+            guard !channels.isEmpty else {
+                let alert = UIAlertController(title: "Switch channel",
+                                              message: error ?? "This login lists no channels.",
+                                              preferredStyle: .alert)
+                alert.addAction(UIAlertAction(title: "OK", style: .default))
+                self.present(alert, animated: true)
+                return
+            }
+            let sheet = UIAlertController(title: "Switch channel", message: nil, preferredStyle: .actionSheet)
+            for channel in channels {
+                let mark = channel.isSelected ? " ✓" : ""
+                let label = channel.subtitle.isEmpty ? channel.name + mark : "\(channel.name)\(mark)  ·  \(channel.subtitle)"
+                sheet.addAction(UIAlertAction(title: label, style: .default) { _ in
+                    GoogleAccountStore.shared.selectChannel(channel)
+                    self.refresh()
+                })
+            }
+            sheet.addAction(UIAlertAction(title: "Cancel", style: .cancel, handler: nil))
+            sheet.popoverPresentationController?.sourceView = self.channelButton
+            sheet.popoverPresentationController?.sourceRect = self.channelButton.bounds
+            self.present(sheet, animated: true)
+        }
     }
 
     @objc private func signOut() {

@@ -217,6 +217,14 @@ final class InnerTube {
                       body: [String: Any],
                       userAgent: String,
                       completion: @escaping ([String: Any]?, String?) -> Void) {
+        var payload = body
+        if path != "player", let dataSyncId = GoogleAccountStore.shared.dataSyncId {
+            var context = (payload["context"] as? [String: Any]) ?? [:]
+            var user = (context["user"] as? [String: Any]) ?? ["lockedSafetyMode": false]
+            user["onBehalfOfUser"] = dataSyncId
+            context["user"] = user
+            payload["context"] = context
+        }
         var request = URLRequest(url: endpoint.appendingPathComponent(path))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -232,7 +240,7 @@ final class InnerTube {
                 request.setValue(value, forHTTPHeaderField: name)
             }
         }
-        guard let data = try? JSONSerialization.data(withJSONObject: body, options: []) else {
+        guard let data = try? JSONSerialization.data(withJSONObject: payload, options: []) else {
             completion(nil, "Could not encode the request.")
             return
         }
