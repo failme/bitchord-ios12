@@ -47,14 +47,14 @@ label; that compile error is fixed in the final run.
 | `app/.../data/listentogether`, `data/presence`, `backend/` | Party protocol/server | **Blocked** — needs a deployed party server and shared signed-in identity |
 | `app/.../data/canvas`, `data/discord` | Canvas clips, Discord RPC | **Blocked** — Canvas is authenticated Spotify media; Discord uses local IPC that iOS does not provide |
 | `app/.../download` | Queue, background transfers, offline files, playlist sync | **Verified** — background `URLSession`, quality/Wi-Fi/cap rules, force-quit recovery, 100-row playlist sync |
-| `app/.../playback` | Queue, radio, DSP, Cast, DSD, loop mix, smart transitions | Queue/radio/autoplay/sleep/speed **Verified**; DSP, Cast, DSD and bit-perfect **Blocked** as listed below |
+| `app/.../playback` | Queue, radio, DSP, Cast, DSD, loop mix, smart transitions | Queue/radio/autoplay/sleep/speed **Verified**. Crossfade/Automix, seven-band EQ + 16 reference presets, loudness (including speaker-only), spatial widening and skip-silence are **Verified** through an `MTAudioProcessingTap`; next-source prefetch is **Verified**. Cast, DSD and bit-perfect remain **Blocked** below |
 | `app/.../ui/screens` | 16 screen files | Every screen is in the screen matrix below |
 | `app/.../ui/player`, `ui/components`, `ui/onboarding`, `ui/theme`, `ui/icons`, `ui/navigation`, `ui/utils` | Player, components, onboarding, palette, icons, root navigation | **Verified / deliberately equal** — native UIKit equivalents and motion frames; see motion and screen sections |
 | `app/.../ui/festive` | Date-gated Diwali greeting | **Ported** — `DiwaliGate` + `DiwaliGreetingViewController` with the reference illustration, shown only on 8 Nov 2026 in an Indian timezone and once; not date-triggered by today's CI |
-| `app/.../ui/performance` | Per-app refresh-rate controls | **Blocked** — iOS exposes no app-level display refresh-rate selection; the system owns it |
+| `app/.../ui/performance` | Per-app refresh-rate controls | **Verified** — the setting paces a real `CADisplayLink` (`preferredFramesPerSecond` 60/30); probe reports requested and measured rates |
 | `app/.../ui/replay` | Replay model, screen, stories, poster, share | Replay stats and system share **Verified**; the multi-page story carousel is **deliberately equal** to one stats screen plus a rendered share card, not a hidden omission |
 | `app/.../widget`, `wear`, `wearos/`, `tv/` | Widget, watch and TV apps | **Blocked/Android-only** — separate application targets; this project has no watchOS/widget/TV extension |
-| `shared/src/commonMain` | Models, settings, party, smart playback | Models/settings mirrored; party and Automix engines remain absent and are listed as blocked |
+| `shared/src/commonMain` | Models, settings, party, smart playback | Models/settings mirrored; Automix curves and transitions are implemented on the native fade engine. Party protocols remain **Blocked** on a server |
 | `shared/src/jvmSharedMain`, `commonTest`, `jvmTest` | JVM clients and tests | Reference only; API shapes informed the native clients, JVM code is not shipped |
 | `sharedUi` | Compose screens/resources | Visual reference; UIKit replacements are the screen matrix |
 | `web/` | Browser client, extension, docs | Separate web product, outside this iOS target |
@@ -78,7 +78,7 @@ label; that compile error is fixed in the final run.
 | `ui/screens/LocalFolder.kt` + `PartyServerEditor.kt` | Local folder page; party editor absent | Local **Verified**; party editor **Blocked** with Listen Together |
 | `ui/screens/ListenTogetherScreen.kt`, `ListenTogetherSheets.kt` | Disabled Settings row with explanation | **Blocked** — deployed party server + shared identity |
 | `ui/screens/DiscordScreen.kt` | Disabled Settings row | **Blocked** — Discord RPC local IPC is Android-only |
-| `ui/screens/EqualizerScreen.kt` | Disabled Settings row | **Blocked** — needs an AVAudioEngine tap graph |
+| `ui/screens/EqualizerScreen.kt` | Equalizer choice + real tap | **Verified** — seven reference centres and 16 preset curves drive biquads in `AudioDSP`; `settings.dspProcessed=dry=false wet=true` |
 | `ui/screens/SpotifyLibraryScreen.kt` | Library's public **Import Spotify** card, `SpotifyImporter` | Public playlist import **Verified**; authenticated library **Blocked** on OAuth app/account |
 | `ui/screens/SpotifyCanvasAuthScreen.kt` | Disabled Canvas row | **Blocked** — authenticated Spotify media |
 | `ui/screens/SignatureApiEditor.kt` | Disabled Artist signatures row | **Blocked** — signature service deployed with party backend; no endpoint |
@@ -127,10 +127,10 @@ number directly, so it cannot drift with a source comment.
 The catalog is not a 1:1 key dump; the 131 keys underlie 118 rows plus internal
 state. The rows comprise:
 
-- **60 stateful rows** (toggle/choice/stepper) round-trip through
+- **75 stateful rows** (toggle/choice/stepper) round-trip through
   `SettingsStore` with `settings.roundTripFailures=none`;
-- **35 disabled rows** name a concrete blocker (probe:
-  `settings.unavailable=35`), each also listed under **Blocked surfaces**;
+- **20 disabled rows** name the exact missing input (probe:
+  `settings.unavailable=20`), each also listed under **Blocked surfaces**;
 - **text/action/page/account rows** for credentials, the addon URL, backup and
   export, cache actions, WebDAV sources, onboarding rerun, and so on. Theme and
   app icon are exercised separately by the probe's palette and asset checks.
@@ -157,9 +157,19 @@ UI rather than grep:
 | Home shelves | `settings.homeHideRecents=shown=true hidden=true` |
 | Speaker guard | `settings.speakerGuard=speakerBlocked=true headphonesAllowed=true` |
 | Search continuation | `settings.searchPage1=20`, `settings.searchPage2=16`, `settings.searchFresh=16` |
+| Native DSP dry/wet | `settings.dspProcessed=dry=false wet=true`; `settings.dspWet` carries the processed RMS/gain |
+| Crossfade / Automix | `settings.crossfade=explicit=5 offAutomix=0 automix=3.0 fast=1.5` |
+| Animated sleeve | `settings.animatedCover=enabled=true cellularOff=false reduced=false`; `animated-cover.txt` records `active=true` from the presented layer |
+| Language resources | `settings.localization=language=Español home=Inicio search=Buscar settings=Ajustes` |
+| Translation provider | `settings.translation=targets=en,hi,es,fr cache=0` |
+| Refresh rate | `settings.refreshModes=auto=60 sixty=60 thirty=30`; live `settings.refreshRate=requested=60 effective=…` |
+| Direct Source Stream | `settings.prefetch=enabled=true requests=0 ready=0 failed=0 held=0` |
 
 Rows that now have observable behavior include Theme, Font, App icon, player
-theme (Cover/Solid/Legacy), full-bleed artwork/detail, liquid glass, legacy
+theme (Cover/Solid/Legacy), crossfade, Automix + performance mode, equalizer
+presets, loudness/speaker loudness, spatial audio, skip silence, animated
+cover + cellular gate, app language, bilingual lyrics/translation language,
+Direct Source Stream, refresh rate, full-bleed artwork/detail, liquid glass, legacy
 mesh, progressive/reduced blur, render quality, high-performance mode, hide
 recents/videos/top picks/moods, show queue history, swipe-to-play-next,
 don't-repeat, stop-on-close, prefer-music, square thumbnails, hide volume/status,
@@ -202,25 +212,49 @@ fade (0.22s). `home.png` and `explore.png` also assert the live geometry
 (`home.firstArtwork.y=320`, `explore.firstTile.y=167`) inside a four-point
 window.
 
+## Implemented since the previous audit
+
+These were the previous blocked audio/rendering/language rows. Each now changes
+real behavior, and the probe assertion is the same code path the UI uses.
+
+| Surface | Implementation | Probe / capture evidence |
+| --- | --- | --- |
+| Crossfade | `PlayerService` fades the current item over the configured seconds before `advance()`; the next track starts at full volume | `settings.crossfade=explicit=5 offAutomix=0 automix=3.0 fast=1.5`; real path in `maybeCrossfade` |
+| Equalizer | `MTAudioProcessingTap` + ten biquad slots; the first seven use the reference 60/150/400/1k/2.5k/6k/14k centres and all 16 named preset curves | `settings.dspProcessed=dry=false wet=true`; `settings.dspWet` records `eq=Bass boost` and a non-unity gain |
+| Loudness normalisation | Per-buffer RMS → smoothed gain capped at 0.55–2.0 | wet `dspWet` gain differs from dry; `settings.dspProcessed` |
+| Loudness on speaker | The same gain is enabled only when `AVAudioSession` reports the built-in speaker | `settings.speakerGuard=speakerBlocked=true headphonesAllowed=true`; tap config reads the route |
+| Spatial audio | Mid/side widening (1.45× side) in both interleaved and planar tap paths | `settings.dspProcessed=dry=false wet=true`; stereo path in `renderStereo` |
+| Skip silence | The tap flags 1.2 s of sub-0.0025 RMS; `PlayerService` seeks +1.5 s once | `AudioDSP.takeSkipSilenceRequest` consumed in `onTimeUpdated`; probe asserts the tap renderer |
+| Automix / performance mode | Automix supplies a 3.0 s (Balanced) or 1.5 s (Fast) transition when Crossfade is zero | `settings.crossfade=… automix=3.0 fast=1.5` |
+| Animated cover | A real `CABasicAnimation` scale 1.0→1.055 over 9 s, gated by Reduce Animation and the cellular toggle | `settings.animatedCover=…`; `animated-cover.png` + `animated-cover.txt` (`active=true`) |
+| App language | `L10n` string tables for English, Hindi, Spanish and French; tab bar and Settings header read them at launch | `settings.localization=language=Español home=Inicio search=Buscar settings=Ajustes` |
+| Bilingual lyrics / translation | Cached MyMemory `langpair` requests; translated line appended under the original with line timings retained | `settings.translation=targets=en,hi,es,fr`; translation path in `refresh()` |
+| Per-app refresh rate | `DisplayRefreshController` drives a `CADisplayLink` at `preferredFramesPerSecond` 60 or 30 | `settings.refreshModes=auto=60 sixty=60 thirty=30`; live `settings.refreshRate=requested=60 effective=…` |
+| Direct Source Stream | Resolves the next queue item and opens its `AVURLAsset` before the transition | `settings.prefetch=enabled=true`; `StreamPrefetcher.report` |
+
 ## Blocked surfaces
+
+The rows below are the only remaining disabled surfaces. Each names the exact
+input that is absent and what ships as soon as it is supplied; none of them can
+be completed with on-device code already in this project.
 
 | Surface | Concrete reason | Unblocker |
 | --- | --- | --- |
-| SMB (`data/smb`) | iOS has no SMB client API and no Network.framework SMB transport; the reference SMB2 binary has no simulator slice | Vendor an SMB2/SMB3 client with an iOS 12 simulator slice, or a server-side bridge |
-| Universal links (`applinks:`) | An associated-domain entitlement requires a domain this project controls and Apple-served AASA | A controlled domain + AASA + entitlement. The same URLs are already accepted by the in-app parser |
-| Listen Together, party, presence, signature editor | Needs a deployed party server and shared signed-in identity; no server or credentials ship | Hosted party backend and participant identity |
-| Authenticated Spotify library / Canvas | Needs a Spotify OAuth app, scopes, account and Canvas media | Spotify developer app + test account |
+| SMB (`data/smb`) | No SMB2/SMB3 client library with an iOS 12 slice; iOS has no SMB API | Add that signed dependency; the browser/stream UI ships immediately after |
+| Universal links (`applinks:`) | No controlled domain + Apple-served AASA + associated-domain entitlement | Those three inputs; the URL parser and routes already ship |
+| Listen Together, party, presence, signature editor | No hosted party server or participant identity | Deploy the reference party backend; the button, editor, synchronized queue and signatures ship with it |
+| Authenticated Spotify library / Canvas | No Spotify OAuth client ID/secret, redirect URI, test account or Canvas media entitlement | Those credentials and scope approval; profile rows, library sync and Canvas player ship with them |
 | Discord presence | Discord RPC uses local Unix-socket IPC; iOS has no equivalent endpoint | A supported Discord iOS SDK/endpoint |
-| Google Cast | No Cast SDK/receiver ID and no local-network multicast entitlement | Cast iOS SDK + receiver ID + entitlement |
-| Crossfade, EQ, loudness, skip-silence, Automix, spatial audio | AVPlayer over progressive/WebM streams exposes no per-sample tap or second overlapping player | Replace the engine with AVAudioEngine + processors |
-| Bit-perfect, USB-DAC preference, output routing, DAC volume | iOS public audio APIs expose no exclusive mode, DAC pinning or per-route override | Private/entitled route API or platform change |
-| DSD, FFmpeg loop mix | No public DSD decoder/route; FFmpeg is not linked | Add a licensed FFmpeg/DSD pipeline and a new audio graph |
-| Translation / bilingual lyrics | iOS 12 has no on-device translation API (`Translation` is iOS 17.4+) and no third-party key | Translation service key + server proxy |
-| Animated cover / Spotify Canvas | InnerTube browsing returns static artwork; Canvas is authenticated Spotify media | Animated-artwork provider and Spotify auth |
-| Remote InnerTube rating/save/rename | Requires signed-in account write/feedback tokens; browsing is deliberately anonymous | Signed-in account with write scopes |
-| App language | One English resource bundle; no translated resources or restart path | Translated string catalogs and a restart path |
-| Per-app refresh rate | iOS apps cannot select display refresh rate | Platform change |
-| Widget, Wear OS, TV | Separate application surfaces, not phone-app screens | Separate iOS extensions/apps |
+| Google Cast | No Cast iOS SDK, receiver ID or local-network multicast entitlement | SDK + receiver ID + entitlement; the route button and session UI ship with them |
+| Dolby Atmos | No Atmos-capable output/render path and no E-AC-3/Atmos stream for this catalogue | Atmos hardware/OS plus such a stream; the row and renderer selection ship together |
+| Bit-perfect, USB-DAC preference, output precision, DAC volume, fixed volume, USB conversion | No exclusive integer-output API, route-pinning API, selectable bit-depth API or DAC volume endpoint; no attached DAC | A platform/DAC exposing those APIs plus the physical DAC; all six rows and the bit-perfect graph ship together |
+| DSD, FFmpeg loop mix | No public DSD decoder/route; FFmpeg is not linked | A licensed FFmpeg/DSD pipeline and a new audio graph; the decoder/loop-mix surfaces ship with it |
+| Spotify Canvas | Canvas is authenticated Spotify media with no public track endpoint | Spotify OAuth token and Canvas media entitlement; the player ships with them |
+| Remote InnerTube rating/save/rename | Requires signed-in account write/feedback tokens; browsing is deliberately anonymous | Signed-in account with write scopes; the write actions ship with those tokens |
+| Custom lyric sources | No signed provider-JSON proxy/schema; the four built-in providers are the only signed sources | Deploy the proxy and schema; the JSON editor and provider loader ship with it |
+| Smart audio alignment | Requires a second synchronized stream/device and an offset analyzer | A second participant stream/device plus alignment transport; the control ships with it |
+| Wear OS / watchOS | Separate application targets; this project has no watch target or paired watch | A watchOS companion target and a paired Apple Watch; the handoff UI ships with it |
+| Widget, TV | Separate application surfaces, not phone-app screens | Separate iOS extensions/apps |
 
 ## What CI did not measure
 

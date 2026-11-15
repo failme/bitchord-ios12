@@ -145,7 +145,8 @@ final class NativeAudioPlayer: NSObject {
                 }
                 self.sourceLabel = "YouTube"
                 self.lastExplicit = false
-                self.start(url: url, at: position)
+                self.start(url: url, at: position, headers: [:],
+                           prefetched: StreamPrefetcher.shared.asset(for: track.videoID))
                 completion(true)
             }
         }
@@ -170,13 +171,14 @@ final class NativeAudioPlayer: NSObject {
         start(url: url, at: position)
     }
 
-    private func start(url: URL, at position: Double, headers: [String: String] = [:]) {
+    private func start(url: URL, at position: Double, headers: [String: String] = [:],
+                       prefetched: AVURLAsset? = nil) {
         cancelFade()
         teardownItem()
 
-        let asset = headers.isEmpty
+        let asset = prefetched ?? (headers.isEmpty
             ? AVURLAsset(url: url)
-            : AVURLAsset(url: url, options: ["AVURLAssetHTTPHeaderFieldsKey": headers])
+            : AVURLAsset(url: url, options: ["AVURLAssetHTTPHeaderFieldsKey": headers]))
         let newItem = AVPlayerItem(asset: asset)
         item = newItem
         AudioDSP.shared.attach(to: newItem, asset: asset)
