@@ -25,6 +25,8 @@ final class NativeAudioPlayer: NSObject {
     private var lastKnownPosition: Double = 0
     private var desiredRate: Double = 1
     private var desiredVolume: Float = 1
+    private var fadeTimer: Timer?
+    private var fadeCompletion: (() -> Void)?
 
     private(set) var isPausedByUser = false
     private(set) var isReady = false
@@ -169,6 +171,7 @@ final class NativeAudioPlayer: NSObject {
     }
 
     private func start(url: URL, at position: Double, headers: [String: String] = [:]) {
+        cancelFade()
         teardownItem()
 
         let asset = headers.isEmpty
@@ -176,6 +179,7 @@ final class NativeAudioPlayer: NSObject {
             : AVURLAsset(url: url, options: ["AVURLAssetHTTPHeaderFieldsKey": headers])
         let newItem = AVPlayerItem(asset: asset)
         item = newItem
+        AudioDSP.shared.attach(to: newItem, asset: asset)
         lastProgressDate = Date()
         secondsSinceProgress = 0
         diagnosticsSummary = "native: buffering"
@@ -215,6 +219,7 @@ final class NativeAudioPlayer: NSObject {
     }
 
     private func teardownItem() {
+        AudioDSP.shared.detach()
         statusToken = nil
         if let token = endToken {
             NotificationCenter.default.removeObserver(token)
@@ -284,6 +289,37 @@ final class NativeAudioPlayer: NSObject {
         desiredVolume = volume
         player.volume = volume
         player.isMuted = volume <= 0.001
+    }
+
+    /// Ramps the current item out before PlayerService advances. The next
+    /// track starts at the persisted volume again, so the pair is heard as a
+    /// crossfade rather than a hard cut.
+    func fadeOut(seconds: Double, completion: @escaping () -> Void) {
+        fadeTimer?.invalidate()
+        fadeCompletion = completion
+        let start = player.volume
+        let steps = max(1, Int(seconds / 0.05))
+        var step = 0
+        fadeTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] timer in
+            guard let self = self else { timer.invalidate(); return }
+            step += 1
+            let progress = min(1, Double(step) / Double(steps))
+            self.player.volume = start * Float(1 - progress)
+            if progress >= 1 {
+                timer.invalidate()
+                self.fadeTimer = nil
+                let done = self.fadeCompletion
+                self.fadeCompletion = nil
+                done?()
+            }
+        }
+    }
+
+    func cancelFade() {
+        fadeTimer?.invalidate()
+        fadeTimer = nil
+        fadeCompletion = nil
+        player.volume = desiredVolume
     }
 
     func setPlaybackRate(_ rate: Double) {

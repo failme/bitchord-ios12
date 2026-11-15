@@ -81,7 +81,7 @@ final class SettingsViewController: UIViewController {
         view.addSubview(backButton)
 
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
-        titleLabel.text = "Settings"
+        titleLabel.text = L10n.t("Settings")
         titleLabel.font = Theme.font(34, weight: .bold)
         titleLabel.textColor = Theme.primaryText
         view.addSubview(titleLabel)
@@ -92,7 +92,7 @@ final class SettingsViewController: UIViewController {
         searchField.font = Theme.font(16)
         searchField.textColor = Theme.primaryText
         searchField.attributedPlaceholder = NSAttributedString(
-            string: "Search settings",
+            string: L10n.t("Search settings"),
             attributes: [.foregroundColor: Theme.secondaryText, .font: Theme.font(16)])
         let magnifier = UIImageView(image: Icons.image(.search, size: 18))
         magnifier.tintColor = Theme.secondaryText

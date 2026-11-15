@@ -13,12 +13,10 @@ final class CapsuleTabBar: UIView {
     private var controls: [UIControl] = []
     private var iconViews: [UIImageView] = []
     private var labels: [UILabel] = []
-    private let items: [(title: String, icon: Icons.Kind)] = [
-        ("Home", .house),
-        ("Explore", .grid),
-        ("Library", .books),
-        ("Search", .search)
-    ]
+    private var items: [(title: String, icon: Icons.Kind)] {
+        return [(L10n.t("Home"), .house), (L10n.t("Explore"), .grid),
+                (L10n.t("Library"), .books), (L10n.t("Search"), .search)]
+    }
 
     override init(frame: CGRect) {
         super.init(frame: frame)

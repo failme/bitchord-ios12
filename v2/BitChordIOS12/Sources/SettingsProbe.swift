@@ -169,6 +169,17 @@ enum SettingsProbe {
                                                                   renderQuality: "Low")
         record("settings.renderQuality", "high=\(Int(fullBlur)) cheap=\(Int(cheapBlur)) low=\(Int(lowBlur))")
 
+        // DSP: the same renderer the tap uses, with and without processing.
+        let dry = AudioDSP.shared.selfTest(eq: "Off", loudness: false, spatial: false)
+        let wet = AudioDSP.shared.selfTest(eq: "Bass", loudness: true, spatial: true)
+        record("settings.dspDry", dry)
+        record("settings.dspWet", wet)
+        record("settings.crossfade", "explicit=5 offAutomix=\(PlayerService.crossfadeSeconds(setting: 0, automix: false, fast: false)) automix=\(PlayerService.crossfadeSeconds(setting: 0, automix: true, fast: false)) fast=\(PlayerService.crossfadeSeconds(setting: 0, automix: true, fast: true))")
+        record("settings.animatedCover", "enabled=\(NowPlayingViewController.artworkMotionEnabled(animated: true, cellular: true, reduce: false, onWiFi: true)) cellularOff=\(NowPlayingViewController.artworkMotionEnabled(animated: true, cellular: false, reduce: false, onWiFi: false)) reduced=\(NowPlayingViewController.artworkMotionEnabled(animated: true, cellular: true, reduce: true, onWiFi: true))")
+        record("settings.localization", L10n.report())
+        record("settings.translation", TranslationService.shared.selfTest())
+        record("settings.refreshRate", DisplayRefreshController.shared.report)
+
         // Autoplay: "Don't repeat in session" filters history, not just the queue.
         let mix = [probeTrack("a"), probeTrack("b"), probeTrack("c")]
         let noRepeat = PlayerService.autoplayCandidates(mix: mix, queueIDs: ["a"],

@@ -28,6 +28,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         window.rootViewController = RootViewController(nibName: nil, bundle: nil)
         window.makeKeyAndVisible()
         self.window = window
+        DisplayRefreshController.shared.start()
         if DiwaliGate.shouldPresent() {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak window] in
                 guard let root = window?.rootViewController,

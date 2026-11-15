@@ -220,6 +220,17 @@ final class AudioEngine {
         web.setVolume(volume)
     }
 
+    func fadeOut(seconds: Double, completion: @escaping () -> Void) {
+        if mode == .native {
+            native.fadeOut(seconds: seconds, completion: completion)
+        } else {
+            web.setVolume(0)
+            DispatchQueue.main.asyncAfter(deadline: .now() + max(0.2, seconds)) {
+                completion()
+            }
+        }
+    }
+
     func setPlaybackRate(_ rate: Double) {
         native.setPlaybackRate(rate)
         web.setPlaybackRate(rate)

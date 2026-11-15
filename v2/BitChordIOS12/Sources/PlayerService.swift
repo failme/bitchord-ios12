@@ -49,6 +49,8 @@ final class PlayerService: NSObject {
     private var loadStartedAt: Date?
     private var stallTimer: Timer?
     private var sessionReloads = 0
+    private var crossfadeStarted = false
+    private(set) var crossfadeCount = 0
 
     var currentTrack: Track? {
         guard currentIndex >= 0, currentIndex < queue.count else { return nil }
@@ -99,6 +101,13 @@ final class PlayerService: NSObject {
                 ScrobbleService.shared.trackDidAdvance(position: position,
                                                       duration: total > 0 ? total : (track.durationSeconds ?? 0))
             }
+            if self.isPlaying,
+               AudioDSP.shared.takeSkipSilenceRequest(),
+               total <= 0 || position + 1.5 < total {
+                self.seek(to: position + 1.5)
+                self.statusText = "Skipped silence"
+            }
+            self.maybeCrossfade(position: position, total: total)
             NotificationCenter.default.post(name: .playerTimeDidChange, object: nil)
         }
 
@@ -569,6 +578,7 @@ final class PlayerService: NSObject {
         loadStartedAt = Date()
         sessionReloads = 0
         isPlaying = false
+        crossfadeStarted = false
         statusText = ""
         currentTime = 0
         duration = track.durationSeconds ?? 0
@@ -584,6 +594,31 @@ final class PlayerService: NSObject {
         ScrobbleService.shared.trackDidStart(track)
         AudioEngine.shared.play(track: track)
         loadLyrics(for: track)
+    }
+
+    /// Crossfade and Automix share the same fade engine. Automix supplies a
+    /// default overlap when the explicit Crossfade row is zero; Fast shortens
+    /// the analysis window the way the upstream performance mode does.
+    static func crossfadeSeconds(setting: Double, automix: Bool, fast: Bool) -> Double {
+        if setting > 0 { return setting }
+        guard automix else { return 0 }
+        return fast ? 1.5 : 3.0
+    }
+
+    private func maybeCrossfade(position: Double, total: Double) {
+        guard !crossfadeStarted, isPlaying, total > 2 else { return }
+        let store = SettingsStore.shared
+        let seconds = PlayerService.crossfadeSeconds(
+            setting: store.double("BitChord.Audio.Crossfade", 0),
+            automix: store.bool("BitChord.Audio.Automix", false),
+            fast: store.string("BitChord.Audio.AutomixPerf", "Balanced") == "Fast")
+        guard seconds > 0, position >= total - seconds else { return }
+        crossfadeStarted = true
+        AudioEngine.shared.fadeOut(seconds: seconds) { [weak self] in
+            guard let self = self else { return }
+            self.crossfadeCount += 1
+            self.advance()
+        }
     }
 
     private func loadLyrics(for track: Track) {

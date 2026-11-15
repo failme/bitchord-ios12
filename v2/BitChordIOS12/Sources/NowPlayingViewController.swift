@@ -858,7 +858,9 @@ final class NowPlayingViewController: UIViewController {
         }
 
         let syncedSetting = SettingsStore.shared.syncedLyrics
-        let token = "\(track.videoID)-\(service.lyrics.count)-\(syncedSetting)"
+        let bilingual = SettingsStore.shared.bool("BitChord.Lyrics.ShowBilingual", false)
+        let translationLanguage = SettingsStore.shared.string("BitChord.Lyrics.TranslationLanguage", "Off")
+        let token = "\(track.videoID)-\(service.lyrics.count)-\(syncedSetting)-\(bilingual)-\(translationLanguage)"
         if token != lyricsToken {
             lyricsToken = token
             currentLyrics = service.lyrics
@@ -875,6 +877,22 @@ final class NowPlayingViewController: UIViewController {
                              .underlineStyle: NSUnderlineStyle.single.rawValue])
             emptyLyricsLabel.isHidden = !currentLyrics.isEmpty
             lyricsTable.reloadData()
+            if bilingual, TranslationService.code(for: translationLanguage) != nil,
+               !currentLyrics.isEmpty {
+                let source = currentLyrics
+                TranslationService.shared.translate(lines: source.map { $0.text },
+                                                    to: translationLanguage) { [weak self] translated in
+                    guard let self = self, self.lyricsToken == token else { return }
+                    self.currentLyrics = source.enumerated().map { index, line in
+                        let extra = index < translated.count ? translated[index] : line.text
+                        return WordLyricLine(time: line.time,
+                                             text: line.text + "\n" + extra,
+                                             words: [], end: line.end)
+                    }
+                    self.lyricHeights.removeAll()
+                    self.lyricsTable.reloadData()
+                }
+            }
             if !currentLyrics.isEmpty {
                 lyricsTable.setContentOffset(.zero, animated: false)
             }
@@ -912,6 +930,7 @@ final class NowPlayingViewController: UIViewController {
         } else {
             artworkView.image = image
         }
+        updateArtworkMotion()
         headerArtwork.image = image
         let legacyMesh = SettingsStore.shared.bool("BitChord.Appearance.LegacyMesh", false)
         meshView.palette = legacyMesh ? Theme.meshFallbackPalette : Theme.meshPalette(of: image)
@@ -941,6 +960,30 @@ final class NowPlayingViewController: UIViewController {
             glowLayer.colors = [UIColor.clear.cgColor, UIColor.clear.cgColor]
             glowView.layer.shadowColor = UIColor.black.cgColor
         }
+    }
+
+    static func artworkMotionEnabled(animated: Bool, cellular: Bool,
+                                     reduce: Bool, onWiFi: Bool) -> Bool {
+        return animated && !reduce && (cellular || onWiFi)
+    }
+
+    private func updateArtworkMotion() {
+        artworkView.layer.removeAnimation(forKey: "bitchord.animatedCover")
+        let store = SettingsStore.shared
+        guard NowPlayingViewController.artworkMotionEnabled(
+            animated: store.bool("BitChord.Appearance.AnimatedCover", false),
+            cellular: store.bool("BitChord.Appearance.AnimatedCoverCellular", true),
+            reduce: store.bool("BitChord.Appearance.ReduceAnimation", false),
+            onWiFi: NetworkStatus.isOnWiFi),
+              artworkView.image != nil else { return }
+        let zoom = CABasicAnimation(keyPath: "transform.scale")
+        zoom.fromValue = 1.0
+        zoom.toValue = 1.055
+        zoom.duration = 9
+        zoom.autoreverses = true
+        zoom.repeatCount = .infinity
+        zoom.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+        artworkView.layer.add(zoom, forKey: "bitchord.animatedCover")
     }
 
     private func updateTime() {
