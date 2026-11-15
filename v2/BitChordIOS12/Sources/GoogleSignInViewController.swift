@@ -184,13 +184,38 @@ final class GoogleSignInViewController: UIViewController {
         webView.isHidden = true
         fixtureShellWebView = shell
         shell.loadHTMLString(fixture.shellHTML, baseURL: fixture.musicBaseURL)
-        // A redirect decision can still be tearing down when the replacement
-        // HTML is handed to WebKit. Start the capture on a timer as well as in
-        // didFinish so a dropped callback cannot leave the sheet waiting.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) { [weak self] in
+        waitForFixtureShell(attempt: 0)
+    }
+
+    /// A fresh web view starts a new WebKit content process. Wait for the
+    /// document it was given to finish, rather than racing that process and
+    /// reading an empty about:blank document as a blank music shell.
+    private func waitForFixtureShell(attempt: Int) {
+        guard !completed, let shell = fixtureShellWebView else { return }
+        let script = """
+        (function () {
+          try {
+            return JSON.stringify({ ready: document.readyState, host: location.host });
+          } catch (e) { return ""; }
+        })();
+        """
+        shell.evaluateJavaScript(script) { [weak self] value, _ in
             guard let self = self, !self.completed else { return }
-            self.probeFixturePage()
-            self.enterYouTubeStage()
+            var ready = false
+            if let text = value as? String,
+               let data = text.data(using: .utf8),
+               let json = (try? JSONSerialization.jsonObject(with: data, options: [])) as? [String: Any] {
+                ready = (json["ready"] as? String) == "complete"
+                    && (json["host"] as? String) == "music.youtube.com"
+            }
+            if ready || attempt >= 25 {
+                self.probeFixturePage()
+                self.enterYouTubeStage()
+                return
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+                self?.waitForFixtureShell(attempt: attempt + 1)
+            }
         }
     }
 
