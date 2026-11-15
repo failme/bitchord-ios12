@@ -7,6 +7,20 @@ import AVFoundation
 enum SettingsProbe {
     private static var lines: [String] = []
     private static var directory: URL?
+    private static var finished = false
+
+    /// Called before the window is built, so a crash during launch can be
+    /// separated from a crash inside the probe body.
+    static func markLaunchIfRequested() {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard let index = arguments.firstIndex(of: "-BCSettingsProbe"),
+              index + 1 < arguments.count else { return }
+        let directory = URL(fileURLWithPath: arguments[index + 1], isDirectory: true)
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true,
+                                                 attributes: nil)
+        try? "launched".write(to: directory.appendingPathComponent("settings-probe-launched.txt"),
+                              atomically: true, encoding: .utf8)
+    }
 
     static func runIfRequested() {
         let arguments = ProcessInfo.processInfo.arguments
@@ -16,13 +30,22 @@ enum SettingsProbe {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
             run()
         }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 120) {
+            guard !finished else { return }
+            record("settings.timeout", "search did not return")
+            record("settings.done", "false")
+            finish()
+        }
     }
 
     private static func record(_ key: String, _ value: String) {
         lines.append("\(key)=\(value)")
+        writeReport()
     }
 
     private static func run() {
+        writeMarker("settings-probe-start.txt")
+        record("settings.start", "true")
         let sections = SettingsCatalog.sections
         let items = sections.flatMap { $0.items }
         record("settings.sections", "\(sections.count)")
@@ -203,7 +226,8 @@ enum SettingsProbe {
     }
 
     private static func finish() {
-        guard let directory = directory else { return }
+        guard !finished, let directory = directory else { return }
+        finished = true
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true,
                                                  attributes: nil)
         let text = lines.joined(separator: "\n") + "\n"
@@ -211,5 +235,22 @@ enum SettingsProbe {
                         atomically: true, encoding: .utf8)
         try? "done".write(to: directory.appendingPathComponent("settings-probe-done.txt"),
                           atomically: true, encoding: .utf8)
+    }
+
+    private static func writeReport() {
+        guard let directory = directory else { return }
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true,
+                                                 attributes: nil)
+        let text = lines.joined(separator: "\n") + "\n"
+        try? text.write(to: directory.appendingPathComponent("settings-probe.txt"),
+                        atomically: true, encoding: .utf8)
+    }
+
+    private static func writeMarker(_ name: String) {
+        guard let directory = directory else { return }
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true,
+                                                 attributes: nil)
+        try? "started".write(to: directory.appendingPathComponent(name),
+                             atomically: true, encoding: .utf8)
     }
 }

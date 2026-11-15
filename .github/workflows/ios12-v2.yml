@@ -996,13 +996,26 @@ jobs:
           rm -f "$CONTAINER/Documents/shots/settings-probe.txt" \
                 "$CONTAINER/Documents/shots/settings-probe-done.txt"
           xcrun simctl launch "$UDID" "$BUNDLE" -BCSettingsProbe "$CONTAINER/Documents/shots" > /dev/null
+          sleep 2
+          xcrun simctl spawn "$UDID" launchctl list 2>/dev/null | grep -q "$BUNDLE" \
+            && echo "settings probe app is running" \
+            || echo "settings probe app is not running after launch"
           for i in $(seq 1 90); do
             [ -f "$CONTAINER/Documents/shots/settings-probe-done.txt" ] && break
             sleep 2
           done
           cp "$CONTAINER/Documents/shots/settings-probe.txt" shots/ 2>/dev/null || true
+          cp "$CONTAINER/Documents/shots/settings-probe-start.txt" shots/ 2>/dev/null || true
+          cp "$CONTAINER/Documents/shots/settings-probe-launched.txt" shots/ 2>/dev/null || true
           echo "### Settings probe"
           cat shots/settings-probe.txt 2>/dev/null || echo "(no settings probe report)"
+          echo "### Settings probe diagnostics"
+          ls -l "$CONTAINER/Documents/shots" | tail -20 || true
+          xcrun simctl spawn "$UDID" log show --last 4m --style compact \
+            --predicate 'processImagePath CONTAINS "BitChordIOS12V2"' 2>/dev/null \
+            | grep -aiE "fatal|exception|assert|crash|error|SettingsProbe" | tail -40 || true
+          find ~/Library/Logs/DiagnosticReports -name '*BitChord*' -mmin -10 \
+            -exec sh -c 'echo "== $1"; head -80 "$1"' _ {} \; 2>/dev/null || true
           PROBE=shots/settings-probe.txt
           test -s "$PROBE" || { echo "::error ::no settings probe report"; exit 1; }
           grep -q "settings.done=true" "$PROBE"

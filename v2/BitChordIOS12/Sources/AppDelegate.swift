@@ -7,6 +7,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
 
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+        SettingsProbe.markLaunchIfRequested()
         // The screenshot harness uses this to launch straight into either
         // palette; the Settings row writes the same key at runtime.
         let launchArguments = ProcessInfo.processInfo.arguments
