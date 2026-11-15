@@ -43,6 +43,68 @@ extension InnerTube {
         fetchPersonalBrowse(id: "FEmusic_liked_videos", completion: completion)
     }
 
+    /// One saved-library feed: playlists, albums or artists. Each row keeps the
+    /// browse id that opens it and the artwork the account already saved.
+    func fetchLibraryCollections(feedID: String,
+                                 completion: @escaping ([CollectionItem], String?) -> Void) {
+        guard GoogleAccountStore.shared.isSignedIn else {
+            completion([], "Sign in with Google to load your saved library.")
+            return
+        }
+        let body: [String: Any] = [
+            "context": [
+                "client": [
+                    "clientName": "WEB_REMIX",
+                    "clientVersion": "1.20241011.01.00",
+                    "hl": "en",
+                    "gl": "US"
+                ]
+            ],
+            "browseId": feedID
+        ]
+        post(path: "browse", body: body, userAgent: InnerTube.browserUserAgent) { [weak self] json, error in
+            guard let self = self, let json = json else {
+                completion([], error ?? "Could not reach YouTube Music.")
+                return
+            }
+            var items: [CollectionItem] = []
+            var seen = Set<String>()
+            let renderers = self.renderers(named: "musicTwoRowItemRenderer", in: json)
+                + self.renderers(named: "musicResponsiveListItemRenderer", in: json)
+            for renderer in renderers {
+                guard let browseID = self.libraryBrowseID(in: renderer),
+                      !browseID.isEmpty, seen.insert(browseID).inserted else { continue }
+                let title = self.channelText(renderer["title"])
+                    ?? self.columnText((renderer["flexColumns"] as? [[String: Any]]) ?? [], index: 0)
+                    ?? ""
+                guard !title.isEmpty else { continue }
+                let subtitle = self.channelText(renderer["subtitle"])
+                    ?? self.columnSegments((renderer["flexColumns"] as? [[String: Any]]) ?? [], index: 1)
+                        .joined(separator: " \u{2022} ")
+                items.append(CollectionItem(browseID: browseID,
+                                            title: title,
+                                            subtitle: subtitle,
+                                            artworkURL: self.homeArtwork(in: renderer)))
+            }
+            completion(items, items.isEmpty ? "Nothing saved in this section." : nil)
+        }
+    }
+
+    private func libraryBrowseID(in node: Any) -> String? {
+        if let dict = node as? [String: Any] {
+            if let browse = dict["browseEndpoint"] as? [String: Any],
+               let identifier = browse["browseId"] as? String { return identifier }
+            for value in dict.values {
+                if let found = libraryBrowseID(in: value) { return found }
+            }
+        } else if let array = node as? [Any] {
+            for value in array {
+                if let found = libraryBrowseID(in: value) { return found }
+            }
+        }
+        return nil
+    }
+
     /// The accounts and brand channels this Google login can act as.
     func fetchAccountChannels(completion: @escaping ([YouTubeChannel], String?) -> Void) {
         guard GoogleAccountStore.shared.isSignedIn else {

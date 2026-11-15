@@ -186,7 +186,8 @@ final class LibraryViewController: UIViewController {
             ("Downloads", .download),
             ("Local Music", .folder),
             ("Liked Music", .heart),
-            ("History", .history)
+            ("History", .history),
+            ("Saved library", .books)
         ]
         for (index, row) in rows.enumerated() {
             let button = LibraryRowButton(title: row.0, icon: row.1)
@@ -469,10 +470,13 @@ final class LibraryViewController: UIViewController {
             loadRemoteLibrary(title: "Liked Music") { completion in
                 InnerTube.shared.fetchLikedMusic(completion: completion)
             }
-        default:
+        case 3:
             loadRemoteLibrary(title: "History") { completion in
                 InnerTube.shared.fetchRemoteHistory(completion: completion)
             }
+        default:
+            guard GoogleAccountStore.shared.isSignedIn else { return }
+            navigationController?.pushViewController(SavedLibraryViewController(), animated: true)
         }
     }
 
