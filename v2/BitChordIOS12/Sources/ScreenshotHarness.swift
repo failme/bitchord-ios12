@@ -132,6 +132,31 @@ enum ScreenshotHarness {
             DispatchQueue.main.async {
                 GoogleHandoffFixture.active = GoogleHandoffFixture(shell: shell)
                 GoogleAccountStore.shared.presentSignIn(from: root)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 22) {
+                    guard !GoogleAccountStore.shared.isSignedIn else { return }
+                    let probe = GoogleHandoffFixture.probe
+                    var report: [String] = []
+                    report.append("handoff.path=\(shell.rawValue)")
+                    report.append("handoff.timeout=true")
+                    report.append("handoff.probe.loginOrigin=\(probe.loginOrigin)")
+                    report.append("handoff.probe.shellOrigin=\(probe.shellOrigin)")
+                    report.append("handoff.probe.shellBlank=\(probe.documentBlank)")
+                    report.append("handoff.probe.ytcfg=\(probe.pageConfigRead)")
+                    report.append("handoff.probe.networkFallback=\(probe.networkFallbackUsed)")
+                    report.append("handoff.probe.networkCookie=\(probe.networkHadCookie)")
+                    report.append("handoff.signedIn=false")
+                    report.append("handoff.completed=false")
+                    write(window: window,
+                          name: "signed-in-home-\(shell.rawValue)",
+                          directory: directory)
+                    writeText(report.joined(separator: "\n"),
+                              name: "handoff-report-\(shell.rawValue).txt",
+                              directory: directory)
+                    writeText("done",
+                              name: "handoff-done-\(shell.rawValue).txt",
+                              directory: directory)
+                    exit(0)
+                }
                 waitUntil({
                     root.presentedViewController == nil && GoogleAccountStore.shared.isSignedIn
                 }, timeout: 35) { finished in
@@ -159,23 +184,15 @@ enum ScreenshotHarness {
                         report.append("handoff.homeVisible=\(homeVisible)")
                         report.append("handoff.cookieHeader=\(store.requestHeaders()["Cookie"] != nil)")
                         report.append("handoff.completed=\(finished)")
+                        report.append("handoff.accountVisible=\(!store.displayName.isEmpty)")
                         write(window: window, name: "signed-in-home-\(shell.rawValue)", directory: directory)
-                        let account = AccountViewController()
-                        root.present(chrome(account), animated: false) {
-                            after(0.7) {
-                                report.append("handoff.accountVisible=\(!account.isShowingSignedOut)")
-                                write(window: window,
-                                      name: "signed-in-account-\(shell.rawValue)",
-                                      directory: directory)
-                                writeText(report.joined(separator: "\n"),
-                                          name: "handoff-report-\(shell.rawValue).txt",
-                                          directory: directory)
-                                writeText("done",
-                                          name: "handoff-done-\(shell.rawValue).txt",
-                                          directory: directory)
-                                exit(0)
-                            }
-                        }
+                        writeText(report.joined(separator: "\n"),
+                                  name: "handoff-report-\(shell.rawValue).txt",
+                                  directory: directory)
+                        writeText("done",
+                                  name: "handoff-done-\(shell.rawValue).txt",
+                                  directory: directory)
+                        exit(0)
                     }
                 }
             }

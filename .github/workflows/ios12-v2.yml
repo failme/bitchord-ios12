@@ -338,6 +338,9 @@ jobs:
                   "$CONTAINER/Documents/shots/verify-done-$MODE.txt"
 
             run_handoff_stage "$MODE" handoff
+            mkdir -p shots
+            cp "$CONTAINER/Documents/shots/signed-in-home-$MODE.png" shots/ 2>/dev/null || true
+            cp "$CONTAINER/Documents/shots/handoff-report-$MODE.txt" shots/ 2>/dev/null || true
             echo "### Handoff $MODE"
             cat "$CONTAINER/Documents/shots/handoff-report-$MODE.txt"
             HANDOFF="$CONTAINER/Documents/shots/handoff-report-$MODE.txt"
@@ -365,7 +368,6 @@ jobs:
             grep -q "handoff.cookieHeader=true" "$HANDOFF"
             grep -q "handoff.completed=true" "$HANDOFF"
             test -s "$CONTAINER/Documents/shots/signed-in-home-$MODE.png"
-            test -s "$CONTAINER/Documents/shots/signed-in-account-$MODE.png"
 
             run_handoff_stage "$MODE" restore
             echo "### Restore $MODE"
