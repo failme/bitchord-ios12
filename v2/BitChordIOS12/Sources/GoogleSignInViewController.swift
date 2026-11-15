@@ -7,19 +7,40 @@ import WebKit
 /// with Google (password, 2FA and account picker all live on Google's page),
 /// and the app takes the resulting YouTube session cookie. It is the same
 /// approach the Android app uses, and it needs no client id or secret.
+///
+/// Google's final redirect lands on YouTube Music. On iOS the music shell can
+/// paint a blank page while its JavaScript boots, so reaching that page is no
+/// longer a reason to wait for a manual confirmation. The cookie jar is polled
+/// as the redirect runs, the page's `ytcfg` is read when it exists, and a
+/// network read of `music.youtube.com` supplies the same identity when the
+/// shell is blank. Only then does the sheet close.
 final class GoogleSignInViewController: UIViewController {
+    private struct PageIdentity {
+        let loggedIn: Bool
+        let authUser: String?
+        let dataSyncId: String?
+        let pageId: String?
+        let visitorData: String?
+        let clientVersion: String?
+    }
+
     private let webView = WKWebView(frame: .zero, configuration: WKWebViewConfiguration())
     private let progress = UIProgressView(progressViewStyle: .bar)
     private let statusLabel = UILabel()
     private let spinner = UIActivityIndicatorView(style: .white)
     private var doneButton: UIBarButtonItem!
     private var progressObservation: NSKeyValueObservation?
-    private var reachedMusic = false
+    private var youtubeStage = false
+    private var autoCaptureExhausted = false
+    private var completed = false
+    private var captureInFlight = false
+    private var autoCapture: DispatchWorkItem?
 
     private static let loginURL = URL(string:
         "https://accounts.google.com/ServiceLogin?ltmpl=music&service=youtube&prompt=select_account"
         + "&continue=https%3A%2F%2Fmusic.youtube.com%2F")!
     private static let musicOrigin = "https://music.youtube.com"
+    private static let musicURL = URL(string: "https://music.youtube.com/")!
 
     private static var safariUserAgent: String {
         let version = UIDevice.current.systemVersion
@@ -95,6 +116,11 @@ final class GoogleSignInViewController: UIViewController {
             self?.progress.progress = Float(webView.estimatedProgress)
         }
 
+        // A login can finish with a cookie write but no usable final page. The
+        // observer is what makes the sheet react to the session rather than to
+        // a white view that happens to have finished loading.
+        WKWebsiteDataStore.default().httpCookieStore.add(self)
+
         // Start with a clean Google jar. Otherwise an account signed out of the
         // app is immediately recognised by accounts.google.com, and the screen
         // cannot be used to choose a different one.
@@ -105,6 +131,8 @@ final class GoogleSignInViewController: UIViewController {
 
     deinit {
         progressObservation?.invalidate()
+        autoCapture?.cancel()
+        WKWebsiteDataStore.default().httpCookieStore.remove(self)
     }
 
     private func loadLogin() {
@@ -114,42 +142,99 @@ final class GoogleSignInViewController: UIViewController {
     }
 
     @objc private func cancel() {
+        autoCapture?.cancel()
         dismiss(animated: true, completion: nil)
     }
 
     @objc private func done() {
+        beginCapture(manual: true)
+    }
+
+    /// Starts the capture once a session cookie is visible. Automatic attempts
+    /// wait through the music shell's boot; a manual tap gets an immediate
+    /// answer if the jar is still empty.
+    private func beginCapture(manual: Bool) {
+        guard !completed, !captureInFlight else { return }
+        if manual { autoCaptureExhausted = false }
+        captureInFlight = true
         doneButton.isEnabled = false
         spinner.startAnimating()
-        statusLabel.text = "Reading your YouTube Music session..."
+        progress.isHidden = false
+        statusLabel.textColor = Theme.secondaryText
+        statusLabel.text = manual ? "Reading your YouTube Music session..."
+                                 : "Google sign-in complete. Finishing sign-in..."
+        resolveSession(manual: manual, attempt: 0)
+    }
+
+    private func resolveSession(manual: Bool, attempt: Int) {
+        guard !completed else { return }
         captureCookies { [weak self] cookies in
-            guard let self = self else { return }
+            guard let self = self, !self.completed else { return }
             guard let header = GoogleSignInViewController.youtubeCookieHeader(cookies),
                   GoogleAccountStore.apiSID(in: header) != nil else {
-                self.finishCapture(message: "Google has not finished signing you in yet. Complete the page, then tap Done again.")
+                self.retryCapture(manual: manual, attempt: attempt,
+                                  message: "Google has not finished signing you in yet.")
                 return
             }
-            self.readPageConfig { authUser, dataSyncID, pageID, visitorData, clientVersion, loggedIn in
-                guard self.reachedMusic || loggedIn else {
-                    self.finishCapture(message: "Wait until YouTube Music opens, then tap Done.")
+
+            self.readPageConfig { identity in
+                guard !self.completed else { return }
+                if let identity = identity, identity.loggedIn {
+                    self.adopt(header: header, identity: identity)
                     return
                 }
-                let captured = CapturedGoogleSession(cookie: header,
-                                                     authUser: authUser ?? "0",
-                                                     dataSyncId: dataSyncID,
-                                                     pageId: pageID,
-                                                     visitorData: visitorData,
-                                                     clientVersion: clientVersion)
-                GoogleAccountStore.shared.adopt(captured)
-                self.dismiss(animated: true, completion: nil)
+                // The music shell can finish loading as a blank surface. Ask
+                // the same origin for its shell directly; the cookie is already
+                // in hand, so this does not depend on the web view rendering.
+                self.fetchNetworkIdentity(cookie: header) { networkIdentity in
+                    guard !self.completed else { return }
+                    if let networkIdentity = networkIdentity {
+                        self.adopt(header: header, identity: networkIdentity)
+                        return
+                    }
+                    self.pageIsBlank { blank in
+                        guard !self.completed else { return }
+                        // A blank page plus a live API SID is a completed Google
+                        // login whose shell did not paint. Adopt it; the profile
+                        // request can still correct the display name and avatar.
+                        if blank && attempt >= 2 {
+                            let fallback = PageIdentity(loggedIn: true,
+                                                        authUser: identity?.authUser ?? "0",
+                                                        dataSyncId: identity?.dataSyncId,
+                                                        pageId: identity?.pageId,
+                                                        visitorData: identity?.visitorData,
+                                                        clientVersion: identity?.clientVersion)
+                            self.adopt(header: header, identity: fallback)
+                            return
+                        }
+                        self.retryCapture(manual: manual, attempt: attempt,
+                                          message: "YouTube Music is still loading your account.")
+                    }
+                }
             }
         }
     }
 
-    private func finishCapture(message: String) {
-        spinner.stopAnimating()
-        doneButton.isEnabled = true
-        statusLabel.text = message
-        statusLabel.textColor = UIColor(red: 1, green: 0.45, blue: 0.42, alpha: 1)
+    private func retryCapture(manual: Bool, attempt: Int, message: String) {
+        captureInFlight = false
+        guard attempt < (manual ? 3 : 14) else {
+            if !manual { autoCaptureExhausted = true }
+            doneButton.isEnabled = true
+            finishCapture(message: manual
+                ? "Google did not return a usable session. Complete the page, then tap Done again."
+                : "Sign-in is taking longer than expected. Tap Done when YouTube Music finishes loading.")
+            return
+        }
+        autoCapture?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            self?.captureInFlight = false
+            self?.beginCapture(manual: manual)
+        }
+        autoCapture = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.7, execute: work)
+        if manual {
+            statusLabel.text = message
+        }
     }
 
     private func captureCookies(completion: @escaping ([HTTPCookie]) -> Void) {
@@ -161,7 +246,7 @@ final class GoogleSignInViewController: UIViewController {
 
     /// The page's own ytcfg is the authoritative answer about which Google
     /// login and which channel this session is acting as.
-    private func readPageConfig(completion: @escaping (String?, String?, String?, String?, String?, Bool) -> Void) {
+    private func readPageConfig(completion: @escaping (PageIdentity?) -> Void) {
         let script = """
         (function () {
           try {
@@ -185,7 +270,7 @@ final class GoogleSignInViewController: UIViewController {
             guard let text = value as? String,
                   let data = text.data(using: .utf8),
                   let json = (try? JSONSerialization.jsonObject(with: data, options: [])) as? [String: Any] else {
-                completion(nil, nil, nil, nil, nil, false)
+                completion(nil)
                 return
             }
             let loggedIn = (json["loggedIn"] as? String) == "true"
@@ -193,14 +278,106 @@ final class GoogleSignInViewController: UIViewController {
                 guard let value = json[key] as? String, !value.isEmpty, value != "null" else { return nil }
                 return value
             }
-            completion(string("authUser"), string("dataSyncId"), string("pageId"),
-                       string("visitorData"), string("clientVersion"), loggedIn)
+            completion(PageIdentity(loggedIn: loggedIn,
+                                    authUser: string("authUser"),
+                                    dataSyncId: string("dataSyncId"),
+                                    pageId: string("pageId"),
+                                    visitorData: string("visitorData"),
+                                    clientVersion: string("clientVersion")))
         }
+    }
+
+    private func pageIsBlank(completion: @escaping (Bool) -> Void) {
+        let script = """
+        (function () {
+          try {
+            if (!document.body) return true;
+            return !(document.body.innerText || '').trim();
+          } catch (e) { return true; }
+        })();
+        """
+        webView.evaluateJavaScript(script) { value, _ in
+            completion((value as? Bool) ?? false)
+        }
+    }
+
+    private func adopt(header: String, identity: PageIdentity) {
+        guard !completed else { return }
+        completed = true
+        captureInFlight = true
+        autoCapture?.cancel()
+        let captured = CapturedGoogleSession(cookie: header,
+                                             authUser: identity.authUser ?? "0",
+                                             dataSyncId: identity.dataSyncId,
+                                             pageId: identity.pageId,
+                                             visitorData: identity.visitorData,
+                                             clientVersion: identity.clientVersion)
+        GoogleAccountStore.shared.adopt(captured)
+        spinner.stopAnimating()
+        statusLabel.text = "Signed in. Opening BitChord..."
+        dismiss(animated: true, completion: nil)
+    }
+
+    private func finishCapture(message: String) {
+        captureInFlight = false
+        spinner.stopAnimating()
+        doneButton.isEnabled = true
+        statusLabel.text = message
+        statusLabel.textColor = UIColor(red: 1, green: 0.45, blue: 0.42, alpha: 1)
+    }
+
+    /// Fetches the music shell with the just-captured cookies. This is the
+    /// fallback for the blank WKWebView: the same ytcfg values exist in the
+    /// HTML, and the request needs no JavaScript at all.
+    private func fetchNetworkIdentity(cookie: String,
+                                      completion: @escaping (PageIdentity?) -> Void) {
+        let config = URLSessionConfiguration.ephemeral
+        config.timeoutIntervalForRequest = 12
+        config.httpShouldSetCookies = false
+        config.httpCookieAcceptPolicy = .never
+        let session = URLSession(configuration: config)
+        var request = URLRequest(url: GoogleSignInViewController.musicURL,
+                                 cachePolicy: .reloadIgnoringLocalCacheData,
+                                 timeoutInterval: 12)
+        request.setValue(cookie, forHTTPHeaderField: "Cookie")
+        request.setValue(GoogleSignInViewController.safariUserAgent, forHTTPHeaderField: "User-Agent")
+        request.setValue("text/html,application/xhtml+xml", forHTTPHeaderField: "Accept")
+        request.setValue("en-US,en;q=0.9", forHTTPHeaderField: "Accept-Language")
+        session.dataTask(with: request) { data, _, _ in
+            var identity: PageIdentity?
+            if let data = data,
+               let html = String(data: data, encoding: .utf8) {
+                identity = GoogleSignInViewController.identity(fromHTML: html)
+            }
+            DispatchQueue.main.async { completion(identity) }
+        }.resume()
+    }
+
+    private static func identity(fromHTML html: String) -> PageIdentity? {
+        let loggedIn = firstMatch("\"LOGGED_IN\"\\s*:\\s*\"?(true|false)", in: html)
+        guard loggedIn == "true" else { return nil }
+        func field(_ name: String) -> String? {
+            firstMatch("\"\(name)\"\\s*:\\s*\"([^\"]+)\"", in: html)
+        }
+        return PageIdentity(loggedIn: true,
+                            authUser: firstMatch("\"SESSION_INDEX\"\\s*:\\s*\"?([0-9]+)", in: html),
+                            dataSyncId: field("DATASYNC_ID"),
+                            pageId: field("DELEGATED_SESSION_ID"),
+                            visitorData: field("VISITOR_DATA"),
+                            clientVersion: field("INNERTUBE_CLIENT_VERSION"))
+    }
+
+    private static func firstMatch(_ pattern: String, in text: String) -> String? {
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
+        let range = NSRange(location: 0, length: text.utf16.count)
+        guard let match = regex.firstMatch(in: text, range: range),
+              match.numberOfRanges > 1 else { return nil }
+        let value = (text as NSString).substring(with: match.range(at: 1))
+        return value.isEmpty ? nil : value
     }
 
     private static func youtubeCookieHeader(_ cookies: [HTTPCookie]) -> String? {
         let now = Date()
-        let apiNames: Set<String> = ["SAPISID", "__Secure-3PAPISID", "__Secure-1PAPISID"]
         var values: [String: String] = [:]
         for cookie in cookies {
             guard cookie.expiresDate == nil || cookie.expiresDate! > now else { continue }
@@ -212,16 +389,24 @@ final class GoogleSignInViewController: UIViewController {
         }
         var header = values.map { "\($0.key)=\($0.value)" }.sorted().joined(separator: "; ")
         // A partitioned login can leave the signing secret only on Google's
-        // own domain. YouTube reads the cookie by name, so that one value is
-        // enough to make the captured session usable.
+        // own domain. YouTube reads cookies by name, but the account routes
+        // also expect the rest of the Google session, so carry the identity
+        // cookies across when the YouTube jar did not receive them.
         if GoogleAccountStore.apiSID(in: header) == nil {
-            if let googleSID = cookies.first(where: {
-                let domain = $0.domain
-                return (domain == "google.com" || domain.hasSuffix(".google.com"))
-                    && apiNames.contains($0.name)
-                    && ($0.expiresDate == nil || $0.expiresDate! > now)
-            }) {
-                header += (header.isEmpty ? "" : "; ") + "\(googleSID.name)=\(googleSID.value)"
+            let identityCookies: Set<String> = [
+                "SID", "HSID", "SSID", "APISID", "SAPISID",
+                "__Secure-1PSID", "__Secure-3PSID",
+                "__Secure-1PAPISID", "__Secure-3PAPISID"
+            ]
+            var seen = Set(values.keys)
+            for cookie in cookies {
+                let domain = cookie.domain
+                guard (domain == "google.com" || domain.hasSuffix(".google.com")),
+                      identityCookies.contains(cookie.name),
+                      !seen.contains(cookie.name),
+                      cookie.expiresDate == nil || cookie.expiresDate! > now else { continue }
+                header += (header.isEmpty ? "" : "; ") + "\(cookie.name)=\(cookie.value)"
+                seen.insert(cookie.name)
             }
         }
         return header.isEmpty ? nil : header
@@ -267,28 +452,73 @@ extension GoogleSignInViewController: WKNavigationDelegate {
     func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
         progress.isHidden = false
         spinner.startAnimating()
+        if GoogleSignInViewController.isYouTubeURL(webView.url) {
+            enterYouTubeStage()
+        }
+    }
+
+    func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction,
+                 decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+        if GoogleSignInViewController.isYouTubeURL(navigationAction.request.url) {
+            enterYouTubeStage()
+        }
+        decisionHandler(.allow)
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         spinner.stopAnimating()
         progress.isHidden = true
-        let url = webView.url?.absoluteString ?? ""
-        if url.hasPrefix(GoogleSignInViewController.musicOrigin) {
-            reachedMusic = true
-            doneButton.isEnabled = true
-            statusLabel.textColor = Theme.secondaryText
-            statusLabel.text = "Finish choosing your account, then tap Done."
+        // Keep Done reachable on every page. If the jar already has a session,
+        // a manual tap can recover from a page this web view cannot render.
+        doneButton.isEnabled = true
+        if GoogleSignInViewController.isYouTubeURL(webView.url) {
+            enterYouTubeStage()
         } else {
-            doneButton.isEnabled = false
+            statusLabel.textColor = Theme.secondaryText
+            statusLabel.text = "Sign in with your Google Account. Your password stays with Google."
         }
     }
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+        if (error as NSError).code == NSURLErrorCancelled { return }
         finishCapture(message: "Could not reach Google. Check the connection and try again.")
     }
 
-    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!,
+                 withError error: Error) {
+        if (error as NSError).code == NSURLErrorCancelled { return }
         finishCapture(message: "Could not reach Google. Check the connection and try again.")
+    }
+
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        guard !completed else { return }
+        finishCapture(message: "The Google page stopped responding. Tap Done to retry, or Cancel and reopen it.")
+    }
+
+    private func enterYouTubeStage() {
+        guard !completed else { return }
+        youtubeStage = true
+        doneButton.isEnabled = true
+        statusLabel.textColor = Theme.secondaryText
+        statusLabel.text = "Google sign-in complete. Finishing sign-in..."
+        scheduleAutoCapture()
+    }
+
+    private func scheduleAutoCapture() {
+        guard youtubeStage, !completed, !autoCaptureExhausted else { return }
+        autoCapture?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self = self, !self.completed, !self.captureInFlight else { return }
+            self.beginCapture(manual: false)
+        }
+        autoCapture = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8, execute: work)
+    }
+
+    private static func isYouTubeURL(_ url: URL?) -> Bool {
+        guard let host = url?.host?.lowercased() else { return false }
+        return host == "music.youtube.com" || host == "www.youtube.com"
+            || host == "youtube.com" || host == "m.youtube.com"
     }
 }
 
@@ -301,5 +531,14 @@ extension GoogleSignInViewController: WKUIDelegate {
             webView.load(URLRequest(url: url))
         }
         return nil
+    }
+}
+
+extension GoogleSignInViewController: WKHTTPCookieStoreObserver {
+    func cookiesDidChange(in cookieStore: WKHTTPCookieStore) {
+        // The redirect can complete before the web view reports its final page.
+        // A cookie write during the YouTube stage is enough to start looking.
+        guard youtubeStage, !completed, !autoCaptureExhausted else { return }
+        scheduleAutoCapture()
     }
 }
