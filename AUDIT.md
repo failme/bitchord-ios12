@@ -12,17 +12,18 @@ screenshot), **Ported** (implemented and reachable, exercised indirectly by the
 flows CI asserts), **iOS 12 block**, **Account/credential** (needs an account or
 third-party keys this build cannot ship), **Android-only**.
 
-Latest full run: commit `eb13fcc` (`43666892167`, attempt 1). The build,
+Latest full run: commit `0cbcabd` (`43678210478`, attempt 1). The build,
 simulator and screenshots jobs are green, including the simulated Google
-handoff, relaunch, sign-out and signed-out relaunch. It captured 125 PNGs: 59
-settled screenshots, 46 origin/mid/settled motion frames, 8 screens at
-320x568 and 12 Google-account handoff/restore/sign-out frames, plus their
-reports, under `_ci_tmp/run-eb13/extract/shots/`. Both root IPAs are that
-build: 17,369,394 bytes, sha256
-`0fa3c7b1712af19aecd6da77915294824273135cced2116ae18ffe57efa3062a`, bundle
+handoff, relaunch, sign-out and signed-out relaunch, the background transfer
+resume/recovery pair, the light-theme pass and the parser-level web links. It
+captured 128 PNGs: 63 settled screenshots, 46 origin/mid/settled motion frames,
+8 screens at 320x568, 3 light-palette screens and 8 Google-account
+handoff/restore/sign-out frames, plus their reports, under
+`_ci_tmp/final-0c-shots/shots/`. The v2 IPA is 17,483,126 bytes, sha256
+`913997329fc2138a99b8930c1be728462f0317a61c51811416e035fde105b5b6`, bundle
 `com.bitchord.ios12v2` 2.0.0, `MinimumOSVersion 12.0`, `UIDeviceFamily [1,2]`,
 a thin `arm64` executable (Mach-O) and a registered `bitchord` URL scheme -
-verified on the packaged file, with all three copies byte-identical.
+verified on the packaged file.
 
 ## UI parity pass
 
@@ -31,7 +32,7 @@ The screens were measured against the running Android app in the emulator
 heights, banner and card origins, list rows, settings rows, player transport
 and footer were moved onto the reference bounds; `home.png`, `library.png`, `explore.png`, `search.png`,
 `settings.png`, `downloads-empty.png`, `local-music.png` and `now-playing.png`
-in `_ci_tmp/run-eb13/extract/shots/` are the resulting captures. Home's account button is 36pt, the Top Picks card is
+in `_ci_tmp/final-0c-shots/shots/` are the resulting captures. Home's account button is 36pt, the Top Picks card is
 240x320pt (upstream's `min(width * 0.60, 280)` at 402pt by its 0.75 aspect),
 and the album shelf follows the card row at 16pt rather than the feed's 28pt
 rhythm. Explore keeps the 1.72:1 mood card and 18pt radius from
@@ -116,7 +117,7 @@ remain device checks.
 A separate `-BCMotion` launch drives every transition through the real control
 (`MotionHarness`). It writes an origin frame, at least one mid frame and the
 settled frame, and records presentation-layer values in
-`_ci_tmp/run-eb13/extract/shots/motion-report.txt`. CI fails if any flag is
+`_ci_tmp/final-0c-shots/shots/motion-report.txt`. CI fails if any flag is
 false or any of the 46
 frames is missing, so a transition that snapped cannot pass as animated. The
 tab pill's 0.42s spring was checked against an emulator screen recording of the
@@ -247,6 +248,13 @@ launch; **JioSaavn** switches the resolver and the search catalogue;
 nerds** shows the live engine summary; **Swipe to play next** adds the real
 swipe action; **On Wi-Fi/On mobile data** select the playback bitrate ceiling.
 
+The alternate-icon asset is packaged and the Settings row calls
+`setAlternateIconName`. The simulator advertises support but cancels that call
+("The operation was cancelled") even with `AppIcon-Monochrome` present in
+`Assets.car`, so the fixture asserts support and the attempt and captures the
+row; this is a simulator icon-service limitation, not a missing asset or code
+path.
+
 Rows that remain disabled, and the specific block behind each, are listed
 under **Blocked surfaces** below; none is a silent “not ported” placeholder.
 
@@ -300,7 +308,7 @@ silently left out.
 
 ## What CI measured, and what it did not
 
-Measured in the simulator (`_ci_tmp/run-eb13/extract/shots/download-report.txt`
+Measured in the simulator (`_ci_tmp/final-0c-shots/shots/download-report.txt`
 and the background reports), with the run above:
 
 - Song menu: `menu.items=Play next|Add to queue|Add to playlist|Like|Open
