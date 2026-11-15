@@ -268,9 +268,14 @@ final class AudioDSP {
                 let index = frame * channels + channel
                 var sample = data[index]
                 if config.equalizer != "Off" {
-                    let bands = channel == 1 ? rightBands : leftBands
-                    for band in 0..<10 {
-                        sample = bands[band].process(sample, gain: gains[band])
+                    if channel == 1 {
+                        for band in 0..<10 {
+                            sample = rightBands[band].process(sample, gain: gains[band])
+                        }
+                    } else {
+                        for band in 0..<10 {
+                            sample = leftBands[band].process(sample, gain: gains[band])
+                        }
                     }
                 }
                 data[index] = sample
@@ -413,12 +418,12 @@ private func audioTapUnprepare(_ tap: MTAudioProcessingTap) {
 
 private func audioTapProcess(_ tap: MTAudioProcessingTap,
                              _ numberFrames: CMItemCount,
+                             _ flags: MTAudioProcessingTapFlags,
                              _ bufferListInOut: UnsafeMutablePointer<AudioBufferList>,
-                             _ flagsOut: UnsafeMutablePointer<MTAudioProcessingTapFlags>,
-                             _ timeRangeOut: UnsafeMutablePointer<CMTimeRange>?,
-                             _ numberFramesOut: UnsafeMutablePointer<CMItemCount>?) {
+                             _ numberFramesOut: UnsafeMutablePointer<CMItemCount>,
+                             _ flagsOut: UnsafeMutablePointer<MTAudioProcessingTapFlags>) {
     let status = MTAudioProcessingTapGetSourceAudio(tap, numberFrames, bufferListInOut,
-                                                    flagsOut, timeRangeOut, numberFramesOut)
+                                                    flagsOut, nil, numberFramesOut)
     guard status == noErr else { return }
     let storage = MTAudioProcessingTapGetStorage(tap)
     let dsp = Unmanaged<AudioDSP>.fromOpaque(storage).takeUnretainedValue()
