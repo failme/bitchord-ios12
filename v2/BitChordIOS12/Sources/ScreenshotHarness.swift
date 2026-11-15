@@ -277,6 +277,10 @@ enum ScreenshotHarness {
                       name: "verify-report-\(mode).txt",
                       directory: directory)
             writeText("done", name: "verify-done-\(mode).txt", directory: directory)
+            // The handoff fixture suppresses first-run onboarding while it
+            // drives the account flow. Put the app back on a first-run state
+            // so the later screenshot pass still captures onboarding.
+            OnboardingViewController.reset()
             exit(0)
         }
     }
