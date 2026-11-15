@@ -10,6 +10,15 @@ enum ScreenshotHarness {
     static func runIfRequested() {
         MotionHarness.runIfRequested()
         let arguments = ProcessInfo.processInfo.arguments
+        // The Google handoff has its own multi-launch fixture: sign in through
+        // the real browser/controller, relaunch to restore, sign out, then
+        // relaunch again to prove the stored session is gone.
+        if let fixture = arguments.firstIndex(of: "-BCSignInStage"), fixture + 3 < arguments.count {
+            runSignInStage(directory: URL(fileURLWithPath: arguments[fixture + 1], isDirectory: true),
+                           mode: arguments[fixture + 2],
+                           stage: arguments[fixture + 3])
+            return
+        }
         // A first launch downloads one track and exits; CI then relaunches with
         // -BCScreenshots, so the capture proves the index survived a restart
         // rather than reading back this process's memory.
@@ -82,6 +91,172 @@ enum ScreenshotHarness {
         // Give Home and Explore a moment to make their network calls.
         DispatchQueue.main.asyncAfter(deadline: .now() + 6) {
             capture(directory: directory)
+        }
+    }
+
+    /// Drives the Google → YouTube Music handoff without a live Google account.
+    /// The browser still visits Google's origin, redirects to the music origin,
+    /// and reads cookies from the web view's own store, so this exercises the
+    /// same controller and data path that a real login uses.
+    private static func runSignInStage(directory: URL, mode: String, stage: String) {
+        guard let window = UIApplication.shared.keyWindow,
+              let root = window.rootViewController as? RootViewController,
+              let shell = GoogleHandoffFixture.Shell(rawValue: mode) else {
+            writeText("handoff.absent=true", name: "handoff-\(mode)-\(stage).txt", directory: directory)
+            exit(1)
+            return
+        }
+        OnboardingViewController.complete(path: "local")
+        switch stage {
+        case "handoff":
+            signInHandoff(window: window, root: root, shell: shell, directory: directory)
+        case "restore":
+            signInRestore(window: window, root: root, mode: mode, directory: directory)
+        case "signout":
+            signInSignOut(window: window, root: root, mode: mode, directory: directory)
+        case "verify":
+            signInSignedOut(window: window, root: root, mode: mode, directory: directory)
+        default:
+            writeText("handoff.stage=unknown", name: "handoff-\(mode)-\(stage).txt", directory: directory)
+            exit(1)
+        }
+    }
+
+    private static func signInHandoff(window: UIWindow,
+                                      root: RootViewController,
+                                      shell: GoogleHandoffFixture.Shell,
+                                      directory: URL) {
+        // Clear the old keychain item and browser jar, then seed only the
+        // fixture's Google/YouTube cookies immediately before the browser runs.
+        GoogleAccountStore.shared.signOut {
+            DispatchQueue.main.async {
+                GoogleHandoffFixture.active = GoogleHandoffFixture(shell: shell)
+                GoogleAccountStore.shared.presentSignIn(from: root)
+                waitUntil({
+                    root.presentedViewController == nil && GoogleAccountStore.shared.isSignedIn
+                }, timeout: 35) { finished in
+                    after(1.0) {
+                        let store = GoogleAccountStore.shared
+                        let probe = GoogleHandoffFixture.probe
+                        let home = root.navigationForTab(0)?.viewControllers.first as? HomeViewController
+                        let homeVisible = home?.isSignedInFeedVisible ?? false
+                        var report: [String] = []
+                        report.append("handoff.path=\(shell.rawValue)")
+                        report.append("handoff.probe.loginOrigin=\(probe.loginOrigin)")
+                        report.append("handoff.probe.shellOrigin=\(probe.shellOrigin)")
+                        report.append("handoff.probe.shellBlank=\(probe.documentBlank)")
+                        report.append("handoff.probe.ytcfg=\(probe.pageConfigRead)")
+                        report.append("handoff.probe.networkFallback=\(probe.networkFallbackUsed)")
+                        report.append("handoff.probe.networkCookie=\(probe.networkHadCookie)")
+                        report.append("handoff.probe.documentCookie=\(probe.documentCookie)")
+                        report.append("handoff.document.youtubeCookie=\(probe.documentCookie.contains("BC_VISIBLE=1"))")
+                        report.append("handoff.document.googleCookie=\(probe.documentCookie.contains("GOOGLE_ONLY=1"))")
+                        report.append("handoff.dismissed=\(root.presentedViewController == nil)")
+                        report.append("handoff.signedIn=\(store.isSignedIn)")
+                        report.append("handoff.authUser=\(store.authUser)")
+                        report.append("handoff.dataSync=\(store.dataSyncId ?? "")")
+                        report.append("handoff.accountName=\(store.displayName)")
+                        report.append("handoff.homeVisible=\(homeVisible)")
+                        report.append("handoff.cookieHeader=\(store.requestHeaders()["Cookie"] != nil)")
+                        report.append("handoff.completed=\(finished)")
+                        write(window: window, name: "signed-in-home-\(shell.rawValue)", directory: directory)
+                        let account = AccountViewController()
+                        root.present(chrome(account), animated: false) {
+                            after(0.7) {
+                                report.append("handoff.accountVisible=\(!account.isShowingSignedOut)")
+                                write(window: window,
+                                      name: "signed-in-account-\(shell.rawValue)",
+                                      directory: directory)
+                                writeText(report.joined(separator: "\n"),
+                                          name: "handoff-report-\(shell.rawValue).txt",
+                                          directory: directory)
+                                writeText("done",
+                                          name: "handoff-done-\(shell.rawValue).txt",
+                                          directory: directory)
+                                exit(0)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private static func signInRestore(window: UIWindow,
+                                      root: RootViewController,
+                                      mode: String,
+                                      directory: URL) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            let store = GoogleAccountStore.shared
+            let home = root.navigationForTab(0)?.viewControllers.first as? HomeViewController
+            let homeVisible = home?.isSignedInFeedVisible ?? false
+            var report: [String] = []
+            report.append("restore.signedIn=\(store.isSignedIn)")
+            report.append("restore.authUser=\(store.authUser)")
+            report.append("restore.dataSync=\(store.dataSyncId ?? "")")
+            report.append("restore.cookieHeader=\(store.requestHeaders()["Cookie"] != nil)")
+            report.append("restore.homeVisible=\(homeVisible)")
+            report.append("restore.requiresSignIn=\(!store.isSignedIn)")
+            write(window: window, name: "signed-in-home-restored-\(mode)", directory: directory)
+            writeText(report.joined(separator: "\n"),
+                      name: "restore-report-\(mode).txt",
+                      directory: directory)
+            writeText("done", name: "restore-done-\(mode).txt", directory: directory)
+            exit(0)
+        }
+    }
+
+    private static func signInSignOut(window: UIWindow,
+                                      root: RootViewController,
+                                      mode: String,
+                                      directory: URL) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+            let account = AccountViewController()
+            root.present(chrome(account), animated: false) {
+                after(0.5) {
+                    var report: [String] = []
+                    report.append("signout.startedSignedIn=\(GoogleAccountStore.shared.isSignedIn)")
+                    write(window: window, name: "signed-in-account-signout-\(mode)", directory: directory)
+                    account.signOutForCapture()
+                    after(0.7) {
+                        report.append("signout.cleared=\(!GoogleAccountStore.shared.isSignedIn)")
+                        report.append("signout.signedOutScreen=\(account.isShowingSignIn)")
+                        report.append("signout.cookieHeader=\(GoogleAccountStore.shared.requestHeaders()["Cookie"] != nil)")
+                        write(window: window, name: "signed-out-account-\(mode)", directory: directory)
+                        root.dismiss(animated: false) {
+                            after(0.6) {
+                                let home = root.navigationForTab(0)?.viewControllers.first as? HomeViewController
+                                report.append("signout.homePrompt=\(home?.isSignInPromptVisible ?? false)")
+                                write(window: window, name: "signed-out-home-signout-\(mode)", directory: directory)
+                                writeText(report.joined(separator: "\n"),
+                                          name: "signout-report-\(mode).txt",
+                                          directory: directory)
+                                writeText("done", name: "signout-done-\(mode).txt", directory: directory)
+                                exit(0)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private static func signInSignedOut(window: UIWindow,
+                                        root: RootViewController,
+                                        mode: String,
+                                        directory: URL) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+            let home = root.navigationForTab(0)?.viewControllers.first as? HomeViewController
+            var report: [String] = []
+            report.append("verify.signedIn=\(GoogleAccountStore.shared.isSignedIn)")
+            report.append("verify.cookieHeader=\(GoogleAccountStore.shared.requestHeaders()["Cookie"] != nil)")
+            report.append("verify.signInPrompt=\(home?.isSignInPromptVisible ?? false)")
+            write(window: window, name: "signed-out-home-verify-\(mode)", directory: directory)
+            writeText(report.joined(separator: "\n"),
+                      name: "verify-report-\(mode).txt",
+                      directory: directory)
+            writeText("done", name: "verify-done-\(mode).txt", directory: directory)
+            exit(0)
         }
     }
 

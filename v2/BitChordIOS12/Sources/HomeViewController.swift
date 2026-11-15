@@ -11,6 +11,7 @@ final class HomeViewController: UIViewController {
     private let remoteHomeShelf = CardShelfView()
     private let topPicks = TopPicksShelfView()
     private let signInHolder = UIView()
+    private let signedInEmptyState = UIView()
     private let accountAvatar = UIButton(type: .system)
     private var albums: [CatalogueAlbum] = []
 
@@ -92,6 +93,46 @@ final class HomeViewController: UIViewController {
         stack.addArrangedSubview(signInHolder)
         // Custom spacing only sticks once the view is actually arranged.
         stack.setCustomSpacing(23, after: signInHolder)
+
+        // A signed-in account must never leave Home blank while the network
+        // feed loads (or when YouTube answers nothing). The reference app has
+        // an account home; this is its local, non-empty first state.
+        signedInEmptyState.translatesAutoresizingMaskIntoConstraints = false
+        signedInEmptyState.backgroundColor = Theme.surface
+        signedInEmptyState.layer.cornerRadius = 18
+        signedInEmptyState.isHidden = true
+        signedInEmptyState.accessibilityIdentifier = "Home.SignedInEmptyState"
+        let emptyLogo = UIImageView(image: UIImage(named: "BrandLogo") ?? Icons.image(.logo, size: 34))
+        emptyLogo.tintColor = Theme.primaryText
+        emptyLogo.contentMode = .scaleAspectFit
+        emptyLogo.translatesAutoresizingMaskIntoConstraints = false
+        emptyLogo.widthAnchor.constraint(equalToConstant: 42).isActive = true
+        emptyLogo.heightAnchor.constraint(equalToConstant: 30).isActive = true
+        let emptyTitle = UILabel()
+        emptyTitle.text = "Welcome to BitChord"
+        emptyTitle.font = Theme.font(20, weight: .bold)
+        emptyTitle.textColor = Theme.primaryText
+        emptyTitle.textAlignment = .center
+        let emptyDetail = UILabel()
+        emptyDetail.text = "Your YouTube Music account is connected. Your picks, likes and history will appear here as the feed loads."
+        emptyDetail.font = Theme.font(14)
+        emptyDetail.textColor = Theme.secondaryText
+        emptyDetail.textAlignment = .center
+        emptyDetail.numberOfLines = 0
+        let emptyStack = UIStackView(arrangedSubviews: [emptyLogo, emptyTitle, emptyDetail])
+        emptyStack.translatesAutoresizingMaskIntoConstraints = false
+        emptyStack.axis = .vertical
+        emptyStack.alignment = .center
+        emptyStack.spacing = 10
+        signedInEmptyState.addSubview(emptyStack)
+        NSLayoutConstraint.activate([
+            emptyStack.topAnchor.constraint(equalTo: signedInEmptyState.topAnchor, constant: 24),
+            emptyStack.leadingAnchor.constraint(equalTo: signedInEmptyState.leadingAnchor, constant: 24),
+            emptyStack.trailingAnchor.constraint(equalTo: signedInEmptyState.trailingAnchor, constant: -24),
+            emptyStack.bottomAnchor.constraint(equalTo: signedInEmptyState.bottomAnchor, constant: -24),
+            signedInEmptyState.heightAnchor.constraint(greaterThanOrEqualToConstant: 170)
+        ])
+        stack.addArrangedSubview(signedInEmptyState)
 
         // The real feed opens with the large Top Picks cards, not a small shelf.
         topPicks.translatesAutoresizingMaskIntoConstraints = false
@@ -194,6 +235,7 @@ final class HomeViewController: UIViewController {
         remoteHomeItems = Array(items.prefix(12))
         guard !remoteHomeItems.isEmpty else {
             remoteHomeShelf.removeFromSuperview()
+            updateEmptyState()
             return
         }
         let cards = remoteHomeItems.map { item in
@@ -212,6 +254,7 @@ final class HomeViewController: UIViewController {
                 equalToConstant: CardShelfView.rowHeight).isActive = true
             stack.addArrangedSubview(remoteHomeShelf)
         }
+        updateEmptyState()
     }
 
     private func openRemoteHomeItem(_ item: YouTubeHomeItem) {
@@ -262,6 +305,7 @@ final class HomeViewController: UIViewController {
                     equalToConstant: CardShelfView.rowHeight).isActive = true
                 self.stack.addArrangedSubview(self.releasesShelf)
             }
+            self.updateEmptyState()
         }
     }
 
@@ -292,8 +336,31 @@ final class HomeViewController: UIViewController {
     private func applyAccountState() {
         let signedIn = GoogleAccountStore.shared.isSignedIn
         signInHolder.isHidden = signedIn
+        signedInEmptyState.isHidden = !signedIn
         GoogleAccountStore.shared.updateAvatarButton(accountAvatar, size: 36)
+        updateEmptyState()
     }
+
+    /// Keeps the signed-in shell visible when the remote feed is slow or empty.
+    private func updateEmptyState(hasLocalShelves: Bool? = nil) {
+        let signedIn = GoogleAccountStore.shared.isSignedIn
+        let local = hasLocalShelves ?? !shelfViews.isEmpty
+        let hasContent = local || !topPicks.isHidden || remoteHomeShelf.superview != nil
+            || releasesShelf.superview != nil
+        signedInEmptyState.isHidden = !signedIn || hasContent
+    }
+
+    /// The handoff harness reads this after dismissal instead of treating any
+    /// non-white pixel as a rendered feed.
+    var isSignedInFeedVisible: Bool {
+        guard GoogleAccountStore.shared.isSignedIn, !scrollView.isHidden, signInHolder.isHidden else {
+            return false
+        }
+        return !signedInEmptyState.isHidden || !topPicks.isHidden || !shelfViews.isEmpty
+            || remoteHomeShelf.superview != nil || releasesShelf.superview != nil
+    }
+
+    var isSignInPromptVisible: Bool { return !signInHolder.isHidden }
 
     @objc private func openSettings() {
         let settings = SettingsViewController()
@@ -325,6 +392,7 @@ final class HomeViewController: UIViewController {
         // Rebuild only when the shape changed; reloading on every library event
         // would reset each shelf's horizontal scroll position.
         let signature = shelves.map { $0.0 + ":" + $0.1.map { $0.videoID }.joined(separator: ",") }
+        updateEmptyState(hasLocalShelves: !shelves.isEmpty)
         if signature == (stack.arrangedSubviews.compactMap { ($0 as? ShelfRowView)?.accessibilityIdentifier }) {
             return
         }
@@ -355,6 +423,7 @@ final class HomeViewController: UIViewController {
         }
 
         scrollView.isHidden = shelves.isEmpty && topPicks.isHidden
+            && signedInEmptyState.isHidden && signInHolder.isHidden
     }
 
     func motionTopPickArtworkFrame(in view: UIView) -> CGRect? {

@@ -309,6 +309,101 @@ jobs:
               cat /tmp/jellyfin-server.log 2>/dev/null || true
               exit 1
             }
+          # Google → YouTube Music handoff. The fixture drives the real web
+          # view and cookie store, then proves the session survives a relaunch
+          # and that signing out clears it. No Google account is needed.
+          wait_for_handoff() {
+            local path="$1"
+            for i in $(seq 1 45); do
+              [ -f "$path" ] && return 0
+              sleep 1
+            done
+            return 1
+          }
+          run_handoff_stage() {
+            local mode="$1" stage="$2"
+            xcrun simctl terminate "$UDID" "$BUNDLE" > /dev/null 2>&1 || true
+            xcrun simctl launch "$UDID" "$BUNDLE" \
+              -BCSignInStage "$CONTAINER/Documents/shots" "$mode" "$stage" > /dev/null
+            wait_for_handoff "$CONTAINER/Documents/shots/$stage-done-$mode.txt" || {
+              echo "::error ::handoff $mode $stage did not write $stage-done-$mode.txt"
+              ls -l "$CONTAINER/Documents/shots" || true
+              exit 1
+            }
+          }
+          for MODE in rendered blank; do
+            rm -f "$CONTAINER/Documents/shots/handoff-done-$MODE.txt" \
+                  "$CONTAINER/Documents/shots/restore-done-$MODE.txt" \
+                  "$CONTAINER/Documents/shots/signout-done-$MODE.txt" \
+                  "$CONTAINER/Documents/shots/verify-done-$MODE.txt"
+
+            run_handoff_stage "$MODE" handoff
+            echo "### Handoff $MODE"
+            cat "$CONTAINER/Documents/shots/handoff-report-$MODE.txt"
+            HANDOFF="$CONTAINER/Documents/shots/handoff-report-$MODE.txt"
+            grep -q "handoff.path=$MODE" "$HANDOFF"
+            grep -q "handoff.probe.loginOrigin=https://accounts.google.com" "$HANDOFF"
+            grep -q "handoff.probe.shellOrigin=https://music.youtube.com" "$HANDOFF"
+            if [ "$MODE" = "rendered" ]; then
+              grep -q "handoff.probe.shellBlank=false" "$HANDOFF"
+              grep -q "handoff.probe.ytcfg=true" "$HANDOFF"
+              grep -q "handoff.probe.networkFallback=false" "$HANDOFF"
+            else
+              grep -q "handoff.probe.shellBlank=true" "$HANDOFF"
+              grep -q "handoff.probe.ytcfg=false" "$HANDOFF"
+              grep -q "handoff.probe.networkFallback=true" "$HANDOFF"
+            fi
+            grep -q "handoff.probe.networkCookie=true" "$HANDOFF"
+            grep -q "handoff.document.youtubeCookie=true" "$HANDOFF"
+            grep -q "handoff.document.googleCookie=false" "$HANDOFF"
+            grep -q "handoff.dismissed=true" "$HANDOFF"
+            grep -q "handoff.signedIn=true" "$HANDOFF"
+            grep -q "handoff.authUser=0" "$HANDOFF"
+            grep -q "handoff.dataSync=fixture-account" "$HANDOFF"
+            grep -q "handoff.homeVisible=true" "$HANDOFF"
+            grep -q "handoff.accountVisible=true" "$HANDOFF"
+            grep -q "handoff.cookieHeader=true" "$HANDOFF"
+            grep -q "handoff.completed=true" "$HANDOFF"
+            test -s "$CONTAINER/Documents/shots/signed-in-home-$MODE.png"
+            test -s "$CONTAINER/Documents/shots/signed-in-account-$MODE.png"
+
+            run_handoff_stage "$MODE" restore
+            echo "### Restore $MODE"
+            cat "$CONTAINER/Documents/shots/restore-report-$MODE.txt"
+            RESTORE="$CONTAINER/Documents/shots/restore-report-$MODE.txt"
+            grep -q "restore.signedIn=true" "$RESTORE"
+            grep -q "restore.authUser=0" "$RESTORE"
+            grep -q "restore.dataSync=fixture-account" "$RESTORE"
+            grep -q "restore.cookieHeader=true" "$RESTORE"
+            grep -q "restore.homeVisible=true" "$RESTORE"
+            grep -q "restore.requiresSignIn=false" "$RESTORE"
+            test -s "$CONTAINER/Documents/shots/signed-in-home-restored-$MODE.png"
+
+            run_handoff_stage "$MODE" signout
+            echo "### Sign out $MODE"
+            cat "$CONTAINER/Documents/shots/signout-report-$MODE.txt"
+            SIGNOUT="$CONTAINER/Documents/shots/signout-report-$MODE.txt"
+            grep -q "signout.startedSignedIn=true" "$SIGNOUT"
+            grep -q "signout.cleared=true" "$SIGNOUT"
+            grep -q "signout.signedOutScreen=true" "$SIGNOUT"
+            grep -q "signout.cookieHeader=false" "$SIGNOUT"
+            grep -q "signout.homePrompt=true" "$SIGNOUT"
+            test -s "$CONTAINER/Documents/shots/signed-in-account-signout-$MODE.png"
+            test -s "$CONTAINER/Documents/shots/signed-out-account-$MODE.png"
+            test -s "$CONTAINER/Documents/shots/signed-out-home-signout-$MODE.png"
+
+            run_handoff_stage "$MODE" verify
+            echo "### Signed-out relaunch $MODE"
+            cat "$CONTAINER/Documents/shots/verify-report-$MODE.txt"
+            VERIFY="$CONTAINER/Documents/shots/verify-report-$MODE.txt"
+            grep -q "verify.signedIn=false" "$VERIFY"
+            grep -q "verify.cookieHeader=false" "$VERIFY"
+            grep -q "verify.signInPrompt=true" "$VERIFY"
+            test -s "$CONTAINER/Documents/shots/signed-out-home-verify-$MODE.png"
+          done
+          xcrun simctl terminate "$UDID" "$BUNDLE" || true
+          sleep 1
+
           # First launch downloads one track and quits; the second launch below
           # reads that index back off disk, so the capture proves persistence
           # across a relaunch rather than same-process memory.

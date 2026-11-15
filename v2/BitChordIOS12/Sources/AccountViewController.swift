@@ -242,4 +242,13 @@ final class AccountViewController: UIViewController {
 
     /// Snapshots used by the compact-layout capture.
     var isShowingSignedOut: Bool { return !signedIn }
+
+    var isShowingSignIn: Bool { return !signedIn && !signInButton.isHidden }
+
+    /// The handoff harness signs out through the same store call as the alert,
+    /// without waiting for a person to tap the destructive action.
+    func signOutForCapture() {
+        GoogleAccountStore.shared.signOut()
+        refresh()
+    }
 }

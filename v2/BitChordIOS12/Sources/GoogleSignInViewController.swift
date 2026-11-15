@@ -34,6 +34,7 @@ final class GoogleSignInViewController: UIViewController {
     private var autoCaptureExhausted = false
     private var completed = false
     private var captureInFlight = false
+    private var fixtureShellLoaded = false
     private var autoCapture: DispatchWorkItem?
 
     private static let loginURL = URL(string:
@@ -121,6 +122,13 @@ final class GoogleSignInViewController: UIViewController {
         // a white view that happens to have finished loading.
         WKWebsiteDataStore.default().httpCookieStore.add(self)
 
+        // The deterministic handoff uses the same web view, cookie store and
+        // controller. Only the pages Google would serve are local documents.
+        if let fixture = GoogleHandoffFixture.active {
+            loadFixture(fixture)
+            return
+        }
+
         // Start with a clean Google jar. Otherwise an account signed out of the
         // app is immediately recognised by accounts.google.com, and the screen
         // cannot be used to choose a different one.
@@ -139,6 +147,53 @@ final class GoogleSignInViewController: UIViewController {
         var request = URLRequest(url: GoogleSignInViewController.loginURL)
         request.timeoutInterval = 30
         webView.load(request)
+    }
+
+    private func loadFixture(_ fixture: GoogleHandoffFixture) {
+        GoogleHandoffFixture.probe = GoogleHandoffFixture.Probe()
+        GoogleHandoffFixture.probe.loginOrigin = fixture.loginBaseURL.absoluteString
+        fixture.seedCookies { [weak self] in
+            self?.webView.loadHTMLString(fixture.loginHTML, baseURL: fixture.loginBaseURL)
+        }
+    }
+
+    private func loadFixtureShell(_ fixture: GoogleHandoffFixture) {
+        guard !fixtureShellLoaded else { return }
+        fixtureShellLoaded = true
+        GoogleHandoffFixture.probe.shellOrigin = fixture.musicBaseURL.absoluteString
+        GoogleHandoffFixture.probe.documentBlank = fixture.shell == .blank
+        webView.loadHTMLString(fixture.shellHTML, baseURL: fixture.musicBaseURL)
+    }
+
+    /// Reads the cookies and body from the page that actually loaded, so the
+    /// test can prove the music origin saw the YouTube cookie and not the
+    /// accounts.google.com one.
+    private func probeFixturePage() {
+        let script = """
+        (function () {
+          try {
+            return JSON.stringify({
+              origin: location.origin,
+              cookie: document.cookie || "",
+              blank: !(document.body && (document.body.innerText || '').trim())
+            });
+          } catch (e) { return ""; }
+        })();
+        """
+        webView.evaluateJavaScript(script) { value, _ in
+            guard GoogleHandoffFixture.active != nil,
+                  let text = value as? String,
+                  let data = text.data(using: .utf8),
+                  let json = (try? JSONSerialization.jsonObject(with: data, options: [])) as? [String: Any] else {
+                return
+            }
+            GoogleHandoffFixture.probe.documentCookie = json["cookie"] as? String ?? ""
+            GoogleHandoffFixture.probe.documentBlank = json["blank"] as? Bool ?? true
+            if let origin = json["origin"] as? String,
+               origin.hasPrefix("https://") {
+                GoogleHandoffFixture.probe.shellOrigin = origin
+            }
+        }
     }
 
     @objc private func cancel() {
@@ -274,6 +329,9 @@ final class GoogleSignInViewController: UIViewController {
                 return
             }
             let loggedIn = (json["loggedIn"] as? String) == "true"
+            if GoogleHandoffFixture.active != nil {
+                GoogleHandoffFixture.probe.pageConfigRead = loggedIn
+            }
             func string(_ key: String) -> String? {
                 guard let value = json[key] as? String, !value.isEmpty, value != "null" else { return nil }
                 return value
@@ -331,6 +389,20 @@ final class GoogleSignInViewController: UIViewController {
     /// HTML, and the request needs no JavaScript at all.
     private func fetchNetworkIdentity(cookie: String,
                                       completion: @escaping (PageIdentity?) -> Void) {
+        // The fixture's authenticated document is returned only when the
+        // request carries the seeded YouTube signing cookie. That makes the
+        // fallback depend on the same cookie handoff as the real request.
+        if let fixture = GoogleHandoffFixture.active {
+            GoogleHandoffFixture.probe.networkFallbackUsed = true
+            let hadCookie = cookie.contains("SAPISID=\(GoogleHandoffFixture.cookieValue)")
+            GoogleHandoffFixture.probe.networkHadCookie = hadCookie
+            let identity = hadCookie
+                ? GoogleSignInViewController.identity(fromHTML: fixture.networkHTML)
+                : nil
+            DispatchQueue.main.async { completion(identity) }
+            return
+        }
+
         let config = URLSessionConfiguration.ephemeral
         config.timeoutIntervalForRequest = 12
         config.httpShouldSetCookies = false
@@ -459,6 +531,14 @@ extension GoogleSignInViewController: WKNavigationDelegate {
 
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction,
                  decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+        if let fixture = GoogleHandoffFixture.active,
+           navigationAction.request.url?.host?.lowercased() == "music.youtube.com" {
+            decisionHandler(.cancel)
+            DispatchQueue.main.async { [weak self] in
+                self?.loadFixtureShell(fixture)
+            }
+            return
+        }
         if GoogleSignInViewController.isYouTubeURL(navigationAction.request.url) {
             enterYouTubeStage()
         }
@@ -466,6 +546,19 @@ extension GoogleSignInViewController: WKNavigationDelegate {
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        if GoogleHandoffFixture.active != nil {
+            if fixtureShellLoaded {
+                spinner.stopAnimating()
+                progress.isHidden = true
+                probeFixturePage()
+                enterYouTubeStage()
+                return
+            }
+            if let url = webView.url, url.scheme == "https" {
+                GoogleHandoffFixture.probe.loginOrigin = url.absoluteString
+            }
+            return
+        }
         spinner.stopAnimating()
         progress.isHidden = true
         // Keep Done reachable on every page. If the jar already has a session,

@@ -145,11 +145,11 @@ final class GoogleAccountStore {
         refreshProfile()
     }
 
-    func signOut() {
+    func signOut(completion: (() -> Void)? = nil) {
         session = nil
         Keychain.delete(keychainKey)
         NotificationCenter.default.post(name: .googleAccountDidChange, object: nil)
-        GoogleSignInViewController.clearBrowserSession()
+        GoogleSignInViewController.clearBrowserSession(completion: completion)
     }
 
     /// Headers the signed-in InnerTube routes need. The origin is part of the
@@ -176,7 +176,7 @@ final class GoogleAccountStore {
     /// guessing them from the cookie. A failed read leaves the captured
     /// session intact; the account is still usable and the next launch retries.
     func refreshProfile() {
-        guard isSignedIn else { return }
+        guard isSignedIn, GoogleHandoffFixture.active == nil else { return }
         InnerTube.shared.accountMenu { [weak self] json in
             guard let self = self, let json = json,
                   let header = GoogleAccountStore.firstDictionary(named: "activeAccountHeaderRenderer",
