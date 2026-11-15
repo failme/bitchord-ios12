@@ -313,7 +313,8 @@ enum SettingsCatalog {
 
         SettingSection(title: "Appearance", items: [
             SettingItem(key: "BitChord.Appearance.Theme", title: "Theme",
-                        kind: .choice("Midnight", ["Midnight", "System"])),
+                        detail: "Midnight is the only iOS 12 theme",
+                        kind: .unavailable("iOS 12 has no dynamic dark/light colour system; this port keeps the upstream Midnight palette.")),
             SettingItem(key: "BitChord.Appearance.Font", title: "Font",
                         kind: .choice("System", ["System", "Rounded", "Serif"])),
             SettingItem(key: "BitChord.Appearance.AppIcon", title: "App icon",
@@ -329,16 +330,16 @@ enum SettingsCatalog {
             SettingItem(key: "BitChord.Appearance.LegacyMesh", title: "Legacy mesh gradient",
                         kind: .unavailable("Mesh gradient is not ported.")),
             SettingItem(key: "BitChord.Appearance.ReduceAnimation", title: "Reduce animation",
-                        kind: .unavailable("Depends on the mesh/motion work.")),
+                        kind: .toggle(false)),
             SettingItem(key: "BitChord.Appearance.ReduceDynamicBlur", title: "Reduce dynamic blur",
                         kind: .unavailable("Depends on the mesh/motion work."))
         ]),
 
         SettingSection(title: "Misc", items: [
             SettingItem(key: "BitChord.Misc.HideVolumeSlider", title: "Hide volume slider",
-                        kind: .unavailable("No volume slider in this player yet.")),
+                        kind: .toggle(false)),
             SettingItem(key: "BitChord.Misc.HideStatusBarInPlayer", title: "Hide status bar in player",
-                        kind: .unavailable("Not ported.")),
+                        kind: .toggle(false)),
             SettingItem(key: "BitChord.Misc.HideSongStatus", title: "Hide song status",
                         kind: .toggle(false)),
             SettingItem(key: "BitChord.Misc.ShowQueueHistory", title: "Show queue history",

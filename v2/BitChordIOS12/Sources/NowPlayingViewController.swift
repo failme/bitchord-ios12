@@ -68,6 +68,15 @@ final class NowPlayingViewController: UIViewController {
     private var toggleUnderTitle: NSLayoutConstraint?
     private var toggleInHeader: NSLayoutConstraint?
 
+    override var prefersStatusBarHidden: Bool {
+        return SettingsStore.shared.bool("BitChord.Misc.HideStatusBarInPlayer", false)
+    }
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        setNeedsStatusBarAppearanceUpdate()
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = Theme.background
@@ -667,7 +676,7 @@ final class NowPlayingViewController: UIViewController {
         titleLabel.isHidden = lyrics
         artistLabel.isHidden = lyrics
         badgeLabel.isHidden = lyrics
-        statusLabel.isHidden = lyrics
+        statusLabel.isHidden = lyrics || SettingsStore.shared.bool("BitChord.Misc.HideSongStatus", false)
         diagnosticsLabel.isHidden = lyrics
         // The real panel draws the transport straight on the background, with
         // no white disc behind the pause.
@@ -700,9 +709,10 @@ final class NowPlayingViewController: UIViewController {
         translitButton.isHidden = !lyrics
         // The real panel keeps the volume row and the output footer on screen
         // in both the cover and the lyrics layout.
-        volumeSlider.isHidden = false
-        volumeLow.isHidden = false
-        volumeHigh.isHidden = false
+        let hideVolume = SettingsStore.shared.bool("BitChord.Misc.HideVolumeSlider", false)
+        volumeSlider.isHidden = hideVolume
+        volumeLow.isHidden = hideVolume
+        volumeHigh.isHidden = hideVolume
         outputButton.isHidden = false
         outputLabel.isHidden = false
         shuffleButton.isHidden = true
@@ -803,6 +813,7 @@ final class NowPlayingViewController: UIViewController {
             badgeLabel.text = nil
         }
         statusLabel.text = service.statusText.isEmpty ? nil : service.statusText
+        statusLabel.isHidden = showingLyrics || SettingsStore.shared.bool("BitChord.Misc.HideSongStatus", false)
         // Upstream's `TransportRow` swaps the two vectors outright; the
         // enlargement is what makes the glyph read at Apple Music's size.
         playButton.setImage(Icons.image(service.isPlaying ? .pause : .play, size: 74),

@@ -27,6 +27,11 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         window.makeKeyAndVisible()
         self.window = window
         CacheStore.shared.configure()
+        applyReduceAnimation()
+        NotificationCenter.default.addObserver(self,
+                                              selector: #selector(settingsChanged),
+                                              name: .settingsDidChange,
+                                              object: nil)
         // A cold launch from bitchord:// arrives in the launch options, before
         // any view has been asked to appear.
         if let url = launchOptions?[.url] as? URL {
@@ -42,6 +47,14 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         }
         ScreenshotHarness.runIfRequested()
         return true
+    }
+
+    private func applyReduceAnimation() {
+        UIView.setAnimationsEnabled(!SettingsStore.shared.bool("BitChord.Appearance.ReduceAnimation", false))
+    }
+
+    @objc private func settingsChanged() {
+        applyReduceAnimation()
     }
 
     func application(_ app: UIApplication,
