@@ -675,9 +675,11 @@ enum ScreenshotHarness {
             let savedAnimated = SettingsStore.shared.bool("BitChord.Appearance.AnimatedCover", false)
             let savedCellular = SettingsStore.shared.bool("BitChord.Appearance.AnimatedCoverCellular", true)
             let savedReduce = SettingsStore.shared.bool("BitChord.Appearance.ReduceAnimation", false)
+            let savedEQ = SettingsStore.shared.string("BitChord.Audio.Equalizer", "Off")
             SettingsStore.shared.set(true, for: "BitChord.Appearance.AnimatedCover")
             SettingsStore.shared.set(true, for: "BitChord.Appearance.AnimatedCoverCellular")
             SettingsStore.shared.set(false, for: "BitChord.Appearance.ReduceAnimation")
+            SettingsStore.shared.set("Bass boost", for: "BitChord.Audio.Equalizer")
             PlayerService.shared.play(tracks: [track], startingAt: 0)
             root.presentNowPlayingFromRoot()
             // The vocal enters around half a minute in; seek there so the
@@ -696,6 +698,14 @@ enum ScreenshotHarness {
                 SettingsStore.shared.set(savedAnimated, for: "BitChord.Appearance.AnimatedCover")
                 SettingsStore.shared.set(savedCellular, for: "BitChord.Appearance.AnimatedCoverCellular")
                 SettingsStore.shared.set(savedReduce, for: "BitChord.Appearance.ReduceAnimation")
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 9.5) {
+                writeText("dsp.tapAttached=\(AudioDSP.shared.tapAttached)\n"
+                            + "dsp.processedFrames=\(AudioDSP.shared.processedFrames)\n"
+                            + "dsp.lastRMS=\(AudioDSP.shared.lastRMS)\n"
+                            + "dsp.lastGain=\(AudioDSP.shared.lastGain)\n",
+                          name: "dsp-playback.txt", directory: directory)
+                SettingsStore.shared.set(savedEQ, for: "BitChord.Audio.Equalizer")
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
                 if let player = root.presentedViewController as? NowPlayingViewController {

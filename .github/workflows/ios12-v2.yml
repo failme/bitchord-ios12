@@ -994,6 +994,9 @@ jobs:
           test -s shots/animated-cover.txt
           grep -q "animatedCover.active=true" shots/animated-cover.txt
           grep -q "animatedCover.setting=true" shots/animated-cover.txt
+          test -s shots/dsp-playback.txt
+          grep -q "dsp.tapAttached=true" shots/dsp-playback.txt
+          grep -qE "dsp.processedFrames=[1-9][0-9]*" shots/dsp-playback.txt
 
           # Settings matrix, driven through the real stores and helpers. This
           # writes one report after the visual fixtures, so the probe's seed
