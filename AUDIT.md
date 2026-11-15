@@ -18,13 +18,17 @@ The port is a native UIKit app for iOS 12, bundle `com.bitchord.ios12v2`
 
 ## Final evidence
 
-Last full v2 run: commit `a5f8209` (`43685287762`). The `build`, `simulator`
-and `screenshots` jobs are green. The screenshots job produced
-`BITCHORD_SHOTS_SUMMARY` under `_ci_tmp/final-a5-shots/shots/`, including the
-Google handoff, settings probe, motion frames, light theme, deep links,
-background retry and 320x568 pass. The packaged IPA is `IPA_SUMMARY`.
+Last full v2 run: commit `94a0f3e` (`43692224334`). The `build`, `simulator`
+and `screenshots` jobs are green. The screenshots artifact contains **128
+PNGs**: 59 settled screens, 46 motion frames, 12 Google handoff/restore/
+sign-out frames, 3 light-palette screens and 8 screens at 320x568, plus their
+reports. The packaged IPA is **30,228,519 bytes**, sha256
+`5f7dc6e6f8aeb3e7a4b4b651bb09316de7f78c87d349c66a839251af90cdf01c`,
+bundle `com.bitchord.ios12v2` 2.0.0, `MinimumOSVersion 12.0`,
+`UIDeviceFamily [1,2]`, a thin arm64 executable and a registered `bitchord`
+URL scheme.
 
-Previous green runs after the Google fix: `43679379002` (`5cd0428`),
+Earlier green runs after the Google fix: `43679379002` (`5cd0428`). Run
 `43684981752` failed only on a missing `AVFoundation` import in the audio-route
 label; that compile error is fixed in the final run.
 
@@ -46,7 +50,7 @@ label; that compile error is fixed in the final run.
 | `app/.../playback` | Queue, radio, DSP, Cast, DSD, loop mix, smart transitions | Queue/radio/autoplay/sleep/speed **Verified**; DSP, Cast, DSD and bit-perfect **Blocked** as listed below |
 | `app/.../ui/screens` | 16 screen files | Every screen is in the screen matrix below |
 | `app/.../ui/player`, `ui/components`, `ui/onboarding`, `ui/theme`, `ui/icons`, `ui/navigation`, `ui/utils` | Player, components, onboarding, palette, icons, root navigation | **Verified / deliberately equal** — native UIKit equivalents and motion frames; see motion and screen sections |
-| `app/.../ui/festive` | Date-gated Diwali greeting | **Verified** — `DiwaliGate` + `DiwaliGreetingViewController` with the reference illustration, shown only on 8 Nov 2026 in an Indian timezone and once |
+| `app/.../ui/festive` | Date-gated Diwali greeting | **Ported** — `DiwaliGate` + `DiwaliGreetingViewController` with the reference illustration, shown only on 8 Nov 2026 in an Indian timezone and once; not date-triggered by today's CI |
 | `app/.../ui/performance` | Per-app refresh-rate controls | **Blocked** — iOS exposes no app-level display refresh-rate selection; the system owns it |
 | `app/.../ui/replay` | Replay model, screen, stories, poster, share | Replay stats and system share **Verified**; the multi-page story carousel is **deliberately equal** to one stats screen plus a rendered share card, not a hidden omission |
 | `app/.../widget`, `wear`, `wearos/`, `tv/` | Widget, watch and TV apps | **Blocked/Android-only** — separate application targets; this project has no watchOS/widget/TV extension |
@@ -120,17 +124,23 @@ The reference `AppSettings.kt` at `acf219a` contains **131 persisted keys**
 `SettingsCatalog` now has **118 rows** (10 sections). The probe reports that
 number directly, so it cannot drift with a source comment.
 
-The 131 keys are accounted for as:
+The catalog is not a 1:1 key dump; the 131 keys underlie 118 rows plus internal
+state. The rows comprise:
 
 - **60 stateful rows** (toggle/choice/stepper) round-trip through
   `SettingsStore` with `settings.roundTripFailures=none`;
 - **35 disabled rows** name a concrete blocker (probe:
   `settings.unavailable=35`), each also listed under **Blocked surfaces**;
-- the remaining keys are internal UI state rather than preferences:
-  onboarding completion, last player screen/version code, Diwali seen,
-  lyrics-sources seen, pinned playlists, and the per-surface sort/view modes
-  controlled from their own screens. Discord's detail fields sit behind the one
-  blocked Discord row. No internal key is presented as a working settings row.
+- **text/action/page/account rows** for credentials, the addon URL, backup and
+  export, cache actions, WebDAV sources, onboarding rerun, and so on. Theme and
+  app icon are exercised separately by the probe's palette and asset checks.
+
+Keys without their own row are internal state — onboarding completion, last
+player screen/version code, Diwali seen, lyrics-sources seen, pinned playlists
+— or per-surface sort/view modes controlled from their own screens. Discord's
+detail fields sit behind the one blocked Discord row. No internal key is
+presented as a working settings row, and no action row is counted as a
+persisted preference.
 
 Behavior groups asserted by `SettingsProbe`, using the same code paths as the
 UI rather than grep:
@@ -146,7 +156,7 @@ UI rather than grep:
 | Autoplay filter | `settings.autoplay=noRepeat=c allowed=b,c` |
 | Home shelves | `settings.homeHideRecents=shown=true hidden=true` |
 | Speaker guard | `settings.speakerGuard=speakerBlocked=true headphonesAllowed=true` |
-| Search continuation | `settings.searchPage2>0`, `settings.searchFresh>0` |
+| Search continuation | `settings.searchPage1=20`, `settings.searchPage2=16`, `settings.searchFresh=16` |
 
 Rows that now have observable behavior include Theme, Font, App icon, player
 theme (Cover/Solid/Legacy), full-bleed artwork/detail, liquid glass, legacy
@@ -171,13 +181,13 @@ the actual SpringBoard switch.
 | Claim | Executable check |
 | --- | --- |
 | Settings keys wired, not dead rows | `SettingsProbe` round-trips 60 rows and exercises ten behavior groups above; workflow greps each result |
-| Continuation-backed **Load more** | real `InnerTube.searchNext` after `search`; `settings.searchPage2>0`, `settings.searchFresh>0` |
+| Continuation-backed **Load more** | real `InnerTube.searchNext` after `search`; `settings.searchPage1=20`, `searchPage2=16`, `searchFresh=16`, `searchMore=true` |
 | Six `bitchord://` routes | `deeplinks.txt`: track, album, artist, playlist, radio, home, every `cold=1` |
 | YouTube watch/short/playlist/search URLs | shared `MusicLink` parser; `web-links-report.txt` resolves all four forms |
 | `+` means space in search | parser replaces `+` before querying; `search` captures use multi-word titles |
-| Alternate Monochrome in compiled `Assets.car` | build job runs `assetutil --info` and asserts `AppIcon-Monochrome`, LiquidGlass, NeonViolet, SamsungGlassClearDark, PixelNeonCyan |
+| Alternate Monochrome in compiled `Assets.car` | build job runs `assetutil --info`, asserts `AppIcon`, Monochrome, LiquidGlass, NeonViolet, SamsungGlassClearDark and PixelNeonCyan, then prints `compiled icon variants present` |
 | Light-palette screenshots | `theme-report.txt`; `theme-home-light.png`, `theme-settings-light.png`, `theme-account-light.png` |
-| Background download retry after relaunch | `background-resumed.txt` (`indexed=true`, `pendingAfter=0`, `phantom=false`) and the force-quit resume capture |
+| Background download retry after relaunch | `background-resumed.txt` and `background-killed.txt` each have `indexed=true`, `pendingAfter=0`, `phantom=false`, `ok=true`; the keep-mode transfer starts live and is backgrounded |
 
 ## Motion
 
