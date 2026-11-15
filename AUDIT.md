@@ -12,17 +12,19 @@ screenshot), **Ported** (implemented and reachable, exercised indirectly by the
 flows CI asserts), **iOS 12 block**, **Account/credential** (needs an account or
 third-party keys this build cannot ship), **Android-only**.
 
-Latest full run: commit `60d569d` (`43649376117`). The build, simulator and
-screenshots jobs are green; the screenshots job was rerun once after its
-background-transfer fixture found no fresh transfer, and the rerun passed every
-screen, motion, geometry, compact-layout and background assertion. It captured
-59 settled screenshots, 46 origin/mid/settled motion frames and 8 screens at
-320x568, plus their reports, in `_ci_tmp/run-60d569d/green/shots/`. Both root
-IPAs are that build: 17,244,148 bytes, sha256
-`7cfb58587243fbc18f1bf896212ad37ce5d53039a875ed9e4e788391c23e6c3a`, bundle
+Latest full run: commit `eade027` (`43658827453`). The build and simulator jobs
+are green. The screenshots job's first attempt passed every screen, motion,
+geometry, compact-layout and Spotify-link assertion but hit the known
+background-transfer fixture flake (`background.track=false` before a transfer
+started); the rerun passed every assertion, including the resumed transfer
+(`background.ok=true`). It captured 113 PNGs: 59 settled screenshots, 46
+origin/mid/settled motion frames and 8 screens at 320x568, plus their reports,
+under `_ci_tmp/run-eade/green/`. Both root IPAs are that
+build: 17,343,241 bytes, sha256
+`6c2ff026fa88da14f27dd09bd2d90f78ecf6cd970651a3dcf1af3d3d64d5805f`, bundle
 `com.bitchord.ios12v2` 2.0.0, `MinimumOSVersion 12.0`, `UIDeviceFamily [1,2]`,
 a thin `arm64` executable (Mach-O) and a registered `bitchord` URL scheme -
-verified on the packaged file, with both copies byte-identical.
+verified on the packaged file, with all three copies byte-identical.
 
 ## UI parity pass
 
@@ -202,11 +204,13 @@ window, rather than leaving a failed `test` as the last command in a chain.
 
 All 73 upstream keys. Wired: playback speed, sleep timer, download quality,
 storage limit, Wi-Fi-only, autoplay, show queue history, addon URL, cache
-limit, storage used, local-music filter, Appearance → Font, the Google account
+limit, storage used, local-music filter, Appearance → Font, Reduce animation,
+Hide volume, Hide song status, Hide status bar in player, the Google account
 row, Last.fm (toggle, now-playing, primary artist, username, API key, secret,
 session key, endpoint) and ListenBrainz (toggle, token, primary artist).
-Disabled rows still state what is missing: DSP, DAC, authenticated Spotify,
-Canvas, Cast, Discord and the party server.
+The Theme row is disabled because iOS 12 has no dynamic dark/light palette;
+the port keeps Midnight. Disabled rows still state what is missing: DSP, DAC,
+authenticated Spotify, Canvas, Cast, Discord and the party server.
 
 ## Remaining differences (iOS permits them; not built in this pass)
 
