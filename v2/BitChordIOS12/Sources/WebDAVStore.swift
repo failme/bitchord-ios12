@@ -5,7 +5,12 @@ import Security
 enum Keychain {
     private static let service = "com.bitchord.ios12v2.webdav"
 
-    static func set(_ value: String, for account: String) {
+    /// The last Security result, exposed so the handoff harness can say whether
+    /// an unsigned simulator actually accepted the session item.
+    private(set) static var lastStatus: OSStatus = errSecSuccess
+
+    @discardableResult
+    static func set(_ value: String, for account: String) -> OSStatus {
         let data = Data(value.utf8)
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -16,7 +21,9 @@ enum Keychain {
         var add = query
         add[kSecValueData as String] = data
         add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
-        SecItemAdd(add as CFDictionary, nil)
+        let status = SecItemAdd(add as CFDictionary, nil)
+        lastStatus = status
+        return status
     }
 
     static func get(_ account: String) -> String? {
@@ -28,7 +35,9 @@ enum Keychain {
             kSecMatchLimit as String: kSecMatchLimitOne
         ]
         var result: AnyObject?
-        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        lastStatus = status
+        guard status == errSecSuccess,
               let data = result as? Data else { return nil }
         return String(data: data, encoding: .utf8)
     }
@@ -39,7 +48,7 @@ enum Keychain {
             kSecAttrService as String: service,
             kSecAttrAccount as String: account
         ]
-        SecItemDelete(query as CFDictionary)
+        lastStatus = SecItemDelete(query as CFDictionary)
     }
 }
 

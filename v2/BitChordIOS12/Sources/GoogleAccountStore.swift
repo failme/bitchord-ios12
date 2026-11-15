@@ -1,4 +1,5 @@
 import UIKit
+import Security
 
 extension Notification.Name {
     static let googleAccountDidChange = Notification.Name("BitChordGoogleAccountDidChange")
@@ -36,10 +37,22 @@ final class GoogleAccountStore {
     }
 
     private let keychainKey = "google.session.v1"
+    private let simulatorFallbackKey = "BitChord.Google.Session.SimulatorFallback"
     private var session: Session? = nil
+    /// An unsigned simulator build has no keychain entitlement, so `SecItemAdd`
+    /// can refuse the item. The fallback is simulator-only; a signed device
+    /// still has exactly one secure store.
+    private(set) var usesSimulatorFallback = false
 
     private init() {
-        if let data = Keychain.get(keychainKey)?.data(using: .utf8),
+        var stored = Keychain.get(keychainKey)
+        #if targetEnvironment(simulator)
+        if stored == nil {
+            stored = UserDefaults.standard.string(forKey: simulatorFallbackKey)
+            usesSimulatorFallback = stored != nil
+        }
+        #endif
+        if let data = stored?.data(using: .utf8),
            let decoded = try? JSONDecoder().decode(Session.self, from: data) {
             session = decoded
         }
@@ -148,6 +161,9 @@ final class GoogleAccountStore {
     func signOut(completion: (() -> Void)? = nil) {
         session = nil
         Keychain.delete(keychainKey)
+        UserDefaults.standard.removeObject(forKey: simulatorFallbackKey)
+        UserDefaults.standard.synchronize()
+        usesSimulatorFallback = false
         NotificationCenter.default.post(name: .googleAccountDidChange, object: nil)
         GoogleSignInViewController.clearBrowserSession(completion: completion)
     }
@@ -234,7 +250,19 @@ final class GoogleAccountStore {
         guard let session = session,
               let data = try? JSONEncoder().encode(session),
               let text = String(data: data, encoding: .utf8) else { return }
-        Keychain.set(text, for: keychainKey)
+        let status = Keychain.set(text, for: keychainKey)
+        #if targetEnvironment(simulator)
+        if status == errSecSuccess {
+            UserDefaults.standard.removeObject(forKey: simulatorFallbackKey)
+            usesSimulatorFallback = false
+        } else {
+            UserDefaults.standard.set(text, forKey: simulatorFallbackKey)
+            usesSimulatorFallback = true
+            // The harness exits immediately after adopting a session; make the
+            // fallback durable before that process ends.
+            UserDefaults.standard.synchronize()
+        }
+        #endif
     }
 
     // MARK: - SHA-1
