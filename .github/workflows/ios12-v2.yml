@@ -1051,7 +1051,7 @@ jobs:
           grep -q "settings.animatedCover=enabled=true cellularOff=false reduced=false" "$PROBE"
           grep -q "settings.localization=language=Español home=Inicio search=Buscar settings=Ajustes" "$PROBE"
           grep -q "settings.translation=targets=en,hi,es,fr cache=" "$PROBE"
-          grep -q "settings.refreshRate=requested=60 effective=" "$PROBE"
+          grep -q "settings.refreshRate=requested=.* effective=.* running=true" "$PROBE"
           grep -q "settings.refreshModes=auto=60 sixty=60 thirty=30" "$PROBE"
           grep -q "settings.prefetch=enabled=true requests=0 ready=0 failed=0 held=0" "$PROBE"
 

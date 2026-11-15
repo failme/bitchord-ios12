@@ -969,6 +969,7 @@ final class NowPlayingViewController: UIViewController {
 
     private func updateArtworkMotion() {
         artworkView.layer.removeAnimation(forKey: "bitchord.animatedCover")
+        artworkView.layer.removeAnimation(forKey: "bitchord.animatedCoverPan")
         let store = SettingsStore.shared
         guard NowPlayingViewController.artworkMotionEnabled(
             animated: store.bool("BitChord.Appearance.AnimatedCover", false),
@@ -984,6 +985,14 @@ final class NowPlayingViewController: UIViewController {
         zoom.repeatCount = .infinity
         zoom.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
         artworkView.layer.add(zoom, forKey: "bitchord.animatedCover")
+        let pan = CABasicAnimation(keyPath: "transform.translation.x")
+        pan.fromValue = -3.0
+        pan.toValue = 3.0
+        pan.duration = 9
+        pan.autoreverses = true
+        pan.repeatCount = .infinity
+        pan.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+        artworkView.layer.add(pan, forKey: "bitchord.animatedCoverPan")
     }
 
     /// Read by the screenshot harness after the sleeve has loaded.
