@@ -18,12 +18,13 @@ The port is a native UIKit app for iOS 12, bundle `com.bitchord.ios12v2`
 
 ## Final evidence
 
-Last full v2 run: commit `94a0f3e` (`43692224334`). The `build`, `simulator`
-and `screenshots` jobs are green. The screenshots artifact contains **128
-PNGs**: 59 settled screens, 46 motion frames, 12 Google handoff/restore/
-sign-out frames, 3 light-palette screens and 8 screens at 320x568, plus their
-reports. The packaged IPA is **30,228,519 bytes**, sha256
-`5f7dc6e6f8aeb3e7a4b4b651bb09316de7f78c87d349c66a839251af90cdf01c`,
+Last complete v2 run: commit `58585f8` (`43699286599`). The `build`, `simulator`
+and `screenshots` jobs are green. The screenshots artifact contains **129
+PNGs**: 60 settled screens (including `animated-cover.png`), 46 motion frames,
+12 Google handoff/restore/sign-out frames, 3 light-palette screens and 8 screens
+at 320x568, plus their reports. The packaged IPA from that run is **30,269,387
+bytes**, sha256
+`2802175f9159e594002ddf5fa785c97159a6236464d5425531162c9b9d3f3d44`,
 bundle `com.bitchord.ios12v2` 2.0.0, `MinimumOSVersion 12.0`,
 `UIDeviceFamily [1,2]`, a thin arm64 executable and a registered `bitchord`
 URL scheme.
@@ -157,12 +158,12 @@ UI rather than grep:
 | Home shelves | `settings.homeHideRecents=shown=true hidden=true` |
 | Speaker guard | `settings.speakerGuard=speakerBlocked=true headphonesAllowed=true` |
 | Search continuation | `settings.searchPage1=20`, `settings.searchPage2=16`, `settings.searchFresh=16` |
-| Native DSP dry/wet | `settings.dspProcessed=dry=false wet=true`; `settings.dspWet` carries the processed RMS/gain |
+| Native DSP dry/wet | `settings.dspProcessed=dry=false wet=true`; `settings.dspWet` carries the processed RMS/gain; `dsp-playback.txt` reports `tapAttached=true`, `processedFrames=260751`, `lastRMS=0.4201641` from the playing AVPlayer item |
 | Crossfade / Automix | `settings.crossfade=explicit=5 offAutomix=0 automix=3.0 fast=1.5` |
 | Animated sleeve | `settings.animatedCover=enabled=true cellularOff=false reduced=false`; `animated-cover.txt` records `active=true` from the presented layer |
 | Language resources | `settings.localization=language=Español home=Inicio search=Buscar settings=Ajustes` |
 | Translation provider | `settings.translation=targets=en,hi,es,fr cache=0` |
-| Refresh rate | `settings.refreshModes=auto=60 sixty=60 thirty=30`; live `settings.refreshRate=requested=60 effective=…` |
+| Refresh rate | `settings.refreshModes=auto=60 sixty=60 thirty=30`; live `settings.refreshRate=requested=60 effective=36 running=true` under the loaded simulator |
 | Direct Source Stream | `settings.prefetch=enabled=true requests=0 ready=0 failed=0 held=0` |
 
 Rows that now have observable behavior include Theme, Font, App icon, player
@@ -190,7 +191,7 @@ the actual SpringBoard switch.
 
 | Claim | Executable check |
 | --- | --- |
-| Settings keys wired, not dead rows | `SettingsProbe` round-trips 60 rows and exercises ten behavior groups above; workflow greps each result |
+| Settings keys wired, not dead rows | `SettingsProbe` round-trips 75 rows and exercises every behavior group above; workflow greps each result |
 | Continuation-backed **Load more** | real `InnerTube.searchNext` after `search`; `settings.searchPage1=20`, `searchPage2=16`, `searchFresh=16`, `searchMore=true` |
 | Six `bitchord://` routes | `deeplinks.txt`: track, album, artist, playlist, radio, home, every `cold=1` |
 | YouTube watch/short/playlist/search URLs | shared `MusicLink` parser; `web-links-report.txt` resolves all four forms |
@@ -220,16 +221,16 @@ real behavior, and the probe assertion is the same code path the UI uses.
 | Surface | Implementation | Probe / capture evidence |
 | --- | --- | --- |
 | Crossfade | `PlayerService` fades the current item over the configured seconds before `advance()`; the next track starts at full volume | `settings.crossfade=explicit=5 offAutomix=0 automix=3.0 fast=1.5`; real path in `maybeCrossfade` |
-| Equalizer | `MTAudioProcessingTap` + ten biquad slots; the first seven use the reference 60/150/400/1k/2.5k/6k/14k centres and all 16 named preset curves | `settings.dspProcessed=dry=false wet=true`; `settings.dspWet` records `eq=Bass boost` and a non-unity gain |
+| Equalizer | `MTAudioProcessingTap` + ten biquad slots; the first seven use the reference 60/150/400/1k/2.5k/6k/14k centres and all 16 named preset curves | `settings.dspProcessed=dry=false wet=true`; `settings.dspWet` records `eq=Bass boost` and a non-unity gain; the player capture reports a live attached tap with 260,751 processed frames |
 | Loudness normalisation | Per-buffer RMS → smoothed gain capped at 0.55–2.0 | wet `dspWet` gain differs from dry; `settings.dspProcessed` |
 | Loudness on speaker | The same gain is enabled only when `AVAudioSession` reports the built-in speaker | `settings.speakerGuard=speakerBlocked=true headphonesAllowed=true`; tap config reads the route |
 | Spatial audio | Mid/side widening (1.45× side) in both interleaved and planar tap paths | `settings.dspProcessed=dry=false wet=true`; stereo path in `renderStereo` |
 | Skip silence | The tap flags 1.2 s of sub-0.0025 RMS; `PlayerService` seeks +1.5 s once | `AudioDSP.takeSkipSilenceRequest` consumed in `onTimeUpdated`; probe asserts the tap renderer |
 | Automix / performance mode | Automix supplies a 3.0 s (Balanced) or 1.5 s (Fast) transition when Crossfade is zero | `settings.crossfade=… automix=3.0 fast=1.5` |
-| Animated cover | A real `CABasicAnimation` scale 1.0→1.055 over 9 s, gated by Reduce Animation and the cellular toggle | `settings.animatedCover=…`; `animated-cover.png` + `animated-cover.txt` (`active=true`) |
+| Animated cover | Real `CABasicAnimation`s: scale 1.0→1.055 and ±3 pt pan over 9 s, gated by Reduce Animation and the cellular toggle | `settings.animatedCover=…`; `animated-cover.png` + `animated-cover.txt` (`active=true`) |
 | App language | `L10n` string tables for English, Hindi, Spanish and French; tab bar and Settings header read them at launch | `settings.localization=language=Español home=Inicio search=Buscar settings=Ajustes` |
 | Bilingual lyrics / translation | Cached MyMemory `langpair` requests; translated line appended under the original with line timings retained | `settings.translation=targets=en,hi,es,fr`; translation path in `refresh()` |
-| Per-app refresh rate | `DisplayRefreshController` drives a `CADisplayLink` at `preferredFramesPerSecond` 60 or 30 | `settings.refreshModes=auto=60 sixty=60 thirty=30`; live `settings.refreshRate=requested=60 effective=…` |
+| Per-app refresh rate | `DisplayRefreshController` drives a `CADisplayLink` at `preferredFramesPerSecond` 60 or 30 | `settings.refreshModes=auto=60 sixty=60 thirty=30`; live `settings.refreshRate=requested=60 effective=36 running=true` |
 | Direct Source Stream | Resolves the next queue item and opens its `AVURLAsset` before the transition | `settings.prefetch=enabled=true`; `StreamPrefetcher.report` |
 
 ## Blocked surfaces
@@ -260,5 +261,9 @@ be completed with on-device code already in this project.
 
 No real Google password/2FA login, no signed-device keychain path, no physical
 audio routing/DAC, no real Cast receiver, no real background transfer daemon,
-no SMB server and no real Spotify OAuth account. Those are device or
-third-party-account checks; the simulator proves the code paths listed above.
+no SMB server and no real Spotify OAuth account. The MyMemory translation
+request itself is not exercised in CI; the harness verifies its target mapping
+and the bilingual lyric path. The simulator *does* attach the audio tap to a
+playing item (260,751 frames), but there is no listening/room-acoustic check.
+Those are device or third-party-account checks; the simulator proves the code
+paths listed above.
