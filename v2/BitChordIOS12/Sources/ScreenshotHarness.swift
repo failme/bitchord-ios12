@@ -1645,17 +1645,42 @@ enum ScreenshotHarness {
             capture.report.append("artist.source=live")
             capture.checkpoint()
             let page = ArtistPage.make(artist: item)
-            capture.root.present(chrome(page), animated: false) {
-                waitUntil({ page.loadedTrackCount > 0 }, timeout: 25) { _ in
-                    after(1.0) {
-                        capture.shot("artist")
-                        capture.report.append("artist.loaded=\(page.loadedTrackCount)")
-                        capture.report.append("artist.summary=\(page.reportSummary)")
-                        capture.checkpoint()
-                        artistRadioProbe(capture, page: page) {
-                            page.dismiss(animated: false) { artistEmptyProbe(capture) }
-                        }
-                    }
+            presentArtistPage(capture, page: page, attempt: 1)
+        }
+    }
+
+    /// The download flow may still own a modal even after the player dismisses.
+    /// Clear it explicitly and drive the page from fixed delays: a presentation
+    /// completion that never runs must not hold every later screenshot behind it.
+    private static func presentArtistPage(_ capture: DownloadCapture,
+                                          page: ArtistViewController,
+                                          attempt: Int) {
+        capture.root.dismiss(animated: false, completion: nil)
+        after(0.5) {
+            capture.root.present(chrome(page), animated: false, completion: nil)
+            after(1.0) {
+                if page.presentingViewController == nil && attempt < 2 {
+                    capture.report.append("artist.presentRetry=\(attempt)")
+                    presentArtistPage(capture, page: page, attempt: attempt + 1)
+                    return
+                }
+                capture.report.append("artist.presented="
+                    + "\(page.presentingViewController != nil)")
+                capture.checkpoint()
+                startArtistPage(capture, page: page)
+            }
+        }
+    }
+
+    private static func startArtistPage(_ capture: DownloadCapture, page: ArtistViewController) {
+        waitUntil({ page.loadedTrackCount > 0 }, timeout: 25) { _ in
+            after(1.0) {
+                capture.shot("artist")
+                capture.report.append("artist.loaded=\(page.loadedTrackCount)")
+                capture.report.append("artist.summary=\(page.reportSummary)")
+                capture.checkpoint()
+                artistRadioProbe(capture, page: page) {
+                    page.dismiss(animated: false) { artistEmptyProbe(capture) }
                 }
             }
         }

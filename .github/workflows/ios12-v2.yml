@@ -644,6 +644,7 @@ jobs:
           test -n "$ARTIST"
           test "$ARTIST" -ge 5
           grep -Eq "artist.summary=loaded=true songs=[1-9][0-9]* albums=[1-9][0-9]* related=[1-9][0-9]* bio=true" "$REPORT"
+          grep -q "artist.presented=true" "$REPORT"
           grep -Eq "artistRadio.tracks=[1-9][0-9]*" "$REPORT"
           grep -Eq "artistRadio.queued=[1-9][0-9]*" "$REPORT"
           grep -q "artistRadio.playing=true" "$REPORT"
