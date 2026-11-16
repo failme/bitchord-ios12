@@ -1384,6 +1384,23 @@ enum ScreenshotHarness {
         DispatchQueue.main.asyncAfter(deadline: .now() + seconds, execute: body)
     }
 
+    /// Screenshot-only stand-in for a modal player. Adding the view as a child
+    /// keeps the root free for the artist pages and removes an animated
+    /// dismissal from the critical path.
+    private static func addOverlay(_ controller: UIViewController, to parent: UIViewController) {
+        parent.addChild(controller)
+        controller.view.frame = parent.view.bounds
+        controller.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        parent.view.addSubview(controller.view)
+        controller.didMove(toParent: parent)
+    }
+
+    private static func removeOverlay(_ controller: UIViewController) {
+        controller.willMove(toParent: nil)
+        controller.view.removeFromSuperview()
+        controller.removeFromParent()
+    }
+
     private static func waitUntil(_ condition: @escaping () -> Bool,
                                   timeout: TimeInterval,
                                   then: @escaping (Bool) -> Void) {
@@ -1578,27 +1595,21 @@ enum ScreenshotHarness {
         capture.checkpoint()
 
         let player = NowPlayingViewController()
-        player.modalPresentationStyle = .fullScreen
-        capture.root.present(player, animated: false) {
+        addOverlay(player, to: capture.root)
+        after(1.2) {
+            player.showLyricsForScreenshots()
             after(1.2) {
-                player.showLyricsForScreenshots()
-                after(1.2) {
-                    if let timed = live.first(where: { $0.isWordSynced }) ?? live.first {
-                        PlayerService.shared.seek(to: timed.time + 0.4)
-                        after(0.8) {
-                            capture.shot("lyrics-karaoke")
-                            // Dismiss without waiting on the presentation
-                            // completion: the rest of the capture must not be
-                            // lost if UIKit coalesces this dismissal with the
-                            // player's own teardown.
-                            player.dismiss(animated: false, completion: nil)
-                            after(0.8) { artistProbe(capture) }
-                        }
-                    } else {
+                if let timed = live.first(where: { $0.isWordSynced }) ?? live.first {
+                    PlayerService.shared.seek(to: timed.time + 0.4)
+                    after(0.8) {
                         capture.shot("lyrics-karaoke")
-                        player.dismiss(animated: false, completion: nil)
+                        removeOverlay(player)
                         after(0.8) { artistProbe(capture) }
                     }
+                } else {
+                    capture.shot("lyrics-karaoke")
+                    removeOverlay(player)
+                    after(0.8) { artistProbe(capture) }
                 }
             }
         }
@@ -1649,26 +1660,22 @@ enum ScreenshotHarness {
         }
     }
 
-    /// The download flow may still own a modal even after the player dismisses.
-    /// Clear it explicitly and drive the page from fixed delays: a presentation
-    /// completion that never runs must not hold every later screenshot behind it.
+    /// Present from a fixed delay instead of relying on a completion. If the
+    /// root still owns a modal, retry once after it has had time to clear.
     private static func presentArtistPage(_ capture: DownloadCapture,
                                           page: ArtistViewController,
                                           attempt: Int) {
-        capture.root.dismiss(animated: false, completion: nil)
-        after(0.5) {
-            capture.root.present(chrome(page), animated: false, completion: nil)
-            after(1.0) {
-                if page.presentingViewController == nil && attempt < 2 {
-                    capture.report.append("artist.presentRetry=\(attempt)")
-                    presentArtistPage(capture, page: page, attempt: attempt + 1)
-                    return
-                }
-                capture.report.append("artist.presented="
-                    + "\(page.presentingViewController != nil)")
-                capture.checkpoint()
-                startArtistPage(capture, page: page)
+        capture.root.present(chrome(page), animated: false, completion: nil)
+        after(1.0) {
+            if page.presentingViewController == nil && attempt < 2 {
+                capture.report.append("artist.presentRetry=\(attempt)")
+                presentArtistPage(capture, page: page, attempt: attempt + 1)
+                return
             }
+            capture.report.append("artist.presented="
+                + "\(page.presentingViewController != nil)")
+            capture.checkpoint()
+            startArtistPage(capture, page: page)
         }
     }
 
