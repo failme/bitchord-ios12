@@ -1387,11 +1387,9 @@ enum ScreenshotHarness {
     /// Screenshot-only stand-in for a modal player. Adding the view as a child
     /// keeps the root free for the artist pages and removes an animated
     /// dismissal from the critical path.
-    private static func addOverlay(_ controller: UIViewController, to parent: UIViewController,
-                                    aboveWindow: Bool = false) {
+    private static func addOverlay(_ controller: UIViewController, to parent: UIViewController) {
         parent.addChild(controller)
-        let parentView: UIView = parent.view
-        let host: UIView = aboveWindow ? (parentView.window ?? parentView) : parentView
+        let host: UIView = parent.view
         controller.view.frame = host.bounds
         controller.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         host.addSubview(controller.view)

@@ -404,6 +404,9 @@ extension ArtistViewController: UITableViewDataSource, UITableViewDelegate {
             break
         }
 
+        for button in trailing {
+            holder.addSubview(button)
+        }
         var constraints: [NSLayoutConstraint] = [
             label.leadingAnchor.constraint(equalTo: holder.leadingAnchor, constant: 20),
             label.centerYAnchor.constraint(equalTo: holder.centerYAnchor, constant: 3)
