@@ -445,10 +445,34 @@ jobs:
           # download sequence (resume check, offline playback, delete, quality
           # probe, mid-transfer shot, menus, Wi-Fi hold). It writes done.txt
           # when finished, so wait for the work rather than guessing.
+          LAST_REPORT=""
+          STALLED=0
           for i in $(seq 1 480); do
             [ -f "$CONTAINER/Documents/shots/done.txt" ] && break
+            if ! xcrun simctl spawn "$UDID" launchctl list 2>/dev/null | grep -q "$BUNDLE"; then
+              echo "::error ::capture app exited before done.txt"
+              break
+            fi
+            REPORT_STAMP=$(stat -f%m "$CONTAINER/Documents/shots/download-report.txt" 2>/dev/null || echo none)
+            if [ "$REPORT_STAMP" = "$LAST_REPORT" ]; then
+              STALLED=$((STALLED + 1))
+            else
+              STALLED=0
+              LAST_REPORT="$REPORT_STAMP"
+            fi
+            if [ "$STALLED" -ge 60 ]; then
+              echo "::error ::capture made no checkpoint for 120s"
+              break
+            fi
+            if [ $((i % 15)) -eq 0 ]; then
+              cp "$CONTAINER/Documents/shots/download-report.txt" shots/capture-heartbeat.txt 2>/dev/null || true
+            fi
             sleep 2
           done
+          cp "$CONTAINER/Documents/shots/download-report.txt" shots/capture-partial.txt 2>/dev/null || true
+          cp "$CONTAINER/Documents/shots/screens-launched.txt" shots/ 2>/dev/null || true
+          echo "### Capture progress at stop"
+          tail -20 shots/capture-partial.txt 2>/dev/null || echo "(no capture report yet)"
           if ! xcrun simctl spawn "$UDID" launchctl list 2>/dev/null | grep -q "$BUNDLE"; then
             echo "app is not running; collecting why"
           fi

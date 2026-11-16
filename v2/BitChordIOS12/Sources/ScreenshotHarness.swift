@@ -10,6 +10,11 @@ enum ScreenshotHarness {
     static func runIfRequested() {
         MotionHarness.runIfRequested()
         let arguments = ProcessInfo.processInfo.arguments
+        if let index = arguments.firstIndex(of: "-BCScreenshots"),
+           index + 1 < arguments.count {
+            let directory = URL(fileURLWithPath: arguments[index + 1], isDirectory: true)
+            writeText("started", name: "screens-launched.txt", directory: directory)
+        }
         // The Google handoff has its own multi-launch fixture: sign in through
         // the real browser/controller, relaunch to restore, sign out, then
         // relaunch again to prove the stored session is gone.
