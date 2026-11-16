@@ -1670,7 +1670,11 @@ enum ScreenshotHarness {
                                           attempt: Int) {
         let modal = capture.root.presentedViewController.map { String(describing: type(of: $0)) }
         capture.report.append("artist.rootModal=\(modal ?? "none")")
-        addOverlay(chrome(page), to: capture.root, aboveWindow: true)
+        capture.report.append("artist.pageConstructed=true")
+        capture.checkpoint()
+        addOverlay(chrome(page), to: capture.root)
+        capture.report.append("artist.overlayAdded=true")
+        capture.checkpoint()
         after(0.8) {
             capture.report.append("artist.presented=\(page.viewIfLoaded?.window != nil)")
             capture.checkpoint()
@@ -1719,7 +1723,7 @@ enum ScreenshotHarness {
     private static func artistEmptyProbe(_ capture: DownloadCapture) {
         let emptyArtist = CatalogueArtist(id: "probe-empty", name: "Empty Artist", artwork: nil)
         let empty = ArtistViewController(artist: emptyArtist)
-        addOverlay(chrome(empty), to: capture.root, aboveWindow: true)
+        addOverlay(chrome(empty), to: capture.root)
         after(0.2) {
             let emptyProfile = ArtistProfile(name: "Empty Artist", artwork: nil, listenerText: nil,
                                              bio: nil, topSongs: [], albums: [], related: [])
@@ -1769,7 +1773,7 @@ enum ScreenshotHarness {
                 capture.report.append("artist.fallbackRelated=\(profile.related.count)")
                 capture.report.append("artist.fallbackBio=\(profile.bio?.isEmpty == false)")
                 let fallback = ArtistViewController(artist: artist)
-                addOverlay(chrome(fallback), to: capture.root, aboveWindow: true)
+                addOverlay(chrome(fallback), to: capture.root)
                 after(0.2) {
                     fallback.applyProfileForProbe(profile)
                     after(0.6) {
@@ -1823,7 +1827,7 @@ enum ScreenshotHarness {
 
         let artist = CatalogueArtist(id: "probe-discography", name: "Discography Artist", artwork: nil)
         let page = ArtistViewController(artist: artist)
-        addOverlay(chrome(page), to: capture.root, aboveWindow: true)
+        addOverlay(chrome(page), to: capture.root)
         after(0.2) {
             page.applyProfileForProbe(profile)
             after(0.6) {
