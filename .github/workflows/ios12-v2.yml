@@ -329,7 +329,7 @@ jobs:
           # and that signing out clears it. No Google account is needed.
           wait_for_handoff() {
             local path="$1"
-            for i in $(seq 1 45); do
+            for i in $(seq 1 60); do
               [ -f "$path" ] && return 0
               sleep 1
             done
@@ -337,14 +337,28 @@ jobs:
           }
           run_handoff_stage() {
             local mode="$1" stage="$2"
-            xcrun simctl terminate "$UDID" "$BUNDLE" > /dev/null 2>&1 || true
-            xcrun simctl launch "$UDID" "$BUNDLE" \
-              -BCSignInStage "$CONTAINER/Documents/shots" "$mode" "$stage" > /dev/null
-            wait_for_handoff "$CONTAINER/Documents/shots/$stage-done-$mode.txt" || {
-              echo "::error ::handoff $mode $stage did not write $stage-done-$mode.txt"
-              ls -l "$CONTAINER/Documents/shots" || true
-              exit 1
-            }
+            local done="$CONTAINER/Documents/shots/$stage-done-$mode.txt"
+            local attempt
+            for attempt in 1 2; do
+              rm -f "$done"
+              xcrun simctl terminate "$UDID" "$BUNDLE" > /dev/null 2>&1 || true
+              sleep 1
+              xcrun simctl launch "$UDID" "$BUNDLE" \
+                -BCSignInStage "$CONTAINER/Documents/shots" "$mode" "$stage" \
+                || echo "handoff $mode $stage launch attempt $attempt failed"
+              if wait_for_handoff "$done"; then
+                return 0
+              fi
+              echo "handoff $mode $stage attempt $attempt wrote no completion; retrying"
+            done
+            echo "::error ::handoff $mode $stage did not write $stage-done-$mode.txt"
+            xcrun simctl spawn "$UDID" log show --last 3m --style compact \
+              --predicate 'processImagePath CONTAINS "BitChordIOS12V2"' 2>/dev/null \
+              | grep -aiE "fatal|exception|assert|crash|error" | tail -40 || true
+            find ~/Library/Logs/DiagnosticReports -name '*BitChord*' -mmin -10 \
+              -exec sh -c 'echo "== $1"; head -60 "$1"' _ {} \; 2>/dev/null || true
+            ls -l "$CONTAINER/Documents/shots" || true
+            exit 1
           }
           for MODE in rendered blank; do
             rm -f "$CONTAINER/Documents/shots/handoff-done-$MODE.txt" \
