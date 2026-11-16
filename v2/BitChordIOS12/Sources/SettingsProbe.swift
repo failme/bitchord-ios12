@@ -292,11 +292,11 @@ enum SettingsProbe {
                       durationSeconds: 180)
             ],
             albums: [
-                CatalogueAlbum(id: "a", title: "Album", artist: "Probe Artist", year: "2024",
+                CatalogueAlbum(id: "a", title: "Night", artist: "Probe Artist", year: "2024",
                                artwork: nil, songCount: 10, kind: .album),
-                CatalogueAlbum(id: "s", title: "Single", artist: "Probe Artist", year: "2023",
+                CatalogueAlbum(id: "s", title: "First Light", artist: "Probe Artist", year: "2023",
                                artwork: nil, songCount: 1, kind: .single),
-                CatalogueAlbum(id: "c", title: "Collection", artist: "Probe Artist", year: "2022",
+                CatalogueAlbum(id: "c", title: "The Collection", artist: "Probe Artist", year: "2022",
                                artwork: nil, songCount: 12, kind: .compilation)
             ], related: []))
         record("settings.artistControls", "\(artistProbe.discographySummary)")
