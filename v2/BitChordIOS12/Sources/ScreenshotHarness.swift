@@ -1387,10 +1387,11 @@ enum ScreenshotHarness {
     /// Screenshot-only stand-in for a modal player. Adding the view as a child
     /// keeps the root free for the artist pages and removes an animated
     /// dismissal from the critical path.
-    private static func addOverlay(_ controller: UIViewController, to parent: UIViewController) {
+    private static func addOverlay(_ controller: UIViewController, to parent: UIViewController,
+                                    aboveWindow: Bool = false) {
         parent.addChild(controller)
         let parentView: UIView = parent.view
-        let host: UIView = parentView.window ?? parentView
+        let host: UIView = aboveWindow ? (parentView.window ?? parentView) : parentView
         controller.view.frame = host.bounds
         controller.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         host.addSubview(controller.view)
@@ -1669,7 +1670,7 @@ enum ScreenshotHarness {
                                           attempt: Int) {
         let modal = capture.root.presentedViewController.map { String(describing: type(of: $0)) }
         capture.report.append("artist.rootModal=\(modal ?? "none")")
-        addOverlay(chrome(page), to: capture.root)
+        addOverlay(chrome(page), to: capture.root, aboveWindow: true)
         after(0.8) {
             capture.report.append("artist.presented=\(page.viewIfLoaded?.window != nil)")
             capture.checkpoint()
@@ -1718,7 +1719,7 @@ enum ScreenshotHarness {
     private static func artistEmptyProbe(_ capture: DownloadCapture) {
         let emptyArtist = CatalogueArtist(id: "probe-empty", name: "Empty Artist", artwork: nil)
         let empty = ArtistViewController(artist: emptyArtist)
-        addOverlay(chrome(empty), to: capture.root)
+        addOverlay(chrome(empty), to: capture.root, aboveWindow: true)
         after(0.2) {
             let emptyProfile = ArtistProfile(name: "Empty Artist", artwork: nil, listenerText: nil,
                                              bio: nil, topSongs: [], albums: [], related: [])
@@ -1768,7 +1769,7 @@ enum ScreenshotHarness {
                 capture.report.append("artist.fallbackRelated=\(profile.related.count)")
                 capture.report.append("artist.fallbackBio=\(profile.bio?.isEmpty == false)")
                 let fallback = ArtistViewController(artist: artist)
-                addOverlay(chrome(fallback), to: capture.root)
+                addOverlay(chrome(fallback), to: capture.root, aboveWindow: true)
                 after(0.2) {
                     fallback.applyProfileForProbe(profile)
                     after(0.6) {
@@ -1822,7 +1823,7 @@ enum ScreenshotHarness {
 
         let artist = CatalogueArtist(id: "probe-discography", name: "Discography Artist", artwork: nil)
         let page = ArtistViewController(artist: artist)
-        addOverlay(chrome(page), to: capture.root)
+        addOverlay(chrome(page), to: capture.root, aboveWindow: true)
         after(0.2) {
             page.applyProfileForProbe(profile)
             after(0.6) {
