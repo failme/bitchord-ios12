@@ -1389,7 +1389,8 @@ enum ScreenshotHarness {
     /// dismissal from the critical path.
     private static func addOverlay(_ controller: UIViewController, to parent: UIViewController) {
         parent.addChild(controller)
-        let host = parent.view.window ?? parent.view
+        let parentView: UIView = parent.view
+        let host: UIView = parentView.window ?? parentView
         controller.view.frame = host.bounds
         controller.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         host.addSubview(controller.view)
@@ -1666,6 +1667,8 @@ enum ScreenshotHarness {
     private static func presentArtistPage(_ capture: DownloadCapture,
                                           page: ArtistViewController,
                                           attempt: Int) {
+        let modal = capture.root.presentedViewController.map { String(describing: type(of: $0)) }
+        capture.report.append("artist.rootModal=\(modal ?? "none")")
         addOverlay(chrome(page), to: capture.root)
         after(0.8) {
             capture.report.append("artist.presented=\(page.viewIfLoaded?.window != nil)")
