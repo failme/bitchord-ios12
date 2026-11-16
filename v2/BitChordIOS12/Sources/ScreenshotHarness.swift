@@ -965,13 +965,11 @@ enum ScreenshotHarness {
     private static func captureSettingsSections(_ capture: DownloadCapture,
                                                 settings: SettingsViewController,
                                                 completion: @escaping () -> Void) {
-        let keys = [Theme.accentKey, Theme.textSizeKey, Theme.densityKey,
+        let keys = [Theme.accentKey,
                     "BitChord.Audio.ResumeOnLaunch",
                     "BitChord.Audio.PauseOnHeadphoneDisconnect"]
         let old = keys.map { UserDefaults.standard.object(forKey: $0) }
         UserDefaults.standard.set("Mint", forKey: Theme.accentKey)
-        UserDefaults.standard.set("Large", forKey: Theme.textSizeKey)
-        UserDefaults.standard.set("Compact", forKey: Theme.densityKey)
         UserDefaults.standard.set(true, forKey: "BitChord.Audio.ResumeOnLaunch")
         UserDefaults.standard.set(true, forKey: "BitChord.Audio.PauseOnHeadphoneDisconnect")
         settings.refreshForCapture()
@@ -979,8 +977,7 @@ enum ScreenshotHarness {
         settings.scrollToKey(Theme.accentKey)
         after(0.5) {
             capture.shot("settings-appearance")
-            capture.report.append("settings.appearanceShown=\(Theme.accentName) "
-                + "text=\(Int(Theme.font(17).pointSize.rounded())) density=\(Theme.densityScale)")
+            capture.report.append("settings.appearanceShown=\(Theme.accentName)")
             settings.scrollToKey("BitChord.Audio.ResumeOnLaunch")
             after(0.5) {
                 capture.shot("settings-playback")

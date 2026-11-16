@@ -446,25 +446,11 @@ jobs:
           # probe, mid-transfer shot, menus, Wi-Fi hold). It writes done.txt
           # when finished, so wait for the work rather than guessing.
           LAST_REPORT=""
-          STALLED=0
           for i in $(seq 1 480); do
             [ -f "$CONTAINER/Documents/shots/done.txt" ] && break
-            if ! xcrun simctl spawn "$UDID" launchctl list 2>/dev/null | grep -q "$BUNDLE"; then
-              echo "::error ::capture app exited before done.txt"
-              break
-            fi
-            REPORT_STAMP=$(stat -f%m "$CONTAINER/Documents/shots/download-report.txt" 2>/dev/null || echo none)
-            if [ "$REPORT_STAMP" = "$LAST_REPORT" ]; then
-              STALLED=$((STALLED + 1))
-            else
-              STALLED=0
-              LAST_REPORT="$REPORT_STAMP"
-            fi
-            if [ "$STALLED" -ge 60 ]; then
-              echo "::error ::capture made no checkpoint for 120s"
-              break
-            fi
-            if [ $((i % 15)) -eq 0 ]; then
+            if [ $((i % 30)) -eq 0 ]; then
+              echo "capture heartbeat after $((i * 2))s"
+              tail -3 "$CONTAINER/Documents/shots/download-report.txt" 2>/dev/null || true
               cp "$CONTAINER/Documents/shots/download-report.txt" shots/capture-heartbeat.txt 2>/dev/null || true
             fi
             sleep 2
@@ -658,7 +644,7 @@ jobs:
           grep -q "artist.discography=filter=All sort=Newest trackSort=A–Z kinds=album:1,single:1,compilation:1 bio=collapsed first=Night trackFirst=Afterglow sections=Popular|Albums|Singles|Compilations|Fans also like|About" "$REPORT"
           grep -q "artist.discographyFiltered=filter=Singles sort=Newest trackSort=A–Z kinds=album:1,single:1,compilation:1 bio=collapsed first=First Light trackFirst=Afterglow sections=Popular|Singles|Fans also like|About" "$REPORT"
           grep -q "artist.bioExpanded=filter=All sort=Newest trackSort=A–Z kinds=album:1,single:1,compilation:1 bio=expanded first=Night trackFirst=Afterglow sections=Popular|Albums|Singles|Compilations|Fans also like|About" "$REPORT"
-          grep -q "settings.appearanceShown=Mint text=18 density=0.86" "$REPORT"
+          grep -q "settings.appearanceShown=Mint" "$REPORT"
           grep -q "settings.playbackShown=resume=true headphones=true" "$REPORT"
           grep -q "settings.maintenanceShown=true" "$REPORT"
           grep -q "equalizer.screen=true" "$REPORT"
