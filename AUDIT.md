@@ -18,20 +18,21 @@ The port is a native UIKit app for iOS 12, bundle `com.bitchord.ios12v2`
 
 ## Final evidence
 
-Last complete v2 run: commit `58585f8` (`43699286599`). The `build`, `simulator`
-and `screenshots` jobs are green. The screenshots artifact contains **129
-PNGs**: 60 settled screens (including `animated-cover.png`), 46 motion frames,
-12 Google handoff/restore/sign-out frames, 3 light-palette screens and 8 screens
-at 320x568, plus their reports. The packaged IPA from that run is **30,269,387
-bytes**, sha256
-`2802175f9159e594002ddf5fa785c97159a6236464d5425531162c9b9d3f3d44`,
+Last complete v2 run: commit `798a28e` (`43779144080`, attempt 2). The `build`,
+`simulator` and `screenshots` jobs are green. The screenshots artifact contains
+**129 PNGs**: 60 settled screens (including `animated-cover.png` and the new
+artist profile), 46 motion frames, 12 Google handoff/restore/sign-out frames, 3
+light-palette screens and 8 screens at 320x568, plus their reports. The
+packaged IPA from that run is **30,317,692 bytes**, sha256
+`76187a3d7dcc321cafabc4dd134732acf4476d959c909a1447ff2cc0726f0517`,
 bundle `com.bitchord.ios12v2` 2.0.0, `MinimumOSVersion 12.0`,
 `UIDeviceFamily [1,2]`, a thin arm64 executable and a registered `bitchord`
 URL scheme.
 
-Earlier green runs after the Google fix: `43679379002` (`5cd0428`). Run
-`43684981752` failed only on a missing `AVFoundation` import in the audio-route
-label; that compile error is fixed in the final run.
+The first attempt failed only on the background-download index probe
+(`background.indexed=false` after a simulated interruption); the retried job
+passed with the same IPA. Earlier green runs after the Google fix:
+`43679379002` (`5cd0428`).
 
 ## Top-level folder coverage
 
@@ -73,13 +74,13 @@ label; that compile error is fixed in the final run.
 | `ui/screens/HistoryScreen.kt` | `HistoryViewController` | **Verified** — `history.png`, `history-empty.png`, `historyPage.*` |
 | `ui/screens/AccountAndScrobblingScreen.kt` | `AccountViewController`, `ScrobbleService`, Google flow | **Verified** — signed-out account capture; rendered/blank handoff, restore, sign-out; Last.fm/ListenBrainz settings |
 | `ui/screens/LocalFolder.kt` | `LocalMusicViewController`, `LocalMusicStore` | **Verified** — `local-music.png`, `local-songs.png`, all-folders scan root probe |
-| `ui/screens/DetailScreen.kt` | `CollectionViewController`, `ArtistPage` | **Verified** — `artist.png`, `artist.loaded=5` |
+| `ui/screens/DetailScreen.kt` | `ArtistViewController`, `CollectionViewController` | **Verified** — `artist.png`; `artist.summary=loaded=true songs=10 albums=12 related=6 bio=true` for Taylor Swift |
 | `ui/screens/SettingsSheet.kt` | `SettingsViewController`, `SettingsCatalog` | **Verified** — `settings*.png`, `SettingsProbe` report below |
 | `ui/screens/SourcesScreen.kt` | `SourcesViewController`, WebDAV/Jellyfin | **Verified** — tree/play/error captures for both |
 | `ui/screens/LocalFolder.kt` + `PartyServerEditor.kt` | Local folder page; party editor absent | Local **Verified**; party editor **Blocked** with Listen Together |
 | `ui/screens/ListenTogetherScreen.kt`, `ListenTogetherSheets.kt` | Disabled Settings row with explanation | **Blocked** — deployed party server + shared identity |
 | `ui/screens/DiscordScreen.kt` | Disabled Settings row | **Blocked** — Discord RPC local IPC is Android-only |
-| `ui/screens/EqualizerScreen.kt` | Equalizer choice + real tap | **Verified** — seven reference centres and 16 preset curves drive biquads in `AudioDSP`; `settings.dspProcessed=dry=false wet=true` |
+| `ui/screens/EqualizerScreen.kt` | `EqualizerViewController`, manual bands + presets | **Verified** — seven draggable bands, 16 preset curves, balance and preamp all write the tap config; `settings.manualEq=changed=true bands=7 balance=-0.4` and `settings.dspProcessed=dry=false wet=true` |
 | `ui/screens/SpotifyLibraryScreen.kt` | Library's public **Import Spotify** card, `SpotifyImporter` | Public playlist import **Verified**; authenticated library **Blocked** on OAuth app/account |
 | `ui/screens/SpotifyCanvasAuthScreen.kt` | Disabled Canvas row | **Blocked** — authenticated Spotify media |
 | `ui/screens/SignatureApiEditor.kt` | Disabled Artist signatures row | **Blocked** — signature service deployed with party backend; no endpoint |
@@ -158,18 +159,22 @@ UI rather than grep:
 | Home shelves | `settings.homeHideRecents=shown=true hidden=true` |
 | Speaker guard | `settings.speakerGuard=speakerBlocked=true headphonesAllowed=true` |
 | Search continuation | `settings.searchPage1=20`, `settings.searchPage2=16`, `settings.searchFresh=16` |
-| Native DSP dry/wet | `settings.dspProcessed=dry=false wet=true`; `settings.dspWet` carries the processed RMS/gain; `dsp-playback.txt` reports `tapAttached=true`, `processedFrames=260751`, `lastRMS=0.4201641` from the playing AVPlayer item |
+| Native DSP dry/wet | `settings.dspProcessed=dry=false wet=true`; `settings.dspWet` carries the processed RMS/gain; `dsp-playback.txt` reports `tapAttached=true`, `processedFrames=438364`, `lastRMS=0.46766683` from the playing AVPlayer item |
+| Manual equalizer | `settings.manualEq=changed=true bands=7 balance=-0.4`; the planar renderer now writes the equalised samples back to the output buffer |
+| Settings search | `settings.search=equalizer=1 empty=0`; the field filters titles, details and keys through `SettingsCatalog.filtered` |
+| Interface languages | `settings.languages=14`; every language has a shell table and the Settings choice lists all fourteen |
 | Crossfade / Automix | `settings.crossfade=explicit=5 offAutomix=0 automix=3.0 fast=1.5` |
 | Animated sleeve | `settings.animatedCover=enabled=true cellularOff=false reduced=false`; `animated-cover.txt` records `active=true` from the presented layer |
-| Language resources | `settings.localization=language=Español home=Inicio search=Buscar settings=Ajustes` |
+| Language resources | `settings.localization=language=Español home=Inicio search=Buscar settings=Ajustes`; `settings.languages=14` includes German, Polish, Portuguese, Indonesian, Japanese, Russian, both Chinese scripts, Hebrew and Italian |
 | Translation provider | `settings.translation=targets=en,hi,es,fr cache=0` |
 | Refresh rate | `settings.refreshModes=auto=60 sixty=60 thirty=30`; live `settings.refreshRate=requested=60 effective=36 running=true` under the loaded simulator |
 | Direct Source Stream | `settings.prefetch=enabled=true requests=0 ready=0 failed=0 held=0` |
 
 Rows that now have observable behavior include Theme, Font, App icon, player
-theme (Cover/Solid/Legacy), crossfade, Automix + performance mode, equalizer
-presets, loudness/speaker loudness, spatial audio, skip silence, animated
-cover + cellular gate, app language, bilingual lyrics/translation language,
+theme (Cover/Solid/Legacy), crossfade, Automix + performance mode, the manual
+equalizer (bands, balance, preamp and presets), loudness/speaker loudness,
+spatial audio, skip silence, animated cover + cellular gate, app language,
+bilingual lyrics/translation language,
 Direct Source Stream, refresh rate, full-bleed artwork/detail, liquid glass, legacy
 mesh, progressive/reduced blur, render quality, high-performance mode, hide
 recents/videos/top picks/moods, show queue history, swipe-to-play-next,
@@ -178,6 +183,12 @@ sleep timer, playback speed, Wi-Fi/cellular/download quality, storage limit,
 Wi-Fi-only, keep-updated, export-compatible, scrobble minimum/percentage/cap,
 local all-folders/filter, lyrics sync/full/blur/offset/syllable priority/save
 offline/source, and the Google account row.
+
+The **artist page** is no longer a generic track list. It loads the profile
+photograph, listener count, biography, popular songs, an albums & singles
+shelf and a fans-also-like shelf, with Play and Shuffle actions. The capture
+for Taylor Swift reports `artist.summary=loaded=true songs=10 albums=12
+related=6 bio=true`.
 
 The **alternate icon** surface is 23 variants: Default plus 22 alternates,
 including Monochrome. `AppIconChoice` maps every upstream name, `Info.plist`
@@ -192,6 +203,10 @@ the actual SpringBoard switch.
 | Claim | Executable check |
 | --- | --- |
 | Settings keys wired, not dead rows | `SettingsProbe` round-trips 75 rows and exercises every behavior group above; workflow greps each result |
+| Artist pages carry the full profile | `artist.summary=loaded=true songs=10 albums=12 related=6 bio=true`; the screenshot is the same `ArtistViewController` the search row opens |
+| Manual equalizer reaches the audio | `settings.manualEq=changed=true bands=7 balance=-0.4`; the tap writes the filtered samples back to the planar output buffer |
+| Settings search is real | `settings.search=equalizer=1 empty=0` through `SettingsCatalog.filtered(by:)` |
+| Fourteen interface languages | `settings.languages=14` with a shell table for every entry |
 | Continuation-backed **Load more** | real `InnerTube.searchNext` after `search`; `settings.searchPage1=20`, `searchPage2=16`, `searchFresh=16`, `searchMore=true` |
 | Six `bitchord://` routes | `deeplinks.txt`: track, album, artist, playlist, radio, home, every `cold=1` |
 | YouTube watch/short/playlist/search URLs | shared `MusicLink` parser; `web-links-report.txt` resolves all four forms |
@@ -221,14 +236,14 @@ real behavior, and the probe assertion is the same code path the UI uses.
 | Surface | Implementation | Probe / capture evidence |
 | --- | --- | --- |
 | Crossfade | `PlayerService` fades the current item over the configured seconds before `advance()`; the next track starts at full volume | `settings.crossfade=explicit=5 offAutomix=0 automix=3.0 fast=1.5`; real path in `maybeCrossfade` |
-| Equalizer | `MTAudioProcessingTap` + ten biquad slots; the first seven use the reference 60/150/400/1k/2.5k/6k/14k centres and all 16 named preset curves | `settings.dspProcessed=dry=false wet=true`; `settings.dspWet` records `eq=Bass boost` and a non-unity gain; the player capture reports a live attached tap with 260,751 processed frames |
+| Equalizer | `MTAudioProcessingTap` + ten biquad slots; seven draggable bands use the reference 60/150/400/1k/2.5k/6k/14k centres, all 16 named curves are presets, and balance/preamp trim the output | `settings.dspProcessed=dry=false wet=true`; `settings.manualEq=changed=true bands=7 balance=-0.4`; the player capture reports a live attached tap with 438,364 processed frames |
 | Loudness normalisation | Per-buffer RMS → smoothed gain capped at 0.55–2.0 | wet `dspWet` gain differs from dry; `settings.dspProcessed` |
 | Loudness on speaker | The same gain is enabled only when `AVAudioSession` reports the built-in speaker | `settings.speakerGuard=speakerBlocked=true headphonesAllowed=true`; tap config reads the route |
 | Spatial audio | Mid/side widening (1.45× side) in both interleaved and planar tap paths | `settings.dspProcessed=dry=false wet=true`; stereo path in `renderStereo` |
 | Skip silence | The tap flags 1.2 s of sub-0.0025 RMS; `PlayerService` seeks +1.5 s once | `AudioDSP.takeSkipSilenceRequest` consumed in `onTimeUpdated`; probe asserts the tap renderer |
 | Automix / performance mode | Automix supplies a 3.0 s (Balanced) or 1.5 s (Fast) transition when Crossfade is zero | `settings.crossfade=… automix=3.0 fast=1.5` |
 | Animated cover | Real `CABasicAnimation`s: scale 1.0→1.055 and ±3 pt pan over 9 s, gated by Reduce Animation and the cellular toggle | `settings.animatedCover=…`; `animated-cover.png` + `animated-cover.txt` (`active=true`) |
-| App language | `L10n` string tables for English, Hindi, Spanish and French; tab bar and Settings header read them at launch | `settings.localization=language=Español home=Inicio search=Buscar settings=Ajustes` |
+| App language | `L10n` string tables for all 14 reference languages; tab bar and Settings header read them at launch | `settings.localization=language=Español home=Inicio search=Buscar settings=Ajustes`; `settings.languages=14` |
 | Bilingual lyrics / translation | Cached MyMemory `langpair` requests; translated line appended under the original with line timings retained | `settings.translation=targets=en,hi,es,fr`; translation path in `refresh()` |
 | Per-app refresh rate | `DisplayRefreshController` drives a `CADisplayLink` at `preferredFramesPerSecond` 60 or 30 | `settings.refreshModes=auto=60 sixty=60 thirty=30`; live `settings.refreshRate=requested=60 effective=36 running=true` |
 | Direct Source Stream | Resolves the next queue item and opens its `AVURLAsset` before the transition | `settings.prefetch=enabled=true`; `StreamPrefetcher.report` |
