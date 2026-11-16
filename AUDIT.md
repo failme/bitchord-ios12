@@ -18,21 +18,22 @@ The port is a native UIKit app for iOS 12, bundle `com.bitchord.ios12v2`
 
 ## Final evidence
 
-Last complete v2 run: commit `798a28e` (`43779144080`, attempt 2). The `build`,
+Last complete v2 run: commit `b1138e2` (`43786599205`, attempt 2). The `build`,
 `simulator` and `screenshots` jobs are green. The screenshots artifact contains
-**129 PNGs**: 60 settled screens (including `animated-cover.png` and the new
-artist profile), 46 motion frames, 12 Google handoff/restore/sign-out frames, 3
-light-palette screens and 8 screens at 320x568, plus their reports. The
-packaged IPA from that run is **30,317,692 bytes**, sha256
-`76187a3d7dcc321cafabc4dd134732acf4476d959c909a1447ff2cc0726f0517`,
+**131 PNGs**: 62 settled screens (including `animated-cover.png`, the ten-band
+`equalizer.png` with the tone puck engaged, `artist.png` with Radio, and
+`artist-fallback.png`), 46 motion frames, 12 Google handoff/restore/sign-out
+frames, 3 light-palette screens and 8 screens at 320x568, plus their reports.
+The packaged IPA from that run is **30,350,110 bytes**, sha256
+`bb5260c8a8257f66eef4d8856d6d12e6a7780e70e6c6423cb21d69d7740037d0`,
 bundle `com.bitchord.ios12v2` 2.0.0, `MinimumOSVersion 12.0`,
 `UIDeviceFamily [1,2]`, a thin arm64 executable and a registered `bitchord`
 URL scheme.
 
-The first attempt failed only on the background-download index probe
-(`background.indexed=false` after a simulated interruption); the retried job
-passed with the same IPA. Earlier green runs after the Google fix:
-`43679379002` (`5cd0428`).
+The first attempt failed only in the existing background-download fixture
+(`background.track=false` when all eight resolver candidates missed); the
+retried screenshots job passed with the same build and IPA. Earlier green runs
+after the Google fix: `43679379002` (`5cd0428`), `43779144080` (`798a28e`).
 
 ## Top-level folder coverage
 
@@ -49,7 +50,7 @@ passed with the same IPA. Earlier green runs after the Google fix:
 | `app/.../data/listentogether`, `data/presence`, `backend/` | Party protocol/server | **Blocked** — needs a deployed party server and shared signed-in identity |
 | `app/.../data/canvas`, `data/discord` | Canvas clips, Discord RPC | **Blocked** — Canvas is authenticated Spotify media; Discord uses local IPC that iOS does not provide |
 | `app/.../download` | Queue, background transfers, offline files, playlist sync | **Verified** — background `URLSession`, quality/Wi-Fi/cap rules, force-quit recovery, 100-row playlist sync |
-| `app/.../playback` | Queue, radio, DSP, Cast, DSD, loop mix, smart transitions | Queue/radio/autoplay/sleep/speed **Verified**. Crossfade/Automix, seven-band EQ + 16 reference presets, loudness (including speaker-only), spatial widening and skip-silence are **Verified** through an `MTAudioProcessingTap`; next-source prefetch is **Verified**. Cast, DSD and bit-perfect remain **Blocked** below |
+| `app/.../playback` | Queue, radio, DSP, Cast, DSD, loop mix, smart transitions | Queue/radio/autoplay/sleep/speed **Verified**. Crossfade/Automix, ten-band manual EQ + the two-axis tone pad + 16 reference presets, loudness (including speaker-only), spatial widening and skip-silence are **Verified** through an `MTAudioProcessingTap`; next-source prefetch is **Verified**. Cast, DSD and bit-perfect remain **Blocked** below |
 | `app/.../ui/screens` | 16 screen files | Every screen is in the screen matrix below |
 | `app/.../ui/player`, `ui/components`, `ui/onboarding`, `ui/theme`, `ui/icons`, `ui/navigation`, `ui/utils` | Player, components, onboarding, palette, icons, root navigation | **Verified / deliberately equal** — native UIKit equivalents and motion frames; see motion and screen sections |
 | `app/.../ui/festive` | Date-gated Diwali greeting | **Ported** — `DiwaliGate` + `DiwaliGreetingViewController` with the reference illustration, shown only on 8 Nov 2026 in an Indian timezone and once; not date-triggered by today's CI |
@@ -74,13 +75,13 @@ passed with the same IPA. Earlier green runs after the Google fix:
 | `ui/screens/HistoryScreen.kt` | `HistoryViewController` | **Verified** — `history.png`, `history-empty.png`, `historyPage.*` |
 | `ui/screens/AccountAndScrobblingScreen.kt` | `AccountViewController`, `ScrobbleService`, Google flow | **Verified** — signed-out account capture; rendered/blank handoff, restore, sign-out; Last.fm/ListenBrainz settings |
 | `ui/screens/LocalFolder.kt` | `LocalMusicViewController`, `LocalMusicStore` | **Verified** — `local-music.png`, `local-songs.png`, all-folders scan root probe |
-| `ui/screens/DetailScreen.kt` | `ArtistViewController`, `CollectionViewController` | **Verified** — `artist.png`; `artist.summary=loaded=true songs=10 albums=12 related=6 bio=true` for Taylor Swift |
+| `ui/screens/DetailScreen.kt` | `ArtistViewController`, `CollectionViewController`, `ArtistRadio` | **Verified** — `artist.png`; `artist.summary=loaded=true songs=10 albums=12 related=6 bio=true` for Taylor Swift. The header's Radio action queues and plays 50 tracks (`artistRadio.playing=true`). Empty/missing-copy and YouTube-only fallback pages are exercised without extra shelves (`artist.emptySummary=… sections=0`, `artist.partialSummary=… sections=1`, `artist.fallbackSummary=… songs=5 albums=0 related=0 sections=1`) |
 | `ui/screens/SettingsSheet.kt` | `SettingsViewController`, `SettingsCatalog` | **Verified** — `settings*.png`, `SettingsProbe` report below |
 | `ui/screens/SourcesScreen.kt` | `SourcesViewController`, WebDAV/Jellyfin | **Verified** — tree/play/error captures for both |
 | `ui/screens/LocalFolder.kt` + `PartyServerEditor.kt` | Local folder page; party editor absent | Local **Verified**; party editor **Blocked** with Listen Together |
 | `ui/screens/ListenTogetherScreen.kt`, `ListenTogetherSheets.kt` | Disabled Settings row with explanation | **Blocked** — deployed party server + shared identity |
 | `ui/screens/DiscordScreen.kt` | Disabled Settings row | **Blocked** — Discord RPC local IPC is Android-only |
-| `ui/screens/EqualizerScreen.kt` | `EqualizerViewController`, manual bands + presets | **Verified** — seven draggable bands, 16 preset curves, balance and preamp all write the tap config; `settings.manualEq=changed=true bands=7 balance=-0.4` and `settings.dspProcessed=dry=false wet=true` |
+| `ui/screens/EqualizerScreen.kt` | `EqualizerViewController`, ten manual bands + tone pad + presets | **Verified** — ten draggable bands and the two-axis X/Y tone pad, 16 preset curves, balance and preamp all write the tap config; `equalizer.png` shows the puck at (+4, −3), `settings.manualEq=changed=true bands=10 balance=-0.4`, `settings.tonePad=bands=10 x=4 y=-3 persisted=true changed=true`, and `settings.dspProcessed=dry=false wet=true` |
 | `ui/screens/SpotifyLibraryScreen.kt` | Library's public **Import Spotify** card, `SpotifyImporter` | Public playlist import **Verified**; authenticated library **Blocked** on OAuth app/account |
 | `ui/screens/SpotifyCanvasAuthScreen.kt` | Disabled Canvas row | **Blocked** — authenticated Spotify media |
 | `ui/screens/SignatureApiEditor.kt` | Disabled Artist signatures row | **Blocked** — signature service deployed with party backend; no endpoint |
@@ -160,12 +161,12 @@ UI rather than grep:
 | Speaker guard | `settings.speakerGuard=speakerBlocked=true headphonesAllowed=true` |
 | Search continuation | `settings.searchPage1=20`, `settings.searchPage2=16`, `settings.searchFresh=16` |
 | Native DSP dry/wet | `settings.dspProcessed=dry=false wet=true`; `settings.dspWet` carries the processed RMS/gain; `dsp-playback.txt` reports `tapAttached=true`, `processedFrames=438364`, `lastRMS=0.46766683` from the playing AVPlayer item |
-| Manual equalizer | `settings.manualEq=changed=true bands=7 balance=-0.4`; the planar renderer now writes the equalised samples back to the output buffer |
+| Manual equalizer | `settings.manualEq=changed=true bands=10 balance=-0.4`; `settings.tonePad=bands=10 x=4 y=-3 persisted=true changed=true`; the planar renderer writes the equalised samples back to the output buffer |
 | Settings search | `settings.search=equalizer=1 empty=0`; the field filters titles, details and keys through `SettingsCatalog.filtered` |
-| Interface languages | `settings.languages=14`; every language has a shell table and the Settings choice lists all fourteen |
+| Interface languages | `settings.languages=14`; every language has shell, settings and artist-page tables, and the Settings choice lists all fourteen |
 | Crossfade / Automix | `settings.crossfade=explicit=5 offAutomix=0 automix=3.0 fast=1.5` |
 | Animated sleeve | `settings.animatedCover=enabled=true cellularOff=false reduced=false`; `animated-cover.txt` records `active=true` from the presented layer |
-| Language resources | `settings.localization=language=Español home=Inicio search=Buscar settings=Ajustes`; `settings.languages=14` includes German, Polish, Portuguese, Indonesian, Japanese, Russian, both Chinese scripts, Hebrew and Italian |
+| Language resources | `settings.localization=language=Español home=Inicio search=Buscar settings=Ajustes screen=Calidad de audio artist=Populares`; `settings.screenTranslation=sections=11 missing=0 equalizer=Ecualizador artist=Populares`; `settings.languages=14` includes German, Polish, Portuguese, Indonesian, Japanese, Russian, both Chinese scripts, Hebrew and Italian |
 | Translation provider | `settings.translation=targets=en,hi,es,fr cache=0` |
 | Refresh rate | `settings.refreshModes=auto=60 sixty=60 thirty=30`; live `settings.refreshRate=requested=60 effective=36 running=true` under the loaded simulator |
 | Direct Source Stream | `settings.prefetch=enabled=true requests=0 ready=0 failed=0 held=0` |
@@ -186,9 +187,14 @@ offline/source, and the Google account row.
 
 The **artist page** is no longer a generic track list. It loads the profile
 photograph, listener count, biography, popular songs, an albums & singles
-shelf and a fans-also-like shelf, with Play and Shuffle actions. The capture
-for Taylor Swift reports `artist.summary=loaded=true songs=10 albums=12
-related=6 bio=true`.
+shelf and a fans-also-like shelf, with Play, Shuffle and Radio actions. The
+capture for Taylor Swift reports `artist.summary=loaded=true songs=10 albums=12
+related=6 bio=true sections=4`. Radio seeds from the profile and uses the
+normal `PlayerService` queue: `artistRadio.tracks=50`, `artistRadio.queued=50`,
+`artistRadio.playing=true`. `applyProfileForProbe` drives the same layout with
+no bio, albums or songs (`sections=0`), with a missing bio/album but one song
+(`sections=1`), and with the YouTube-only fallback (five songs, zero invented
+shelves, `artist-fallback.png`).
 
 The **alternate icon** surface is 23 variants: Default plus 22 alternates,
 including Monochrome. `AppIconChoice` maps every upstream name, `Info.plist`
@@ -204,7 +210,9 @@ the actual SpringBoard switch.
 | --- | --- |
 | Settings keys wired, not dead rows | `SettingsProbe` round-trips 75 rows and exercises every behavior group above; workflow greps each result |
 | Artist pages carry the full profile | `artist.summary=loaded=true songs=10 albums=12 related=6 bio=true`; the screenshot is the same `ArtistViewController` the search row opens |
-| Manual equalizer reaches the audio | `settings.manualEq=changed=true bands=7 balance=-0.4`; the tap writes the filtered samples back to the planar output buffer |
+| Artist radio uses normal playback | `artistRadio.tracks=50`, `artistRadio.queued=50`, `artistRadio.playing=true` from the profile header's Radio action |
+| Empty and fallback artist pages render | `artist.emptySummary=… sections=0`, `artist.partialSummary=… sections=1`, `artist.fallbackSummary=… songs=5 albums=0 related=0 bio=false sections=1`; `artist-fallback.png` exists |
+| Manual equalizer reaches the audio | `settings.manualEq=changed=true bands=10 balance=-0.4`; `settings.tonePad=… persisted=true changed=true`; the tap writes the filtered samples back to the planar output buffer |
 | Settings search is real | `settings.search=equalizer=1 empty=0` through `SettingsCatalog.filtered(by:)` |
 | Fourteen interface languages | `settings.languages=14` with a shell table for every entry |
 | Continuation-backed **Load more** | real `InnerTube.searchNext` after `search`; `settings.searchPage1=20`, `searchPage2=16`, `searchFresh=16`, `searchMore=true` |
@@ -236,14 +244,14 @@ real behavior, and the probe assertion is the same code path the UI uses.
 | Surface | Implementation | Probe / capture evidence |
 | --- | --- | --- |
 | Crossfade | `PlayerService` fades the current item over the configured seconds before `advance()`; the next track starts at full volume | `settings.crossfade=explicit=5 offAutomix=0 automix=3.0 fast=1.5`; real path in `maybeCrossfade` |
-| Equalizer | `MTAudioProcessingTap` + ten biquad slots; seven draggable bands use the reference 60/150/400/1k/2.5k/6k/14k centres, all 16 named curves are presets, and balance/preamp trim the output | `settings.dspProcessed=dry=false wet=true`; `settings.manualEq=changed=true bands=7 balance=-0.4`; the player capture reports a live attached tap with 438,364 processed frames |
+| Equalizer | `MTAudioProcessingTap` + ten biquad slots; ten draggable bands span 60/150/250/400/1k/2.5k/4k/6k/10k/14k, the X/Y tone pad tilts/contours the same slots, all 16 named curves are presets, and balance/preamp trim the output | `equalizer.png`; `settings.manualEq=changed=true bands=10 balance=-0.4`; `settings.tonePad=bands=10 x=4 y=-3 persisted=true changed=true`; `settings.dspProcessed=dry=false wet=true`; the player capture reports a live attached tap with 64,243 processed frames |
 | Loudness normalisation | Per-buffer RMS → smoothed gain capped at 0.55–2.0 | wet `dspWet` gain differs from dry; `settings.dspProcessed` |
 | Loudness on speaker | The same gain is enabled only when `AVAudioSession` reports the built-in speaker | `settings.speakerGuard=speakerBlocked=true headphonesAllowed=true`; tap config reads the route |
 | Spatial audio | Mid/side widening (1.45× side) in both interleaved and planar tap paths | `settings.dspProcessed=dry=false wet=true`; stereo path in `renderStereo` |
 | Skip silence | The tap flags 1.2 s of sub-0.0025 RMS; `PlayerService` seeks +1.5 s once | `AudioDSP.takeSkipSilenceRequest` consumed in `onTimeUpdated`; probe asserts the tap renderer |
 | Automix / performance mode | Automix supplies a 3.0 s (Balanced) or 1.5 s (Fast) transition when Crossfade is zero | `settings.crossfade=… automix=3.0 fast=1.5` |
 | Animated cover | Real `CABasicAnimation`s: scale 1.0→1.055 and ±3 pt pan over 9 s, gated by Reduce Animation and the cellular toggle | `settings.animatedCover=…`; `animated-cover.png` + `animated-cover.txt` (`active=true`) |
-| App language | `L10n` string tables for all 14 reference languages; tab bar and Settings header read them at launch | `settings.localization=language=Español home=Inicio search=Buscar settings=Ajustes`; `settings.languages=14` |
+| App language | `L10n` shell, settings-section/control and artist-page labels for all 14 reference languages; tab bar, Settings header, Settings sections and artist shelves read them | `settings.localization=language=Español home=Inicio search=Buscar settings=Ajustes screen=Calidad de audio artist=Populares`; `settings.screenTranslation=sections=11 missing=0 equalizer=Ecualizador artist=Populares`; `settings.languages=14` |
 | Bilingual lyrics / translation | Cached MyMemory `langpair` requests; translated line appended under the original with line timings retained | `settings.translation=targets=en,hi,es,fr`; translation path in `refresh()` |
 | Per-app refresh rate | `DisplayRefreshController` drives a `CADisplayLink` at `preferredFramesPerSecond` 60 or 30 | `settings.refreshModes=auto=60 sixty=60 thirty=30`; live `settings.refreshRate=requested=60 effective=36 running=true` |
 | Direct Source Stream | Resolves the next queue item and opens its `AVURLAsset` before the transition | `settings.prefetch=enabled=true`; `StreamPrefetcher.report` |
@@ -279,6 +287,6 @@ audio routing/DAC, no real Cast receiver, no real background transfer daemon,
 no SMB server and no real Spotify OAuth account. The MyMemory translation
 request itself is not exercised in CI; the harness verifies its target mapping
 and the bilingual lyric path. The simulator *does* attach the audio tap to a
-playing item (438,364 frames), but there is no listening/room-acoustic check.
+playing item (64,243 frames in this run), but there is no listening/acoustic check.
 Those are device or third-party-account checks; the simulator proves the code
 paths listed above.
