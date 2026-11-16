@@ -1587,11 +1587,17 @@ enum ScreenshotHarness {
                         PlayerService.shared.seek(to: timed.time + 0.4)
                         after(0.8) {
                             capture.shot("lyrics-karaoke")
-                            player.dismiss(animated: false) { artistProbe(capture) }
+                            // Dismiss without waiting on the presentation
+                            // completion: the rest of the capture must not be
+                            // lost if UIKit coalesces this dismissal with the
+                            // player's own teardown.
+                            player.dismiss(animated: false, completion: nil)
+                            after(0.8) { artistProbe(capture) }
                         }
                     } else {
                         capture.shot("lyrics-karaoke")
-                        player.dismiss(animated: false) { artistProbe(capture) }
+                        player.dismiss(animated: false, completion: nil)
+                        after(0.8) { artistProbe(capture) }
                     }
                 }
             }
@@ -1599,17 +1605,45 @@ enum ScreenshotHarness {
     }
 
     private static func artistProbe(_ capture: DownloadCapture) {
+        capture.report.append("artist.probeStart=true")
+        capture.checkpoint()
+        loadArtist(capture, attempt: 1)
+    }
+
+    /// The catalogue occasionally leaves a search request unanswered on the
+    /// simulator (a stale connection in its URL session). Bound each attempt
+    /// and try again instead of holding every later screenshot behind it.
+    private static func loadArtist(_ capture: DownloadCapture, attempt: Int) {
         // Use the same catalogue search the Artists tab uses. JioSaavn's
         // artist page is the one with releases, a biography and related
         // artists; the YouTube browse fallback only has the song list.
+        var fetched: [CatalogueArtist] = []
+        var answered = false
         CatalogueSearch.shared.artists("Taylor Swift") { artists in
-            guard let item = artists.first else {
+            fetched = artists
+            answered = true
+        }
+        waitUntil({ answered }, timeout: 20) { met in
+            guard met else {
+                if attempt < 2 {
+                    capture.report.append("artist.searchRetry=\(attempt)")
+                    loadArtist(capture, attempt: attempt + 1)
+                } else {
+                    capture.report.append("artist.searchTimeout=true")
+                    capture.checkpoint()
+                    moodsProbe(capture)
+                }
+                return
+            }
+            guard let item = fetched.first else {
                 capture.report.append("artist.tracks=0")
                 capture.checkpoint()
                 moodsProbe(capture)
                 return
             }
             capture.report.append("artist.name=\(item.name)")
+            capture.report.append("artist.source=live")
+            capture.checkpoint()
             let page = ArtistPage.make(artist: item)
             capture.root.present(chrome(page), animated: false) {
                 waitUntil({ page.loadedTrackCount > 0 }, timeout: 25) { _ in
