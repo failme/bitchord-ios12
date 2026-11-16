@@ -1389,9 +1389,10 @@ enum ScreenshotHarness {
     /// dismissal from the critical path.
     private static func addOverlay(_ controller: UIViewController, to parent: UIViewController) {
         parent.addChild(controller)
-        controller.view.frame = parent.view.bounds
+        let host = parent.view.window ?? parent.view
+        controller.view.frame = host.bounds
         controller.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-        parent.view.addSubview(controller.view)
+        host.addSubview(controller.view)
         controller.didMove(toParent: parent)
     }
 
@@ -1660,20 +1661,14 @@ enum ScreenshotHarness {
         }
     }
 
-    /// Present from a fixed delay instead of relying on a completion. If the
-    /// root still owns a modal, retry once after it has had time to clear.
+    /// Add the artist page above every existing screen. This keeps the capture
+    /// deterministic even if the download flow still owns a modal.
     private static func presentArtistPage(_ capture: DownloadCapture,
                                           page: ArtistViewController,
                                           attempt: Int) {
-        capture.root.present(chrome(page), animated: false, completion: nil)
-        after(1.0) {
-            if page.presentingViewController == nil && attempt < 2 {
-                capture.report.append("artist.presentRetry=\(attempt)")
-                presentArtistPage(capture, page: page, attempt: attempt + 1)
-                return
-            }
-            capture.report.append("artist.presented="
-                + "\(page.presentingViewController != nil)")
+        addOverlay(chrome(page), to: capture.root)
+        after(0.8) {
+            capture.report.append("artist.presented=\(page.viewIfLoaded?.window != nil)")
             capture.checkpoint()
             startArtistPage(capture, page: page)
         }
@@ -1687,7 +1682,8 @@ enum ScreenshotHarness {
                 capture.report.append("artist.summary=\(page.reportSummary)")
                 capture.checkpoint()
                 artistRadioProbe(capture, page: page) {
-                    page.dismiss(animated: false) { artistEmptyProbe(capture) }
+                    removeOverlay(page.navigationController ?? page)
+                    after(0.3) { artistEmptyProbe(capture) }
                 }
             }
         }
@@ -1719,7 +1715,8 @@ enum ScreenshotHarness {
     private static func artistEmptyProbe(_ capture: DownloadCapture) {
         let emptyArtist = CatalogueArtist(id: "probe-empty", name: "Empty Artist", artwork: nil)
         let empty = ArtistViewController(artist: emptyArtist)
-        capture.root.present(chrome(empty), animated: false) {
+        addOverlay(chrome(empty), to: capture.root)
+        after(0.2) {
             let emptyProfile = ArtistProfile(name: "Empty Artist", artwork: nil, listenerText: nil,
                                              bio: nil, topSongs: [], albums: [], related: [])
             empty.applyProfileForProbe(emptyProfile)
@@ -1738,7 +1735,8 @@ enum ScreenshotHarness {
                 capture.report.append("artist.partialSummary=\(empty.reportSummary)")
                 capture.shot("artist-partial")
                 capture.checkpoint()
-                empty.dismiss(animated: false) { artistFallbackProbe(capture) }
+                removeOverlay(empty.navigationController ?? empty)
+                after(0.3) { artistFallbackProbe(capture) }
             }
         }
     }
@@ -1767,13 +1765,15 @@ enum ScreenshotHarness {
                 capture.report.append("artist.fallbackRelated=\(profile.related.count)")
                 capture.report.append("artist.fallbackBio=\(profile.bio?.isEmpty == false)")
                 let fallback = ArtistViewController(artist: artist)
-                capture.root.present(chrome(fallback), animated: false) {
+                addOverlay(chrome(fallback), to: capture.root)
+                after(0.2) {
                     fallback.applyProfileForProbe(profile)
                     after(0.6) {
                         capture.shot("artist-fallback")
                         capture.report.append("artist.fallbackSummary=\(fallback.reportSummary)")
                         capture.checkpoint()
-                        fallback.dismiss(animated: false) { artistDiscographyProbe(capture) }
+                        removeOverlay(fallback.navigationController ?? fallback)
+                        after(0.3) { artistDiscographyProbe(capture) }
                     }
                 }
             }
@@ -1819,7 +1819,8 @@ enum ScreenshotHarness {
 
         let artist = CatalogueArtist(id: "probe-discography", name: "Discography Artist", artwork: nil)
         let page = ArtistViewController(artist: artist)
-        capture.root.present(chrome(page), animated: false) {
+        addOverlay(chrome(page), to: capture.root)
+        after(0.2) {
             page.applyProfileForProbe(profile)
             after(0.6) {
                 page.scrollToDiscographyForProbe()
@@ -1845,7 +1846,8 @@ enum ScreenshotHarness {
                                     UserDefaults.standard.removeObject(forKey: key)
                                 }
                             }
-                            page.dismiss(animated: false) { moodsProbe(capture) }
+                            removeOverlay(page.navigationController ?? page)
+                            after(0.3) { moodsProbe(capture) }
                         }
                     }
                 }
