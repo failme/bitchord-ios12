@@ -1,5 +1,6 @@
 import Foundation
 import SystemConfiguration
+import UIKit
 
 /// A track that has been downloaded, with where it lives and how big it is.
 struct DownloadedTrack: Codable {
@@ -122,6 +123,7 @@ final class DownloadStore: NSObject {
     private var pendingQuality: [String: String] = [:]
     private var failedTracks: [String: Track] = [:]
     private var failedOrder: [String] = []
+    private var foregroundGraceTask: UIBackgroundTaskIdentifier = .invalid
     private var activeOrder: [String] = []
     /// Tracks the user stopped on purpose. A cancel is not a failure, so it
     /// leaves no row behind; only an actual download error does.
@@ -460,6 +462,28 @@ final class DownloadStore: NSObject {
         }
     }
 
+    /// A foreground retry still has to survive the user leaving the app. The
+    /// system grants a short finishing window; without asking for it iOS
+    /// suspends the process and cancels the transfer, which looks like a
+    /// failure even though the network was fine.
+    private func beginForegroundGrace() {
+        guard foregroundGraceTask == .invalid else { return }
+        foregroundGraceTask = UIApplication.shared.beginBackgroundTask(withName: "BitChord Download") { [weak self] in
+            self?.endForegroundGrace()
+        }
+    }
+
+    private func endForegroundGraceIfIdle() {
+        guard pendingTracks.isEmpty else { return }
+        endForegroundGrace()
+    }
+
+    private func endForegroundGrace() {
+        guard foregroundGraceTask != .invalid else { return }
+        UIApplication.shared.endBackgroundTask(foregroundGraceTask)
+        foregroundGraceTask = .invalid
+    }
+
     /// The simulator's background session occasionally reports an unclassified
     /// failure (-1) before a single byte arrives, while the same URL works in a
     /// foreground session. One retry keeps a download from dying for that, and
@@ -468,6 +492,7 @@ final class DownloadStore: NSObject {
         guard let url = urls[videoID], attempts[videoID] == 2 else { return }
         attempts[videoID] = 3
         transport[videoID] = "foreground"
+        beginForegroundGrace()
         let task = pacedSession.downloadTask(with: url)
         task.taskDescription = videoID
         tasks[task.taskIdentifier] = videoID
@@ -539,6 +564,7 @@ final class DownloadStore: NSObject {
             self?.pendingQuality.removeValue(forKey: videoID)
             self?.completions.removeValue(forKey: videoID)
             self?.clearPending(videoID)
+            self?.endForegroundGraceIfIdle()
             self?.postChange()
         }
     }
@@ -577,6 +603,7 @@ final class DownloadStore: NSObject {
         pendingTracks.removeValue(forKey: track.videoID)
         pendingQuality.removeValue(forKey: track.videoID)
         clearPending(track.videoID)
+        endForegroundGraceIfIdle()
         let completion = completions.removeValue(forKey: track.videoID)
         postChange()
         completion?(false, error)
@@ -798,6 +825,7 @@ extension DownloadStore: URLSessionDownloadDelegate {
             self.clearPending(videoID)
             if let identifier = identifier { self.tasks.removeValue(forKey: identifier) }
             let completion = self.completions.removeValue(forKey: videoID)
+            self.endForegroundGraceIfIdle()
             self.postChange()
             completion?(true, "Downloaded")
         }

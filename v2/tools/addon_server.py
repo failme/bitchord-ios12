@@ -75,8 +75,11 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Content-Type", "audio/mp4")
             self.send_header("Content-Length", str(len(data)))
             self.end_headers()
-            for offset in range(0, len(data), 32768):
-                self.wfile.write(data[offset:offset + 32768])
+            # The body has to still be arriving when the app is sent away,
+            # but finish inside the system's short background grace window so
+            # the capture never depends on how busy the simulator host is.
+            for offset in range(0, len(data), 262144):
+                self.wfile.write(data[offset:offset + 262144])
                 self.wfile.flush()
                 time.sleep(0.12)
             return
