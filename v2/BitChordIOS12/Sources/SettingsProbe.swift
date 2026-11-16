@@ -26,8 +26,9 @@ enum SettingsProbe {
         let arguments = ProcessInfo.processInfo.arguments
         guard let index = arguments.firstIndex(of: "-BCSettingsProbe"),
               index + 1 < arguments.count else { return }
-        directory = URL(fileURLWithPath: arguments[index + 1], isDirectory: true)
-        let seed = directory.appendingPathComponent("settings-relaunch-seeded.txt")
+        let probeDirectory = URL(fileURLWithPath: arguments[index + 1], isDirectory: true)
+        directory = probeDirectory
+        let seed = probeDirectory.appendingPathComponent("settings-relaunch-seeded.txt")
         if FileManager.default.fileExists(atPath: seed.path) {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
                 runRelaunchCheck(seed: seed)
