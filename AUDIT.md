@@ -279,6 +279,6 @@ audio routing/DAC, no real Cast receiver, no real background transfer daemon,
 no SMB server and no real Spotify OAuth account. The MyMemory translation
 request itself is not exercised in CI; the harness verifies its target mapping
 and the bilingual lyric path. The simulator *does* attach the audio tap to a
-playing item (260,751 frames), but there is no listening/room-acoustic check.
+playing item (438,364 frames), but there is no listening/room-acoustic check.
 Those are device or third-party-account checks; the simulator proves the code
 paths listed above.
