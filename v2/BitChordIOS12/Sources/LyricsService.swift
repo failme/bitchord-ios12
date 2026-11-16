@@ -78,6 +78,19 @@ struct LyricsResult: Codable {
     let source: String
 }
 
+/// "Prefer syllable sync" decides whether word timings reach the renderer. The
+/// provider response is unchanged, so turning the row back on restores karaoke
+/// without another network request.
+extension LyricsService {
+    static func linesForDisplay(_ lines: [WordLyricLine],
+                                preferWordTimings: Bool) -> [WordLyricLine] {
+        guard !preferWordTimings else { return lines }
+        return lines.map {
+            WordLyricLine(time: $0.time, text: $0.text, words: [], end: $0.end)
+        }
+    }
+}
+
 /// Lyrics from the same providers upstream's `LyricsRepository` asks, in its
 /// default order: lrc.red first (Apple Music TTML, syllable timing, filed by
 /// ISRC), then LyricsPlus (Apple/QQ syllables from community mirrors), then

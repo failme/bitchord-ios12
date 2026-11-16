@@ -17,6 +17,7 @@ import argparse
 import json
 import os
 import sys
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 SERVE_ID = {"value": None}
@@ -60,6 +61,24 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Content-Length", str(len(data)))
             self.end_headers()
             self.wfile.write(data)
+            return
+
+        if self.path == "/slow-media/fixture.m4a":
+            # The background-download fixture: a real HTTP body delivered in
+            # chunks slowly enough that the transfer is reliably still running
+            # when CI sends the app away.
+            if not MEDIA["path"] or not os.path.exists(MEDIA["path"]):
+                return self._json({"error": "no media"}, 404)
+            with open(MEDIA["path"], "rb") as handle:
+                data = handle.read()
+            self.send_response(200)
+            self.send_header("Content-Type", "audio/mp4")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            for offset in range(0, len(data), 32768):
+                self.wfile.write(data[offset:offset + 32768])
+                self.wfile.flush()
+                time.sleep(0.12)
             return
 
         return self._json({"error": "not found"}, 404)

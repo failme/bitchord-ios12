@@ -24,11 +24,21 @@ final class SettingsViewController: UIViewController {
     }
 
     func scrollToDownloadSection() {
+        scrollToKey("BitChord.Download.Storage")
+    }
+
+    /// Capture helper: scrolls to the card that owns a key. It goes through the
+    /// same filtered table the user sees rather than assuming row indices.
+    func scrollToKey(_ key: String) {
         guard let section = sections.firstIndex(where: { section in
-            section.items.contains(where: { $0.key == "BitChord.Download.Storage" })
-        }) else { return }
+            section.items.contains(where: { $0.key == key })
+        }), let row = sections[section].items.firstIndex(where: { $0.key == key }) else { return }
         view.layoutIfNeeded()
-        tableView.scrollToRow(at: IndexPath(row: 0, section: section), at: .top, animated: false)
+        tableView.scrollToRow(at: IndexPath(row: row, section: section), at: .top, animated: false)
+    }
+
+    func refreshForCapture() {
+        tableView.reloadData()
     }
 
     override func viewWillAppear(_ animated: Bool) {
@@ -53,7 +63,7 @@ final class SettingsViewController: UIViewController {
         tableView.delegate = self
         // The opening account card is compact (48pt per row); the preference
         // sections use the real 58pt rows, with Dolby's two-line footnote at 66.
-        tableView.rowHeight = 58
+        tableView.rowHeight = Theme.rowHeight(58)
         tableView.sectionHeaderHeight = 26
         tableView.tableFooterView = UIView()
         tableView.contentInset = UIEdgeInsets(top: 0, left: 0, bottom: 40, right: 0)
@@ -179,6 +189,12 @@ final class SettingsViewController: UIViewController {
             navigationController?.pushViewController(CacheFolderViewController(), animated: true)
         case "replay":
             navigationController?.pushViewController(ReplayViewController(), animated: true)
+        case "clearSearchHistory":
+            SettingsActions.clearSearchHistory()
+            showMessage(L10n.t("Search history cleared"), "")
+        case "clearHistory":
+            SettingsActions.clearListeningHistory()
+            showMessage(L10n.t("Listening history cleared"), "")
         default:
             break
         }
@@ -249,9 +265,9 @@ final class SettingsViewController: UIViewController {
     }
 
     private func choose(item: SettingItem, options: [String]) {
-        let sheet = UIAlertController(title: item.title, message: nil, preferredStyle: .actionSheet)
+        let sheet = UIAlertController(title: L10n.t(item.title), message: nil, preferredStyle: .actionSheet)
         for option in options {
-            sheet.addAction(UIAlertAction(title: option, style: .default) { _ in
+            sheet.addAction(UIAlertAction(title: L10n.t(option), style: .default) { _ in
                 if item.key == AppIconChoice.key {
                     AppIconChoice.apply(option) { error in
                         if let error = error {
@@ -289,9 +305,9 @@ extension SettingsViewController: UITableViewDataSource, UITableViewDelegate {
     }
 
     func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
-        if sections[indexPath.section].title.isEmpty { return 48 }
-        if sections[indexPath.section].items[indexPath.row].key == "BitChord.Audio.DolbyAtmos" { return 66 }
-        return 58
+        if sections[indexPath.section].title.isEmpty { return Theme.rowHeight(48) }
+        if sections[indexPath.section].items[indexPath.row].key == "BitChord.Audio.DolbyAtmos" { return Theme.rowHeight(66) }
+        return Theme.rowHeight(58)
     }
 
     func tableView(_ tableView: UITableView, heightForHeaderInSection section: Int) -> CGFloat {
@@ -400,7 +416,7 @@ extension SettingsViewController: UITableViewDataSource, UITableViewDelegate {
                                step: Double, unit: String) {
         let current = SettingsStore.shared.double(item.key, fallback)
         let shown = unit == " s" ? String(format: "%+.1f s", current) : "\(current)\(unit)"
-        let sheet = UIAlertController(title: item.title, message: shown,
+        let sheet = UIAlertController(title: L10n.t(item.title), message: shown,
                                       preferredStyle: .actionSheet)
         for (title, value) in [("Increase", min(maximum, current + step)),
                                ("Decrease", max(minimum, current - step)),
@@ -421,6 +437,20 @@ extension SettingsViewController: UIDocumentPickerDelegate {
         let result = BackupService.shared.restore(from: url)
         tableView.reloadData()
         showMessage("Restore", result.message)
+    }
+}
+
+/// The two history actions share one implementation between the Settings UI
+/// and the probe, so the probe cannot pass while the row does something else.
+enum SettingsActions {
+    static func clearSearchHistory() {
+        LibraryStore.shared.clearRecentSearches()
+    }
+
+    static func clearListeningHistory() {
+        PlaybackHistoryStore.shared.clear()
+        LibraryStore.shared.clearListeningHistory()
+        PlaybackSessionStore.shared.clear()
     }
 }
 
@@ -587,7 +617,7 @@ final class SettingsCell: UITableViewCell {
         var available = true
         switch item.kind {
         case .choice(let fallback, _):
-            valueLabel.text = SettingsStore.shared.string(item.key, fallback)
+            valueLabel.text = L10n.t(SettingsStore.shared.string(item.key, fallback))
             showsChevron = true
             trailingValue = true
         case .stepper(let fallback, _, _, _, let unit):

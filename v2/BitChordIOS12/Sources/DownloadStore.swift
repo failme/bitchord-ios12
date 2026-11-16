@@ -384,6 +384,16 @@ final class DownloadStore: NSObject {
         lastReported[track.videoID] = 0
         postChange()
 
+        // CI supplies one local HTTP file for the background-transfer fixture.
+        // The transfer then exercises the same background URLSession, index
+        // entry and relaunch adoption without depending on a live resolver.
+        if let fixture = ProcessInfo.processInfo.environment["BC_DOWNLOAD_FIXTURE_URL"],
+           let url = URL(string: fixture), let scheme = url.scheme, scheme.hasPrefix("http") {
+            startTransfer(track: track, url: url, qualityLabel: "CI fixture",
+                          completion: completion)
+            return
+        }
+
         // Lossless asks the addon first. No addon, or nothing for this track,
         // falls through to the standard catalogue without mentioning it.
         if quality == .lossless, AddonService.shared.isConfigured {

@@ -4,6 +4,7 @@ import UIKit
 final class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
     private var appliedTheme = Theme.mode
+    private var appliedAppearance = Theme.appearanceFingerprint
 
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
@@ -16,6 +17,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
             UserDefaults.standard.set(launchArguments[theme + 1].uppercased(), forKey: Theme.modeKey)
         }
         appliedTheme = Theme.mode
+        appliedAppearance = Theme.appearanceFingerprint
         Theme.configureBars()
         applyStatusBarStyle()
 
@@ -28,6 +30,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         window.rootViewController = RootViewController(nibName: nil, bundle: nil)
         window.makeKeyAndVisible()
         self.window = window
+        PlayerService.shared.restoreLastSessionIfEnabled()
         DisplayRefreshController.shared.start()
         if DiwaliGate.shouldPresent() {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak window] in
@@ -73,8 +76,9 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
 
     @objc private func settingsChanged() {
         applyReduceAnimation()
-        guard appliedTheme != Theme.mode else { return }
+        guard appliedTheme != Theme.mode || appliedAppearance != Theme.appearanceFingerprint else { return }
         appliedTheme = Theme.mode
+        appliedAppearance = Theme.appearanceFingerprint
         rebuildRootForTheme()
     }
 

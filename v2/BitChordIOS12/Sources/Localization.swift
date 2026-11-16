@@ -406,7 +406,258 @@ enum L10n {
         ]
     ]
 
+    /// Strings added with the appearance, resume and discography controls. They
+    /// live in one table so every new label can be audited for every language
+    /// without duplicating the older screen blocks.
+    private static let featureTables: [String: [String: String]] = [
+        "Español": [
+            "Accent colour": "Color de acento", "Coral": "Coral", "Amber": "Ámbar",
+            "Mint": "Menta", "Sky": "Cielo", "Lilac": "Lila",
+            "Text size": "Tamaño del texto", "Small": "Pequeño", "Standard": "Estándar",
+            "Large": "Grande", "Layout density": "Densidad del diseño",
+            "Comfortable": "Cómoda", "Compact": "Compacta",
+            "Resume on launch": "Reanudar al iniciar",
+            "Pause on headphones disconnect": "Pausar al desconectar auriculares",
+            "Clear search history": "Borrar historial de búsqueda",
+            "Clear listening history": "Borrar historial de escucha",
+            "Search history cleared": "Historial de búsqueda borrado",
+            "Listening history cleared": "Historial de escucha borrado",
+            "Albums": "Álbumes", "Singles": "Sencillos", "Compilations": "Recopilaciones",
+            "All": "Todo", "Newest": "Más recientes", "Title": "Título",
+            "A–Z": "A–Z", "Show more": "Mostrar más", "Show less": "Mostrar menos",
+            "Discography": "Discografía", "Sort": "Ordenar"
+        ],
+        "Français": [
+            "Accent colour": "Couleur d’accent", "Coral": "Corail", "Amber": "Ambre",
+            "Mint": "Menthe", "Sky": "Ciel", "Lilac": "Lilas",
+            "Text size": "Taille du texte", "Small": "Petite", "Standard": "Standard",
+            "Large": "Grande", "Layout density": "Densité de l’interface",
+            "Comfortable": "Confortable", "Compact": "Compacte",
+            "Resume on launch": "Reprendre au lancement",
+            "Pause on headphones disconnect": "Pause à la déconnexion des écouteurs",
+            "Clear search history": "Effacer l’historique de recherche",
+            "Clear listening history": "Effacer l’historique d’écoute",
+            "Search history cleared": "Historique de recherche effacé",
+            "Listening history cleared": "Historique d’écoute effacé",
+            "Albums": "Albums", "Singles": "Singles", "Compilations": "Compilations",
+            "All": "Tout", "Newest": "Plus récents", "Title": "Titre",
+            "A–Z": "A–Z", "Show more": "Afficher plus", "Show less": "Afficher moins",
+            "Discography": "Discographie", "Sort": "Trier"
+        ],
+        "Deutsch": [
+            "Accent colour": "Akzentfarbe", "Coral": "Koralle", "Amber": "Bernstein",
+            "Mint": "Minze", "Sky": "Himmelblau", "Lilac": "Flieder",
+            "Text size": "Textgröße", "Small": "Klein", "Standard": "Standard",
+            "Large": "Groß", "Layout density": "Layoutdichte",
+            "Comfortable": "Komfortabel", "Compact": "Kompakt",
+            "Resume on launch": "Beim Start fortsetzen",
+            "Pause on headphones disconnect": "Bei Kopfhörer-Trennung pausieren",
+            "Clear search history": "Suchverlauf löschen",
+            "Clear listening history": "Hörverlauf löschen",
+            "Search history cleared": "Suchverlauf gelöscht",
+            "Listening history cleared": "Hörverlauf gelöscht",
+            "Albums": "Alben", "Singles": "Singles", "Compilations": "Kompilationen",
+            "All": "Alle", "Newest": "Neueste", "Title": "Titel",
+            "A–Z": "A–Z", "Show more": "Mehr anzeigen", "Show less": "Weniger anzeigen",
+            "Discography": "Diskografie", "Sort": "Sortieren"
+        ],
+        "Polski": [
+            "Accent colour": "Kolor akcentu", "Coral": "Koralowy", "Amber": "Bursztynowy",
+            "Mint": "Miętowy", "Sky": "Błękitny", "Lilac": "Liliowy",
+            "Text size": "Rozmiar tekstu", "Small": "Mały", "Standard": "Standardowy",
+            "Large": "Duży", "Layout density": "Gęstość układu",
+            "Comfortable": "Wygodna", "Compact": "Kompaktowa",
+            "Resume on launch": "Wznów przy uruchomieniu",
+            "Pause on headphones disconnect": "Wstrzymaj po odłączeniu słuchawek",
+            "Clear search history": "Wyczyść historię wyszukiwania",
+            "Clear listening history": "Wyczyść historię odtwarzania",
+            "Search history cleared": "Historia wyszukiwania wyczyszczona",
+            "Listening history cleared": "Historia odtwarzania wyczyszczona",
+            "Albums": "Albumy", "Singles": "Single", "Compilations": "Kompilacje",
+            "All": "Wszystko", "Newest": "Najnowsze", "Title": "Tytuł",
+            "A–Z": "A–Z", "Show more": "Pokaż więcej", "Show less": "Pokaż mniej",
+            "Discography": "Dyskografia", "Sort": "Sortuj"
+        ],
+        "Português": [
+            "Accent colour": "Cor de destaque", "Coral": "Coral", "Amber": "Âmbar",
+            "Mint": "Menta", "Sky": "Céu", "Lilac": "Lilás",
+            "Text size": "Tamanho do texto", "Small": "Pequeno", "Standard": "Padrão",
+            "Large": "Grande", "Layout density": "Densidade do layout",
+            "Comfortable": "Confortável", "Compact": "Compacta",
+            "Resume on launch": "Retomar ao iniciar",
+            "Pause on headphones disconnect": "Pausar ao desconectar fones",
+            "Clear search history": "Limpar histórico de pesquisa",
+            "Clear listening history": "Limpar histórico de reprodução",
+            "Search history cleared": "Histórico de pesquisa limpo",
+            "Listening history cleared": "Histórico de reprodução limpo",
+            "Albums": "Álbuns", "Singles": "Singles", "Compilations": "Compilações",
+            "All": "Tudo", "Newest": "Mais recentes", "Title": "Título",
+            "A–Z": "A–Z", "Show more": "Mostrar mais", "Show less": "Mostrar menos",
+            "Discography": "Discografia", "Sort": "Ordenar"
+        ],
+        "Indonesia": [
+            "Accent colour": "Warna aksen", "Coral": "Karang", "Amber": "Kuning tua",
+            "Mint": "Mint", "Sky": "Langit", "Lilac": "Lila",
+            "Text size": "Ukuran teks", "Small": "Kecil", "Standard": "Standar",
+            "Large": "Besar", "Layout density": "Kepadatan tata letak",
+            "Comfortable": "Nyaman", "Compact": "Ringkas",
+            "Resume on launch": "Lanjutkan saat dibuka",
+            "Pause on headphones disconnect": "Jeda saat headphone terputus",
+            "Clear search history": "Hapus riwayat pencarian",
+            "Clear listening history": "Hapus riwayat pemutaran",
+            "Search history cleared": "Riwayat pencarian dihapus",
+            "Listening history cleared": "Riwayat pemutaran dihapus",
+            "Albums": "Album", "Singles": "Singel", "Compilations": "Kompilasi",
+            "All": "Semua", "Newest": "Terbaru", "Title": "Judul",
+            "A–Z": "A–Z", "Show more": "Tampilkan lebih banyak", "Show less": "Tampilkan lebih sedikit",
+            "Discography": "Diskografi", "Sort": "Urutkan"
+        ],
+        "हिन्दी": [
+            "Accent colour": "एक्सेंट रंग", "Coral": "कोरल", "Amber": "एम्बर",
+            "Mint": "मिंट", "Sky": "आसमानी", "Lilac": "लैवेंडर",
+            "Text size": "टेक्स्ट आकार", "Small": "छोटा", "Standard": "मानक",
+            "Large": "बड़ा", "Layout density": "लेआउट घनत्व",
+            "Comfortable": "आरामदेह", "Compact": "सघन",
+            "Resume on launch": "खोलने पर फिर शुरू करें",
+            "Pause on headphones disconnect": "हेडफ़ोन डिस्कनेक्ट होने पर रोकें",
+            "Clear search history": "खोज इतिहास साफ़ करें",
+            "Clear listening history": "सुनने का इतिहास साफ़ करें",
+            "Search history cleared": "खोज इतिहास साफ़ हो गया",
+            "Listening history cleared": "सुनने का इतिहास साफ़ हो गया",
+            "Albums": "एल्बम", "Singles": "सिंगल", "Compilations": "संकलन",
+            "All": "सभी", "Newest": "नवीनतम", "Title": "शीर्षक",
+            "A–Z": "A–Z", "Show more": "और दिखाएँ", "Show less": "कम दिखाएँ",
+            "Discography": "डिस्कोग्राफ़ी", "Sort": "क्रमबद्ध करें"
+        ],
+        "日本語": [
+            "Accent colour": "アクセントカラー", "Coral": "コーラル", "Amber": "アンバー",
+            "Mint": "ミント", "Sky": "スカイ", "Lilac": "ライラック",
+            "Text size": "文字サイズ", "Small": "小", "Standard": "標準",
+            "Large": "大", "Layout density": "レイアウト密度",
+            "Comfortable": "ゆったり", "Compact": "コンパクト",
+            "Resume on launch": "起動時に再開",
+            "Pause on headphones disconnect": "ヘッドホン切断時に一時停止",
+            "Clear search history": "検索履歴を消去",
+            "Clear listening history": "再生履歴を消去",
+            "Search history cleared": "検索履歴を消去しました",
+            "Listening history cleared": "再生履歴を消去しました",
+            "Albums": "アルバム", "Singles": "シングル", "Compilations": "コンピレーション",
+            "All": "すべて", "Newest": "新しい順", "Title": "タイトル",
+            "A–Z": "A–Z", "Show more": "もっと見る", "Show less": "閉じる",
+            "Discography": "ディスコグラフィー", "Sort": "並べ替え"
+        ],
+        "Русский": [
+            "Accent colour": "Цвет акцента", "Coral": "Коралловый", "Amber": "Янтарный",
+            "Mint": "Мятный", "Sky": "Небесный", "Lilac": "Сиреневый",
+            "Text size": "Размер текста", "Small": "Малый", "Standard": "Обычный",
+            "Large": "Крупный", "Layout density": "Плотность интерфейса",
+            "Comfortable": "Свободная", "Compact": "Компактная",
+            "Resume on launch": "Возобновлять при запуске",
+            "Pause on headphones disconnect": "Пауза при отключении наушников",
+            "Clear search history": "Очистить историю поиска",
+            "Clear listening history": "Очистить историю прослушивания",
+            "Search history cleared": "История поиска очищена",
+            "Listening history cleared": "История прослушивания очищена",
+            "Albums": "Альбомы", "Singles": "Синглы", "Compilations": "Сборники",
+            "All": "Все", "Newest": "Новые", "Title": "Название",
+            "A–Z": "А–Я", "Show more": "Показать больше", "Show less": "Показать меньше",
+            "Discography": "Дискография", "Sort": "Сортировать"
+        ],
+        "中文（简体）": [
+            "Accent colour": "强调色", "Coral": "珊瑚色", "Amber": "琥珀色",
+            "Mint": "薄荷绿", "Sky": "天蓝", "Lilac": "淡紫",
+            "Text size": "文字大小", "Small": "小", "Standard": "标准",
+            "Large": "大", "Layout density": "布局密度",
+            "Comfortable": "舒适", "Compact": "紧凑",
+            "Resume on launch": "启动时继续播放",
+            "Pause on headphones disconnect": "耳机断开时暂停",
+            "Clear search history": "清除搜索历史",
+            "Clear listening history": "清除收听历史",
+            "Search history cleared": "搜索历史已清除",
+            "Listening history cleared": "收听历史已清除",
+            "Albums": "专辑", "Singles": "单曲", "Compilations": "合辑",
+            "All": "全部", "Newest": "最新", "Title": "标题",
+            "A–Z": "A–Z", "Show more": "显示更多", "Show less": "显示更少",
+            "Discography": "唱片目录", "Sort": "排序"
+        ],
+        "中文（繁體）": [
+            "Accent colour": "強調色", "Coral": "珊瑚色", "Amber": "琥珀色",
+            "Mint": "薄荷綠", "Sky": "天藍", "Lilac": "淡紫",
+            "Text size": "文字大小", "Small": "小", "Standard": "標準",
+            "Large": "大", "Layout density": "版面密度",
+            "Comfortable": "舒適", "Compact": "緊湊",
+            "Resume on launch": "啟動時繼續播放",
+            "Pause on headphones disconnect": "耳機中斷時暫停",
+            "Clear search history": "清除搜尋記錄",
+            "Clear listening history": "清除收聽記錄",
+            "Search history cleared": "搜尋記錄已清除",
+            "Listening history cleared": "收聽記錄已清除",
+            "Albums": "專輯", "Singles": "單曲", "Compilations": "合輯",
+            "All": "全部", "Newest": "最新", "Title": "標題",
+            "A–Z": "A–Z", "Show more": "顯示更多", "Show less": "顯示更少",
+            "Discography": "唱片目錄", "Sort": "排序"
+        ],
+        "עברית": [
+            "Accent colour": "צבע הדגשה", "Coral": "אלמוג", "Amber": "ענבר",
+            "Mint": "מנטה", "Sky": "שמיים", "Lilac": "לילך",
+            "Text size": "גודל טקסט", "Small": "קטן", "Standard": "רגיל",
+            "Large": "גדול", "Layout density": "צפיפות פריסה",
+            "Comfortable": "נוח", "Compact": "קומפקטי",
+            "Resume on launch": "להמשיך בהפעלה",
+            "Pause on headphones disconnect": "להשהות בניתוק אוזניות",
+            "Clear search history": "נקה היסטוריית חיפוש",
+            "Clear listening history": "נקה היסטוריית האזנה",
+            "Search history cleared": "היסטוריית החיפוש נמחקה",
+            "Listening history cleared": "היסטוריית ההאזנה נמחקה",
+            "Albums": "אלבומים", "Singles": "סינגלים", "Compilations": "אוספים",
+            "All": "הכול", "Newest": "החדשים ביותר", "Title": "כותרת",
+            "A–Z": "A–Z", "Show more": "הצג עוד", "Show less": "הצג פחות",
+            "Discography": "דיסקוגרפיה", "Sort": "מיון"
+        ],
+        "Italiano": [
+            "Accent colour": "Colore accento", "Coral": "Corallo", "Amber": "Ambra",
+            "Mint": "Menta", "Sky": "Cielo", "Lilac": "Lilla",
+            "Text size": "Dimensione testo", "Small": "Piccolo", "Standard": "Standard",
+            "Large": "Grande", "Layout density": "Densità layout",
+            "Comfortable": "Comoda", "Compact": "Compatta",
+            "Resume on launch": "Riprendi all’avvio",
+            "Pause on headphones disconnect": "Pausa alla disconnessione delle cuffie",
+            "Clear search history": "Cancella cronologia ricerche",
+            "Clear listening history": "Cancella cronologia ascolti",
+            "Search history cleared": "Cronologia ricerche cancellata",
+            "Listening history cleared": "Cronologia ascolti cancellata",
+            "Albums": "Album", "Singles": "Singoli", "Compilations": "Raccolte",
+            "All": "Tutti", "Newest": "Più recenti", "Title": "Titolo",
+            "A–Z": "A–Z", "Show more": "Mostra altro", "Show less": "Mostra meno",
+            "Discography": "Discografia", "Sort": "Ordina"
+        ]
+    ]
+
+    static let featureKeys = ["Accent colour", "Coral", "Amber", "Mint", "Sky", "Lilac",
+                              "Text size", "Small", "Standard", "Large", "Layout density",
+                              "Comfortable", "Compact", "Resume on launch",
+                              "Pause on headphones disconnect", "Clear search history",
+                              "Clear listening history", "Search history cleared",
+                              "Listening history cleared", "Albums", "Singles", "Compilations",
+                              "All", "Newest", "Title", "A–Z", "Show more", "Show less",
+                              "Discography", "Sort"]
+
+    /// Used by the probe and the CI assertion: every non-English language must
+    /// carry every new label, so a missing translation cannot hide behind the
+    /// English fallback.
+    static func featureCoverage() -> (keys: Int, languages: Int, missing: Int) {
+        let names = languageNames.filter { $0 != "English" }
+        var missing = 0
+        for name in names {
+            for key in featureKeys where featureTables[name]?[key] == nil {
+                missing += 1
+            }
+        }
+        return (featureKeys.count, names.count, missing)
+    }
+
     static func t(_ key: String) -> String {
+        if let value = featureTables[language]?[key] { return value }
         if let value = screenTables[language]?[key] { return value }
         return tables[language]?[key] ?? key
     }

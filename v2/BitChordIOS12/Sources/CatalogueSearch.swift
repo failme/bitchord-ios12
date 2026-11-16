@@ -7,6 +7,24 @@ struct CatalogueArtist {
     let artwork: URL?
 }
 
+/// The release kinds the catalogue distinguishes. An unknown or missing type
+/// stays a plain album rather than being guessed from a track count.
+enum ReleaseKind: String, Codable, CaseIterable {
+    case album, single, compilation
+
+    static func parse(_ raw: String?) -> ReleaseKind {
+        let value = (raw ?? "").lowercased()
+        if value.contains("single") || value == "ep" || value == "extended play" {
+            return .single
+        }
+        if value.contains("compilation") || value.contains("collection")
+            || value.contains("greatest hits") || value.contains("soundtrack") {
+            return .compilation
+        }
+        return .album
+    }
+}
+
 /// An album row from the catalogue.
 struct CatalogueAlbum {
     let id: String
@@ -15,6 +33,18 @@ struct CatalogueAlbum {
     let year: String
     let artwork: URL?
     let songCount: Int
+    let kind: ReleaseKind
+
+    init(id: String, title: String, artist: String, year: String,
+         artwork: URL?, songCount: Int, kind: ReleaseKind = .album) {
+        self.id = id
+        self.title = title
+        self.artist = artist
+        self.year = year
+        self.artwork = artwork
+        self.songCount = songCount
+        self.kind = kind
+    }
 }
 
 /// Everything the artist page draws: the photograph, the counts, the
@@ -117,7 +147,9 @@ final class CatalogueSearch {
                                       artist: self.primaryArtist(in: info),
                                       year: (row["year"] as? String) ?? "",
                                       artwork: self.artwork(row["image"] as? String),
-                                      songCount: count)
+                                      songCount: count,
+                                      kind: ReleaseKind.parse((row["type"] as? String)
+                                          ?? (info["release_type"] as? String)))
             }
             completion(albums)
         }
@@ -268,12 +300,18 @@ final class CatalogueSearch {
         guard !title.isEmpty else { return nil }
         let info = row["more_info"] as? [String: Any] ?? [:]
         let count = Int((info["song_count"] as? String) ?? "") ?? 0
+        let kind = ReleaseKind.parse((row["type"] as? String)
+            ?? (row["album_type"] as? String)
+            ?? (row["release_type"] as? String)
+            ?? (info["type"] as? String)
+            ?? (info["release_type"] as? String))
         return CatalogueAlbum(id: identifier,
                               title: title,
                               artist: primaryArtist(in: info),
                               year: (row["year"] as? String) ?? "",
                               artwork: artwork(row["image"] as? String),
-                              songCount: count)
+                              songCount: count,
+                              kind: kind)
     }
 
     private func listenerText(in json: [String: Any]) -> String? {

@@ -102,6 +102,16 @@ final class SettingsStore {
         set { set(newValue, for: "BitChord.Audio.PlaybackRate") }
     }
 
+    var resumeOnLaunch: Bool {
+        get { return bool("BitChord.Audio.ResumeOnLaunch", false) }
+        set { set(newValue, for: "BitChord.Audio.ResumeOnLaunch") }
+    }
+
+    var pauseOnHeadphoneDisconnect: Bool {
+        get { return bool("BitChord.Audio.PauseOnHeadphoneDisconnect", false) }
+        set { set(newValue, for: "BitChord.Audio.PauseOnHeadphoneDisconnect") }
+    }
+
     var sleepTimerMinutes: Double {
         get { return double("BitChord.Misc.SleepTimerMinutes", 0) }
         set { set(newValue, for: "BitChord.Misc.SleepTimerMinutes") }
@@ -181,7 +191,7 @@ final class SettingsStore {
     var replayGenres: Bool { return bool("BitChord.Replay.WorkoutGenres", true) }
     var fullBleedArtwork: Bool { return bool("BitChord.Appearance.FullBleedArtwork", true) }
     var fullBleedDetailArtwork: Bool { return bool("BitChord.Appearance.FullBleedDetailArtwork", false) }
-    var prioritizeSyllableSync: Bool { return bool("BitChord.Lyrics.PrioritizeSyllableSync", false) }
+    var prioritizeSyllableSync: Bool { return bool("BitChord.Lyrics.PrioritizeSyllableSync", true) }
     var highPerformanceMode: Bool { return bool("BitChord.Performance.HighPerformanceMode", false) }
     var renderQuality: String { return string("BitChord.Performance.RenderQuality", "High") }
 }
@@ -240,6 +250,13 @@ enum SettingsCatalog {
             SettingItem(key: "BitChord.Audio.AutoPlay", title: "Autoplay",
                         detail: "",
                         kind: .toggle(true)),
+            SettingItem(key: "BitChord.Audio.ResumeOnLaunch", title: "Resume on launch",
+                        detail: "Reopen the last queue at the saved position",
+                        kind: .toggle(false)),
+            SettingItem(key: "BitChord.Audio.PauseOnHeadphoneDisconnect",
+                        title: "Pause on headphones disconnect",
+                        detail: "Pause when wired or Bluetooth headphones disconnect",
+                        kind: .toggle(false)),
             SettingItem(key: "BitChord.Appearance.FullBleedArtwork", title: "Full-screen cover art",
                         detail: "Let the sleeve fill the player backdrop",
                         kind: .toggle(true)),
@@ -251,7 +268,7 @@ enum SettingsCatalog {
                         kind: .stepper(0, -2, 2, 0.1, " s")),
             SettingItem(key: "BitChord.Lyrics.PrioritizeSyllableSync", title: "Prefer syllable sync",
                         detail: "Use word timings before plain line timings",
-                        kind: .toggle(false)),
+                        kind: .toggle(true)),
             SettingItem(key: "BitChord.Audio.Crossfade", title: "Crossfade",
                         detail: "Fade the last seconds of a track before the next one",
                         kind: .stepper(0, 0, 12, 1, " s")),
@@ -351,7 +368,13 @@ enum SettingsCatalog {
                         kind: .cache("song")),
             SettingItem(key: "BitChord.Storage.ClearImageCache", title: "Clear image cache",
                         detail: "Frees space used by album artwork",
-                        kind: .cache("image"))
+                        kind: .cache("image")),
+            SettingItem(key: "BitChord.Storage.ClearSearchHistory", title: "Clear search history",
+                        detail: "Remove recent searches from this device",
+                        kind: .action("clearSearchHistory")),
+            SettingItem(key: "BitChord.Storage.ClearListeningHistory", title: "Clear listening history",
+                        detail: "Remove recently played tracks and saved progress",
+                        kind: .action("clearHistory"))
         ]),
 
         SettingSection(title: "Sources & addons", items: [
@@ -432,6 +455,15 @@ enum SettingsCatalog {
             SettingItem(key: "BitChord.Appearance.Theme", title: "Theme",
                         detail: "System, Light or Dark",
                         kind: .choice("Dark", ["System", "Light", "Dark"])),
+            SettingItem(key: Theme.accentKey, title: "Accent colour",
+                        detail: "Colour used for controls and highlights",
+                        kind: .choice("Theme", Theme.accentChoices)),
+            SettingItem(key: Theme.textSizeKey, title: "Text size",
+                        detail: "Scale text across the app",
+                        kind: .choice("Standard", ["Small", "Standard", "Large"])),
+            SettingItem(key: Theme.densityKey, title: "Layout density",
+                        detail: "Tighter rows in Settings and artist lists",
+                        kind: .choice("Comfortable", ["Comfortable", "Compact"])),
             SettingItem(key: "BitChord.Appearance.Font", title: "Font",
                         kind: .choice("System", ["System", "Rounded", "Serif"])),
             SettingItem(key: "BitChord.Appearance.AppIcon", title: "App icon",

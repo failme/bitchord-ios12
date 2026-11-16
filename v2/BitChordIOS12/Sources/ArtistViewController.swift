@@ -6,8 +6,16 @@ import UIKit
 /// through `artist.getArtistPageDetails`.
 final class ArtistViewController: UIViewController {
     private enum Section: CaseIterable {
-        case songs, albums, related, about
+        case songs, albums, singles, compilations, related, about
     }
+
+    static let albumFilterKey = "BitChord.Artist.AlbumFilter"
+    static let albumSortKey = "BitChord.Artist.AlbumSort"
+    static let trackSortKey = "BitChord.Artist.TrackSort"
+    static let bioExpandedKey = "BitChord.Artist.BioExpanded"
+    static let albumFilterChoices = ["All", "Albums", "Singles", "Compilations"]
+    static let albumSortChoices = ["Newest", "Title"]
+    static let trackSortChoices = ["Popular", "A–Z"]
 
     private let artist: CatalogueArtist
     private let tableView = UITableView(frame: .zero, style: .plain)
@@ -30,6 +38,113 @@ final class ArtistViewController: UIViewController {
             + "sections=\(visibleSections.count)"
     }
 
+    private var albumFilter: String {
+        let raw = SettingsStore.shared.string(ArtistViewController.albumFilterKey, "All")
+        return ArtistViewController.albumFilterChoices.contains(raw) ? raw : "All"
+    }
+
+    private var albumSort: String {
+        let raw = SettingsStore.shared.string(ArtistViewController.albumSortKey, "Newest")
+        return ArtistViewController.albumSortChoices.contains(raw) ? raw : "Newest"
+    }
+
+    private var trackSort: String {
+        let raw = SettingsStore.shared.string(ArtistViewController.trackSortKey, "Popular")
+        return ArtistViewController.trackSortChoices.contains(raw) ? raw : "Popular"
+    }
+
+    private var bioExpanded: Bool {
+        return SettingsStore.shared.bool(ArtistViewController.bioExpandedKey, false)
+    }
+
+    private var displayedTracks: [Track] {
+        guard let tracks = profile?.topSongs else { return [] }
+        guard trackSort == "A–Z" else { return tracks }
+        return tracks.sorted {
+            $0.title.localizedStandardCompare($1.title) == .orderedAscending
+        }
+    }
+
+    private func sortedAlbums(_ albums: [CatalogueAlbum]) -> [CatalogueAlbum] {
+        if albumSort == "Title" {
+            return albums.sorted {
+                $0.title.localizedStandardCompare($1.title) == .orderedAscending
+            }
+        }
+        return albums.sorted {
+            let left = Int($0.year) ?? 0
+            let right = Int($1.year) ?? 0
+            if left == right {
+                return $0.title.localizedStandardCompare($1.title) == .orderedAscending
+            }
+            return left > right
+        }
+    }
+
+    private func albums(of kind: ReleaseKind) -> [CatalogueAlbum] {
+        guard let albums = profile?.albums else { return [] }
+        return sortedAlbums(albums.filter { $0.kind == kind })
+    }
+
+    private func kind(isVisible kind: ReleaseKind) -> Bool {
+        switch albumFilter {
+        case "Albums": return kind == .album
+        case "Singles": return kind == .single
+        case "Compilations": return kind == .compilation
+        default: return true
+        }
+    }
+
+    var discographySummary: String {
+        let counts = ReleaseKind.allCases.map { "\($0.rawValue):\(albums(of: $0).count)" }
+            .joined(separator: ",")
+        let drawnAlbums = sortedAlbums((profile?.albums ?? []).filter { kind(isVisible: $0.kind) })
+        return "filter=\(albumFilter) sort=\(albumSort) trackSort=\(trackSort) "
+            + "kinds=\(counts) bio=\(bioExpanded ? "expanded" : "collapsed") "
+            + "first=\(drawnAlbums.first?.title ?? "-") "
+            + "trackFirst=\(displayedTracks.first?.title ?? "-") "
+            + "sections=\(visibleSections.map { sectionTitle($0) }.joined(separator: "|"))"
+    }
+
+    /// Harness entry points use the same stored keys and reload path as the
+    /// header buttons.
+    func setAlbumFilterForProbe(_ value: String) {
+        guard ArtistViewController.albumFilterChoices.contains(value) else { return }
+        SettingsStore.shared.set(value, for: ArtistViewController.albumFilterKey)
+        tableView.reloadData()
+    }
+
+    func setAlbumSortForProbe(_ value: String) {
+        guard ArtistViewController.albumSortChoices.contains(value) else { return }
+        SettingsStore.shared.set(value, for: ArtistViewController.albumSortKey)
+        tableView.reloadData()
+    }
+
+    func setTrackSortForProbe(_ value: String) {
+        guard ArtistViewController.trackSortChoices.contains(value) else { return }
+        SettingsStore.shared.set(value, for: ArtistViewController.trackSortKey)
+        tableView.reloadData()
+    }
+
+    func setBioExpandedForProbe(_ expanded: Bool) {
+        SettingsStore.shared.set(expanded, for: ArtistViewController.bioExpandedKey)
+        tableView.reloadData()
+    }
+
+    func scrollToDiscographyForProbe() {
+        guard let section = visibleSections.firstIndex(where: {
+            $0 == .albums || $0 == .singles || $0 == .compilations
+        }) else { return }
+        view.layoutIfNeeded()
+        tableView.scrollToRow(at: IndexPath(row: 0, section: section), at: .middle, animated: false)
+    }
+
+    func scrollToAboutForProbe() {
+        guard let section = visibleSections.firstIndex(of: .about) else { return }
+        view.layoutIfNeeded()
+        tableView.scrollToRow(at: IndexPath(row: 0, section: section), at: .middle, animated: false)
+    }
+
     init(artist: CatalogueArtist) {
         self.artist = artist
         super.init(nibName: nil, bundle: nil)
@@ -50,8 +165,8 @@ final class ArtistViewController: UIViewController {
         tableView.separatorStyle = .none
         tableView.dataSource = self
         tableView.delegate = self
-        tableView.rowHeight = 64
-        tableView.sectionHeaderHeight = 30
+        tableView.rowHeight = Theme.rowHeight(64)
+        tableView.sectionHeaderHeight = 36
         tableView.tableFooterView = UIView()
         tableView.contentInset = UIEdgeInsets(top: 0, left: 0, bottom: 40, right: 0)
         tableView.register(TrackCell.self, forCellReuseIdentifier: TrackCell.reuseIdentifier)
@@ -158,10 +273,33 @@ final class ArtistViewController: UIViewController {
         guard let profile = profile else { return [] }
         var sections: [Section] = []
         if !profile.topSongs.isEmpty { sections.append(.songs) }
-        if !profile.albums.isEmpty { sections.append(.albums) }
+        if kind(isVisible: .album) && !albums(of: .album).isEmpty { sections.append(.albums) }
+        if kind(isVisible: .single) && !albums(of: .single).isEmpty { sections.append(.singles) }
+        if kind(isVisible: .compilation) && !albums(of: .compilation).isEmpty {
+            sections.append(.compilations)
+        }
         if !profile.related.isEmpty { sections.append(.related) }
         if profile.bio?.isEmpty == false { sections.append(.about) }
         return sections
+    }
+
+    private func sectionTitle(_ section: Section) -> String {
+        switch section {
+        case .songs: return L10n.t("Popular")
+        case .albums: return L10n.t("Albums")
+        case .singles: return L10n.t("Singles")
+        case .compilations: return L10n.t("Compilations")
+        case .related: return L10n.t("Fans also like")
+        case .about: return L10n.t("About")
+        }
+    }
+
+    private func releaseKindTitle(_ kind: ReleaseKind) -> String {
+        switch kind {
+        case .album: return L10n.t("Albums")
+        case .single: return L10n.t("Singles")
+        case .compilation: return L10n.t("Compilations")
+        }
     }
 
     private func section(at index: Int) -> Section {
@@ -171,7 +309,8 @@ final class ArtistViewController: UIViewController {
     private func openAlbum(_ album: CatalogueAlbum) {
         let detail = [album.artist, album.year].filter { !$0.isEmpty }.joined(separator: " · ")
         let controller = CollectionViewController(title: album.title,
-                                                  subtitle: detail.isEmpty ? "Album" : detail,
+                                                  subtitle: detail.isEmpty
+                                                    ? releaseKindTitle(album.kind) : detail,
                                                   artwork: album.artwork)
         controller.loader = { completion in
             CatalogueSearch.shared.songs(inAlbum: album.id) { tracks in
@@ -194,9 +333,13 @@ extension ArtistViewController: UITableViewDataSource, UITableViewDelegate {
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         switch self.section(at: section) {
         case .songs:
-            return profile?.topSongs.count ?? 0
+            return displayedTracks.count
         case .albums:
-            return profile?.albums.count ?? 0
+            return albums(of: .album).count
+        case .singles:
+            return albums(of: .single).count
+        case .compilations:
+            return albums(of: .compilation).count
         case .related:
             return profile?.related.count ?? 0
         case .about:
@@ -206,18 +349,33 @@ extension ArtistViewController: UITableViewDataSource, UITableViewDelegate {
 
     func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
         switch section(at: indexPath.section) {
-        case .songs: return 64
-        case .albums, .related: return 72
+        case .songs: return Theme.rowHeight(64)
+        case .albums, .singles, .compilations, .related: return Theme.rowHeight(72)
         case .about: return UITableView.automaticDimension
         }
     }
 
     func tableView(_ tableView: UITableView, estimatedHeightForRowAt indexPath: IndexPath) -> CGFloat {
-        return 80
+        return Theme.rowHeight(80)
     }
 
     func tableView(_ tableView: UITableView, heightForHeaderInSection section: Int) -> CGFloat {
-        return 30
+        switch self.section(at: section) {
+        case .songs, .albums, .singles, .compilations:
+            return 40
+        default:
+            return 30
+        }
+    }
+
+    private func headerButton(_ title: String, action: Selector) -> UIButton {
+        let button = UIButton(type: .system)
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.titleLabel?.font = Theme.font(11, weight: .semibold)
+        button.setTitle(title, for: .normal)
+        button.setTitleColor(Theme.accent, for: .normal)
+        button.addTarget(self, action: action, for: .touchUpInside)
+        return button
     }
 
     func tableView(_ tableView: UITableView, viewForHeaderInSection section: Int) -> UIView? {
@@ -227,18 +385,77 @@ extension ArtistViewController: UITableViewDataSource, UITableViewDelegate {
         label.translatesAutoresizingMaskIntoConstraints = false
         label.font = Theme.font(12, weight: .semibold)
         label.textColor = Theme.secondaryText
-        switch self.section(at: section) {
-        case .songs: label.text = L10n.t("Popular").uppercased()
-        case .albums: label.text = L10n.t("Albums & singles").uppercased()
-        case .related: label.text = L10n.t("Fans also like").uppercased()
-        case .about: label.text = L10n.t("About").uppercased()
-        }
+        label.text = sectionTitle(self.section(at: section)).uppercased()
         holder.addSubview(label)
-        NSLayoutConstraint.activate([
+
+        var trailing: [UIButton] = []
+        switch self.section(at: section) {
+        case .songs:
+            trailing.append(headerButton(trackSort, action: #selector(trackSortTapped)))
+        case .albums, .singles, .compilations:
+            let firstDiscography = visibleSections.firstIndex(where: {
+                $0 == .albums || $0 == .singles || $0 == .compilations
+            }) ?? -1
+            if firstDiscography == section {
+                trailing.append(headerButton(albumFilter, action: #selector(albumFilterTapped)))
+                trailing.append(headerButton(albumSort, action: #selector(albumSortTapped)))
+            }
+        default:
+            break
+        }
+
+        var constraints: [NSLayoutConstraint] = [
             label.leadingAnchor.constraint(equalTo: holder.leadingAnchor, constant: 20),
-            label.bottomAnchor.constraint(equalTo: holder.bottomAnchor, constant: -6)
-        ])
+            label.centerYAnchor.constraint(equalTo: holder.centerYAnchor, constant: 3)
+        ]
+        var right = holder.trailingAnchor
+        for button in trailing.reversed() {
+            constraints.append(button.trailingAnchor.constraint(equalTo: right, constant: -20))
+            constraints.append(button.centerYAnchor.constraint(equalTo: label.centerYAnchor))
+            right = button.leadingAnchor
+        }
+        if !trailing.isEmpty {
+            constraints.append(label.trailingAnchor.constraint(lessThanOrEqualTo: right,
+                                                               constant: -8))
+        }
+        NSLayoutConstraint.activate(constraints)
         return holder
+    }
+
+    @objc private func albumFilterTapped() {
+        let sheet = UIAlertController(title: L10n.t("Discography"), message: nil,
+                                      preferredStyle: .actionSheet)
+        for choice in ArtistViewController.albumFilterChoices {
+            sheet.addAction(UIAlertAction(title: L10n.t(choice), style: .default) { [weak self] _ in
+                self?.setAlbumFilterForProbe(choice)
+            })
+        }
+        sheet.addAction(UIAlertAction(title: L10n.t("Cancel"), style: .cancel))
+        present(sheet, animated: true)
+    }
+
+    @objc private func albumSortTapped() {
+        let sheet = UIAlertController(title: L10n.t("Sort"), message: nil,
+                                      preferredStyle: .actionSheet)
+        for choice in ArtistViewController.albumSortChoices {
+            sheet.addAction(UIAlertAction(title: L10n.t(choice), style: .default) { [weak self] _ in
+                self?.setAlbumSortForProbe(choice)
+            })
+        }
+        sheet.addAction(UIAlertAction(title: L10n.t("Cancel"), style: .cancel))
+        present(sheet, animated: true)
+    }
+
+    @objc private func trackSortTapped() {
+        let sheet = UIAlertController(title: L10n.t("Sort"), message: nil,
+                                      preferredStyle: .actionSheet)
+        for choice in ArtistViewController.trackSortChoices {
+            sheet.addAction(UIAlertAction(title: L10n.t(choice), style: .default) { [weak self] _ in
+                self?.setTrackSortForProbe(choice)
+            })
+        }
+        sheet.addAction(UIAlertAction(title: L10n.t("Cancel"), style: .cancel))
+        present(sheet, animated: true)
     }
 
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
@@ -246,14 +463,18 @@ extension ArtistViewController: UITableViewDataSource, UITableViewDelegate {
         case .songs:
             let cell = tableView.dequeueReusableCell(withIdentifier: TrackCell.reuseIdentifier,
                                                      for: indexPath) as! TrackCell
-            if let track = profile?.topSongs[indexPath.row] {
-                cell.configure(with: track)
+            if indexPath.row < displayedTracks.count {
+                cell.configure(with: displayedTracks[indexPath.row])
             }
             return cell
-        case .albums:
+        case .albums, .singles, .compilations:
             let cell = tableView.dequeueReusableCell(withIdentifier: ArtistTileCell.reuseIdentifier,
                                                      for: indexPath) as! ArtistTileCell
-            if let album = profile?.albums[indexPath.row] {
+            let kind: ReleaseKind = self.section(at: indexPath.section) == .albums ? .album
+                : (self.section(at: indexPath.section) == .singles ? .single : .compilation)
+            let rows = albums(of: kind)
+            if indexPath.row < rows.count {
+                let album = rows[indexPath.row]
                 var parts: [String] = []
                 if !album.year.isEmpty { parts.append(album.year) }
                 if album.songCount > 0 { parts.append("\(album.songCount) songs") }
@@ -273,7 +494,13 @@ extension ArtistViewController: UITableViewDataSource, UITableViewDelegate {
         case .about:
             let cell = tableView.dequeueReusableCell(withIdentifier: ArtistAboutCell.reuseIdentifier,
                                                      for: indexPath) as! ArtistAboutCell
-            cell.configure(text: profile?.bio ?? "", detail: profile?.listenerText)
+            cell.configure(text: profile?.bio ?? "", detail: profile?.listenerText,
+                           expanded: bioExpanded) { [weak self] in
+                guard let self = self else { return }
+                SettingsStore.shared.set(!self.bioExpanded,
+                                         for: ArtistViewController.bioExpandedKey)
+                self.tableView.reloadRows(at: [indexPath], with: .automatic)
+            }
             return cell
         }
     }
@@ -282,11 +509,19 @@ extension ArtistViewController: UITableViewDataSource, UITableViewDelegate {
         tableView.deselectRow(at: indexPath, animated: true)
         switch section(at: indexPath.section) {
         case .songs:
-            guard let picked = profile?.topSongs, indexPath.row < picked.count else { return }
+            let picked = displayedTracks
+            guard indexPath.row < picked.count else { return }
             PlayerService.shared.play(tracks: picked, startingAt: indexPath.row)
             presentNowPlayingFromRoot()
         case .albums:
-            if let album = profile?.albums[indexPath.row] { openAlbum(album) }
+            let rows = albums(of: .album)
+            if indexPath.row < rows.count { openAlbum(rows[indexPath.row]) }
+        case .singles:
+            let rows = albums(of: .single)
+            if indexPath.row < rows.count { openAlbum(rows[indexPath.row]) }
+        case .compilations:
+            let rows = albums(of: .compilation)
+            if indexPath.row < rows.count { openAlbum(rows[indexPath.row]) }
         case .related:
             if let related = profile?.related[indexPath.row] { openArtist(related) }
         case .about:
@@ -527,6 +762,8 @@ final class ArtistAboutCell: UITableViewCell {
 
     private let bodyLabel = UILabel()
     private let detailLabel = UILabel()
+    private let moreButton = UIButton(type: .system)
+    private var onToggle: (() -> Void)?
 
     override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
         super.init(style: style, reuseIdentifier: reuseIdentifier)
@@ -540,6 +777,13 @@ final class ArtistAboutCell: UITableViewCell {
         bodyLabel.numberOfLines = 0
         contentView.addSubview(bodyLabel)
 
+        moreButton.translatesAutoresizingMaskIntoConstraints = false
+        moreButton.contentHorizontalAlignment = .left
+        moreButton.titleLabel?.font = Theme.font(13, weight: .semibold)
+        moreButton.setTitleColor(Theme.accent, for: .normal)
+        moreButton.addTarget(self, action: #selector(toggleTapped), for: .touchUpInside)
+        contentView.addSubview(moreButton)
+
         detailLabel.translatesAutoresizingMaskIntoConstraints = false
         detailLabel.font = Theme.font(12)
         detailLabel.textColor = Theme.secondaryText
@@ -550,7 +794,12 @@ final class ArtistAboutCell: UITableViewCell {
             bodyLabel.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 4),
             bodyLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
             bodyLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
-            detailLabel.topAnchor.constraint(equalTo: bodyLabel.bottomAnchor, constant: 10),
+
+            moreButton.topAnchor.constraint(equalTo: bodyLabel.bottomAnchor, constant: 6),
+            moreButton.leadingAnchor.constraint(equalTo: bodyLabel.leadingAnchor),
+            moreButton.heightAnchor.constraint(equalToConstant: 28),
+
+            detailLabel.topAnchor.constraint(equalTo: moreButton.bottomAnchor, constant: 2),
             detailLabel.leadingAnchor.constraint(equalTo: bodyLabel.leadingAnchor),
             detailLabel.trailingAnchor.constraint(equalTo: bodyLabel.trailingAnchor),
             detailLabel.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -18)
@@ -561,9 +810,17 @@ final class ArtistAboutCell: UITableViewCell {
         return nil
     }
 
-    func configure(text: String, detail: String?) {
+    func configure(text: String, detail: String?, expanded: Bool, onToggle: @escaping () -> Void) {
         bodyLabel.text = text
         detailLabel.text = detail
         detailLabel.isHidden = (detail ?? "").isEmpty
+        bodyLabel.numberOfLines = expanded ? 0 : 3
+        moreButton.isHidden = text.count <= 180
+        moreButton.setTitle(L10n.t(expanded ? "Show less" : "Show more"), for: .normal)
+        self.onToggle = onToggle
+    }
+
+    @objc private func toggleTapped() {
+        onToggle?()
     }
 }

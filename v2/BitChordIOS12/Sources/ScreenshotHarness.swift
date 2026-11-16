@@ -926,23 +926,75 @@ enum ScreenshotHarness {
                     capture.shot("settings-downloads")
                     capture.report.append("settings.storage=\(capture.store.storageText())")
                     capture.checkpoint()
-                    captureEqualizer(capture, settings: settings) {
-                        // Re-run the flow from the real Settings entry point.
-                        settings.showOnboarding()
-                        after(0.8) {
-                            if let rerun = settings.presentedViewController as? OnboardingViewController {
-                                capture.report.append("onboarding.rerun=true")
-                                capture.report.append("onboarding.rerunTitle=\(rerun.stepTitle)")
-                                capture.shot("onboarding-rerun")
-                                rerun.dismiss(animated: false) {
-                                    settings.dismiss(animated: false) { captureSheets(capture, host: host) }
+                    captureSettingsSections(capture, settings: settings) {
+                        captureEqualizer(capture, settings: settings) {
+                            // Re-run the flow from the real Settings entry point.
+                            settings.showOnboarding()
+                            after(0.8) {
+                                if let rerun = settings.presentedViewController as? OnboardingViewController {
+                                    capture.report.append("onboarding.rerun=true")
+                                    capture.report.append("onboarding.rerunTitle=\(rerun.stepTitle)")
+                                    capture.shot("onboarding-rerun")
+                                    rerun.dismiss(animated: false) {
+                                        settings.dismiss(animated: false) {
+                                            captureSheets(capture, host: host)
+                                        }
+                                    }
+                                } else {
+                                    capture.report.append("onboarding.rerun=false")
+                                    settings.dismiss(animated: false) {
+                                        captureSheets(capture, host: host)
+                                    }
                                 }
-                            } else {
-                                capture.report.append("onboarding.rerun=false")
-                                settings.dismiss(animated: false) { captureSheets(capture, host: host) }
                             }
                         }
                     }
+                }
+            }
+        }
+    }
+
+    /// The new control groups are captured from the same live table. Values are
+    /// written straight to defaults for the frame (no root rebuild), then put
+    /// back, so the probe still sees a clean process after this pass.
+    private static func captureSettingsSections(_ capture: DownloadCapture,
+                                                settings: SettingsViewController,
+                                                completion: @escaping () -> Void) {
+        let keys = [Theme.accentKey, Theme.textSizeKey, Theme.densityKey,
+                    "BitChord.Audio.ResumeOnLaunch",
+                    "BitChord.Audio.PauseOnHeadphoneDisconnect"]
+        let old = keys.map { UserDefaults.standard.object(forKey: $0) }
+        UserDefaults.standard.set("Mint", forKey: Theme.accentKey)
+        UserDefaults.standard.set("Large", forKey: Theme.textSizeKey)
+        UserDefaults.standard.set("Compact", forKey: Theme.densityKey)
+        UserDefaults.standard.set(true, forKey: "BitChord.Audio.ResumeOnLaunch")
+        UserDefaults.standard.set(true, forKey: "BitChord.Audio.PauseOnHeadphoneDisconnect")
+        settings.refreshForCapture()
+
+        settings.scrollToKey(Theme.accentKey)
+        after(0.5) {
+            capture.shot("settings-appearance")
+            capture.report.append("settings.appearanceShown=\(Theme.accentName) "
+                + "text=\(Int(Theme.font(17).pointSize.rounded())) density=\(Theme.densityScale)")
+            settings.scrollToKey("BitChord.Audio.ResumeOnLaunch")
+            after(0.5) {
+                capture.shot("settings-playback")
+                capture.report.append("settings.playbackShown=resume="
+                    + "\(SettingsStore.shared.resumeOnLaunch) headphones="
+                    + "\(SettingsStore.shared.pauseOnHeadphoneDisconnect)")
+                settings.scrollToKey("BitChord.Storage.ClearSearchHistory")
+                after(0.5) {
+                    capture.shot("settings-maintenance")
+                    capture.report.append("settings.maintenanceShown=true")
+                    for (index, key) in keys.enumerated() {
+                        if let value = old[index] {
+                            UserDefaults.standard.set(value, forKey: key)
+                        } else {
+                            UserDefaults.standard.removeObject(forKey: key)
+                        }
+                    }
+                    settings.refreshForCapture()
+                    completion()
                 }
             }
         }
@@ -1606,6 +1658,7 @@ enum ScreenshotHarness {
             after(0.5) {
                 capture.report.append("artist.emptySummary=\(empty.reportSummary)")
                 capture.report.append("artist.emptyRendered=\(empty.viewIfLoaded != nil)")
+                capture.shot("artist-empty")
                 let partial = ArtistProfile(name: "Partial Artist", artwork: nil,
                                             listenerText: nil, bio: nil,
                                             topSongs: [Track(videoID: "probe-partial",
@@ -1615,6 +1668,7 @@ enum ScreenshotHarness {
                                             albums: [], related: [])
                 empty.applyProfileForProbe(partial)
                 capture.report.append("artist.partialSummary=\(empty.reportSummary)")
+                capture.shot("artist-partial")
                 capture.checkpoint()
                 empty.dismiss(animated: false) { artistFallbackProbe(capture) }
             }
@@ -1651,7 +1705,80 @@ enum ScreenshotHarness {
                         capture.shot("artist-fallback")
                         capture.report.append("artist.fallbackSummary=\(fallback.reportSummary)")
                         capture.checkpoint()
-                        fallback.dismiss(animated: false) { moodsProbe(capture) }
+                        fallback.dismiss(animated: false) { artistDiscographyProbe(capture) }
+                    }
+                }
+            }
+        }
+    }
+
+    /// A synthetic mixed discography drives the same table the live catalogue
+    /// feeds: all three release kinds, both sort orders, a filter and the
+    /// expandable biography. Empty/partial/fallback already ran before it.
+    private static func artistDiscographyProbe(_ capture: DownloadCapture) {
+        let store = SettingsStore.shared
+        let keys = ["BitChord.Artist.AlbumFilter", "BitChord.Artist.AlbumSort",
+                    "BitChord.Artist.TrackSort", "BitChord.Artist.BioExpanded"]
+        let old = keys.map { UserDefaults.standard.object(forKey: $0) }
+        store.set("All", for: keys[0])
+        store.set("Newest", for: keys[1])
+        store.set("A–Z", for: keys[2])
+        store.set(false, for: keys[3])
+
+        let longBio = "A discography fixture long enough to need more than three lines on a phone. "
+            + "It keeps writing so the expandable biography has a real collapsed state, then opens "
+            + "to show the full editorial note without a blank or clipped section. "
+            + "Every release below carries the same artwork and metadata the catalogue supplies."
+        let profile = ArtistProfile(
+            name: "Discography Artist", artwork: nil, listenerText: "1,200,000 listeners",
+            bio: longBio,
+            topSongs: [
+                Track(videoID: "probe-z", title: "Zebra Nights", artist: "Discography Artist",
+                      album: "Night", durationSeconds: 201),
+                Track(videoID: "probe-a", title: "Afterglow", artist: "Discography Artist",
+                      album: "Night", durationSeconds: 188)
+            ],
+            albums: [
+                CatalogueAlbum(id: "probe-album", title: "Night", artist: "Discography Artist",
+                               year: "2024", artwork: nil, songCount: 11, kind: .album),
+                CatalogueAlbum(id: "probe-single", title: "First Light", artist: "Discography Artist",
+                               year: "2023", artwork: nil, songCount: 1, kind: .single),
+                CatalogueAlbum(id: "probe-compilation", title: "The Collection",
+                               artist: "Discography Artist", year: "2022", artwork: nil,
+                               songCount: 18, kind: .compilation)
+            ],
+            related: [CatalogueArtist(id: "probe-related", name: "Related Artist", artwork: nil)])
+
+        let artist = CatalogueArtist(id: "probe-discography", name: "Discography Artist", artwork: nil)
+        let page = ArtistViewController(artist: artist)
+        capture.root.present(chrome(page), animated: false) {
+            page.applyProfileForProbe(profile)
+            after(0.6) {
+                page.scrollToDiscographyForProbe()
+                after(0.6) {
+                    capture.shot("artist-discography")
+                    capture.report.append("artist.discography=\(page.discographySummary)")
+                    page.setAlbumFilterForProbe("Singles")
+                    page.scrollToDiscographyForProbe()
+                    after(0.5) {
+                        capture.shot("artist-discography-filtered")
+                        capture.report.append("artist.discographyFiltered=\(page.discographySummary)")
+                        page.setAlbumFilterForProbe("All")
+                        page.setBioExpandedForProbe(true)
+                        page.scrollToAboutForProbe()
+                        after(0.5) {
+                            capture.shot("artist-bio-expanded")
+                            capture.report.append("artist.bioExpanded=\(page.discographySummary)")
+                            capture.checkpoint()
+                            for (index, key) in keys.enumerated() {
+                                if let value = old[index] {
+                                    UserDefaults.standard.set(value, forKey: key)
+                                } else {
+                                    UserDefaults.standard.removeObject(forKey: key)
+                                }
+                            }
+                            page.dismiss(animated: false) { moodsProbe(capture) }
+                        }
                     }
                 }
             }
@@ -2141,6 +2268,17 @@ enum ScreenshotHarness {
         SettingsStore.shared.set(DownloadQuality.high.rawValue, for: "BitChord.Download.Quality")
         SettingsStore.shared.set("Unlimited", for: DownloadStore.storageLimitKey)
         SettingsStore.shared.set(false, for: "BitChord.Download.WifiOnly")
+        if let fixture = ProcessInfo.processInfo.environment["BC_DOWNLOAD_FIXTURE_URL"],
+           !fixture.isEmpty {
+            let track = Track(videoID: "background-fixture", title: "Background Fixture",
+                              artist: "BitChord CI", album: "Fixture", durationSeconds: 40)
+            DownloadStore.shared.remove(track.videoID)
+            var reportBase = base
+            reportBase.append("background.fixture=true")
+            tryBackgroundStart([track], index: 0, base: reportBase,
+                               directory: directory, keep: keep)
+            return
+        }
         CatalogueSearch.shared.songs("Can't Feel My Face The Weeknd") { tracks in
             // Anything already on disk would short-circuit, so take a fresh one.
             var fresh = tracks.filter { !DownloadStore.shared.isDownloaded($0.videoID) }

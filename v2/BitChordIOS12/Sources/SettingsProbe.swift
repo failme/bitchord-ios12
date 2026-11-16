@@ -27,6 +27,13 @@ enum SettingsProbe {
         guard let index = arguments.firstIndex(of: "-BCSettingsProbe"),
               index + 1 < arguments.count else { return }
         directory = URL(fileURLWithPath: arguments[index + 1], isDirectory: true)
+        let seed = directory.appendingPathComponent("settings-relaunch-seeded.txt")
+        if FileManager.default.fileExists(atPath: seed.path) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                runRelaunchCheck(seed: seed)
+            }
+            return
+        }
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
             run()
         }
@@ -206,6 +213,117 @@ enum SettingsProbe {
             + "changed=\(!toneDry.contains("changed=true") && toneWet.contains("changed=true"))")
         restore(toneOldX, key: "BitChord.Audio.EqToneX")
         restore(toneOldY, key: "BitChord.Audio.EqToneY")
+
+        // Appearance: the three new choices each reach the exact helper every
+        // screen draws through, not just UserDefaults.
+        let accentOld = UserDefaults.standard.object(forKey: Theme.accentKey)
+        let themeAccent = Theme.accent
+        SettingsStore.shared.set("Coral", for: Theme.accentKey)
+        let coral = Theme.accent
+        let accentPersisted = SettingsStore.shared.string(Theme.accentKey, "Theme") == "Coral"
+        let accentChanged = colourHex(coral) != colourHex(themeAccent)
+        record("settings.accent", "name=\(Theme.accentName) persisted=\(accentPersisted) "
+            + "changed=\(accentChanged) hex=\(colourHex(coral))")
+        restore(accentOld, key: Theme.accentKey)
+
+        let textOld = UserDefaults.standard.object(forKey: Theme.textSizeKey)
+        SettingsStore.shared.set("Small", for: Theme.textSizeKey)
+        let small = Theme.font(17).pointSize
+        SettingsStore.shared.set("Large", for: Theme.textSizeKey)
+        let large = Theme.font(17).pointSize
+        let textPersisted = SettingsStore.shared.string(Theme.textSizeKey, "Standard") == "Large"
+        record("settings.textSize", String(format: "small=%.1f large=%.1f persisted=%@ scaled=%@",
+                                           small, large, textPersisted ? "true" : "false",
+                                           large > small ? "true" : "false"))
+        restore(textOld, key: Theme.textSizeKey)
+
+        let densityOld = UserDefaults.standard.object(forKey: Theme.densityKey)
+        SettingsStore.shared.set("Comfortable", for: Theme.densityKey)
+        let roomy = Theme.rowHeight(58)
+        SettingsStore.shared.set("Compact", for: Theme.densityKey)
+        let tight = Theme.rowHeight(58)
+        let densityPersisted = SettingsStore.shared.string(Theme.densityKey, "Comfortable") == "Compact"
+        record("settings.density", "roomy=\(Int(roomy)) tight=\(Int(tight)) "
+            + "persisted=\(densityPersisted) changed=\(tight < roomy)")
+        restore(densityOld, key: Theme.densityKey)
+
+        // Route policy: disconnect pauses only when asked, and the existing
+        // speaker guard still wins on its own branch.
+        let disconnect = PlayerService.routePauseReason(
+            reason: .oldDeviceUnavailable, previousOutputs: [.headphones],
+            currentOutput: .builtInSpeaker, pauseOnDisconnect: true, disableSpeaker: false)
+        let ignored = PlayerService.routePauseReason(
+            reason: .oldDeviceUnavailable, previousOutputs: [.headphones],
+            currentOutput: .builtInSpeaker, pauseOnDisconnect: false, disableSpeaker: false)
+        let speaker = PlayerService.routePauseReason(
+            reason: .routeConfigurationChange, previousOutputs: [.headphones],
+            currentOutput: .builtInSpeaker, pauseOnDisconnect: false, disableSpeaker: true)
+        record("settings.headphonePause", "disconnect=\(disconnect != nil) "
+            + "ignored=\(ignored == nil) speakerGuard=\(speaker != nil)")
+
+        // The syllable preference changes what the renderer receives.
+        let word = LyricWord(start: 0, end: 1, text: "Hello", startChar: 0, endChar: 5,
+                             syllables: [LyricSyllable(start: 0, end: 1, startChar: 0, endChar: 5)])
+        let line = WordLyricLine(time: 0, text: "Hello", words: [word], end: 1)
+        let wordsOn = LyricsService.linesForDisplay([line], preferWordTimings: true).first?.isWordSynced
+        let wordsOff = LyricsService.linesForDisplay([line], preferWordTimings: false).first?.isWordSynced
+        record("settings.syllableSync", "on=\(wordsOn == true) off=\(wordsOff == false)")
+
+        // Artist controls: the same filter/sort/bio keys the header buttons
+        // write, read back by the page's own summary.
+        let artistKeys = [ArtistViewController.albumFilterKey, ArtistViewController.albumSortKey,
+                          ArtistViewController.trackSortKey, ArtistViewController.bioExpandedKey]
+        let artistOld = artistKeys.map { UserDefaults.standard.object(forKey: $0) }
+        SettingsStore.shared.set("Singles", for: artistKeys[0])
+        SettingsStore.shared.set("Title", for: artistKeys[1])
+        SettingsStore.shared.set("A–Z", for: artistKeys[2])
+        SettingsStore.shared.set(true, for: artistKeys[3])
+        let artistProbe = ArtistViewController(artist: CatalogueArtist(id: "probe-artist",
+                                                                      name: "Probe Artist",
+                                                                      artwork: nil))
+        artistProbe.applyProfileForProbe(ArtistProfile(
+            name: "Probe Artist", artwork: nil, listenerText: nil,
+            bio: String(repeating: "Biography copy. ", count: 20),
+            topSongs: [
+                Track(videoID: "artist-z", title: "Zebra", artist: "Probe Artist",
+                      durationSeconds: 180),
+                Track(videoID: "artist-a", title: "Afterglow", artist: "Probe Artist",
+                      durationSeconds: 180)
+            ],
+            albums: [
+                CatalogueAlbum(id: "a", title: "Album", artist: "Probe Artist", year: "2024",
+                               artwork: nil, songCount: 10, kind: .album),
+                CatalogueAlbum(id: "s", title: "Single", artist: "Probe Artist", year: "2023",
+                               artwork: nil, songCount: 1, kind: .single),
+                CatalogueAlbum(id: "c", title: "Collection", artist: "Probe Artist", year: "2022",
+                               artwork: nil, songCount: 12, kind: .compilation)
+            ], related: []))
+        record("settings.artistControls", "\(artistProbe.discographySummary)")
+        SettingsStore.shared.set("All", for: artistKeys[0])
+        SettingsStore.shared.set("Title", for: artistKeys[1])
+        record("settings.artistAlbumSort", "\(artistProbe.discographySummary)")
+        for (index, key) in artistKeys.enumerated() {
+            restore(artistOld[index], key: key)
+        }
+
+        // History actions use the same helpers the two Settings rows call.
+        LibraryStore.shared.addRecentSearch(probeTrack("search-history"))
+        LibraryStore.shared.recordPlayback(probeTrack("listen-history"))
+        PlaybackHistoryStore.shared.record(probeTrack("listen-history"))
+        SettingsActions.clearSearchHistory()
+        SettingsActions.clearListeningHistory()
+        record("settings.historyActions", "search=\(LibraryStore.shared.recentSearches.count) "
+            + "recents=\(LibraryStore.shared.recentTracks.count) "
+            + "queue=\(PlaybackHistoryStore.shared.items.count) "
+            + "position=\(Int(LibraryStore.shared.lastPlaybackPosition))")
+
+        // Resume save/load: the real store, and the real setting gate.
+        PlaybackSessionStore.shared.save(queue: [probeTrack("resume-probe")], index: 0,
+                                         position: 42)
+        let resume = PlaybackSessionStore.shared.load()
+        record("settings.resumeStore", "queue=\(resume?.queue.count ?? 0) "
+            + "index=\(resume?.index ?? -1) position=\(Int(resume?.position ?? 0))")
+        PlaybackSessionStore.shared.clear()
         record("settings.crossfade", "explicit=5 offAutomix=\(PlayerService.crossfadeSeconds(setting: 0, automix: false, fast: false)) automix=\(PlayerService.crossfadeSeconds(setting: 0, automix: true, fast: false)) fast=\(PlayerService.crossfadeSeconds(setting: 0, automix: true, fast: true))")
         record("settings.animatedCover", "enabled=\(NowPlayingViewController.artworkMotionEnabled(animated: true, cellular: true, reduce: false, onWiFi: true)) cellularOff=\(NowPlayingViewController.artworkMotionEnabled(animated: true, cellular: false, reduce: false, onWiFi: false)) reduced=\(NowPlayingViewController.artworkMotionEnabled(animated: true, cellular: true, reduce: true, onWiFi: true))")
         let savedLanguage = SettingsStore.shared.string("BitChord.Misc.AppLanguage", "English")
@@ -218,6 +336,9 @@ enum SettingsProbe {
         record("settings.screenTranslation", "sections=\(screenSections.count) missing=\(untranslated) "
             + "equalizer=\(L10n.t("Equalizer")) artist=\(L10n.t("Popular"))")
         record("settings.languages", "\(L10n.languageNames.count)")
+        let coverage = L10n.featureCoverage()
+        record("settings.newTranslations", "keys=\(coverage.keys) languages=\(coverage.languages) "
+            + "missing=\(coverage.missing)")
         let equalizerMatches = SettingsCatalog.filtered(by: "equalizer")
             .flatMap { $0.items }.filter { $0.title == "Equalizer" }.count
         let emptyMatches = SettingsCatalog.filtered(by: "no such setting").count
@@ -271,10 +392,69 @@ enum SettingsProbe {
                 record("settings.searchPage2", "\(next?.count ?? 0)")
                 record("settings.searchFresh", "\((next ?? []).filter { !firstIDs.contains($0.videoID) }.count)")
                 record("settings.searchMore", "\(hasMore)")
+                seedRelaunchProbe()
                 record("settings.done", "\(failures.isEmpty)")
                 finish()
             }
         }
+    }
+
+    /// Phase one leaves five non-default values and a real saved queue on disk.
+    /// The workflow then launches the app again; phase two reads them back in a
+    /// fresh process, which is the relaunch evidence the round-trip rows cannot
+    /// provide.
+    private static func seedRelaunchProbe() {
+        let store = SettingsStore.shared
+        store.set("Coral", for: Theme.accentKey)
+        store.set("Large", for: Theme.textSizeKey)
+        store.set("Compact", for: Theme.densityKey)
+        store.set(true, for: "BitChord.Audio.ResumeOnLaunch")
+        store.set(true, for: "BitChord.Audio.PauseOnHeadphoneDisconnect")
+        store.set("Singles", for: ArtistViewController.albumFilterKey)
+        store.set("Title", for: ArtistViewController.albumSortKey)
+        store.set("A–Z", for: ArtistViewController.trackSortKey)
+        store.set(true, for: ArtistViewController.bioExpandedKey)
+        PlaybackSessionStore.shared.save(queue: [probeTrack("resume-relaunch")],
+                                         index: 0, position: 42)
+        guard let directory = directory else { return }
+        try? "seeded".write(to: directory.appendingPathComponent("settings-relaunch-seeded.txt"),
+                            atomically: true, encoding: .utf8)
+        record("settings.relaunchSeeded", "true")
+    }
+
+    private static func runRelaunchCheck(seed: URL) {
+        guard let directory = directory else { return }
+        let store = SettingsStore.shared
+        let queue = PlayerService.shared.queue
+        let track = PlayerService.shared.currentTrack?.videoID ?? ""
+        let position = Int(PlayerService.shared.currentTime.rounded())
+        let accent = store.string(Theme.accentKey, "") == "Coral" && Theme.accentName == "Coral"
+        let text = store.string(Theme.textSizeKey, "") == "Large"
+        let density = store.string(Theme.densityKey, "") == "Compact"
+        let resume = store.bool("BitChord.Audio.ResumeOnLaunch", false)
+        let headphones = store.bool("BitChord.Audio.PauseOnHeadphoneDisconnect", false)
+        let artist = store.string(ArtistViewController.albumFilterKey, "") == "Singles"
+            && store.string(ArtistViewController.albumSortKey, "") == "Title"
+            && store.string(ArtistViewController.trackSortKey, "") == "A–Z"
+            && store.bool(ArtistViewController.bioExpandedKey, false)
+        let restored = queue.count == 1 && track == "resume-relaunch" && position == 42
+        let report = "settings.relaunch=accent=\(accent) text=\(text) density=\(density) "
+            + "resume=\(resume) headphones=\(headphones) artist=\(artist) queue=\(queue.count) "
+            + "track=\(track) position=\(position)\n"
+            + "settings.relaunchRestored=\(restored)\n"
+            + "settings.relaunchPersisted=\(accent && text && density && resume && headphones && artist)\n"
+        try? report.write(to: directory.appendingPathComponent("settings-relaunch.txt"),
+                          atomically: true, encoding: .utf8)
+        try? "done".write(to: directory.appendingPathComponent("settings-relaunch-done.txt"),
+                          atomically: true, encoding: .utf8)
+        try? FileManager.default.removeItem(at: seed)
+        PlaybackSessionStore.shared.clear()
+    }
+
+    private static func colourHex(_ color: UIColor) -> String {
+        var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+        guard color.getRed(&red, green: &green, blue: &blue, alpha: &alpha) else { return "?" }
+        return String(format: "%02X%02X%02X", Int(red * 255), Int(green * 255), Int(blue * 255))
     }
 
     private static func probeTrack(_ id: String) -> Track {

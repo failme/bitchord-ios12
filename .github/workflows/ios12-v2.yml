@@ -631,6 +631,12 @@ jobs:
           grep -q "artist.fallbackRelated=0" "$REPORT"
           grep -q "artist.fallbackBio=false" "$REPORT"
           grep -Eq "artist.fallbackSummary=loaded=true songs=[1-9][0-9]* albums=0 related=0 bio=false sections=1" "$REPORT"
+          grep -q "artist.discography=filter=All sort=Newest trackSort=A–Z kinds=album:1,single:1,compilation:1 bio=collapsed first=Night trackFirst=Afterglow sections=Popular|Albums|Singles|Compilations|Fans also like|About" "$REPORT"
+          grep -q "artist.discographyFiltered=filter=Singles sort=Newest trackSort=A–Z kinds=album:1,single:1,compilation:1 bio=collapsed first=First Light trackFirst=Afterglow sections=Popular|Singles|Fans also like|About" "$REPORT"
+          grep -q "artist.bioExpanded=filter=All sort=Newest trackSort=A–Z kinds=album:1,single:1,compilation:1 bio=expanded first=Night trackFirst=Afterglow sections=Popular|Albums|Singles|Compilations|Fans also like|About" "$REPORT"
+          grep -q "settings.appearanceShown=Mint text=18 density=0.86" "$REPORT"
+          grep -q "settings.playbackShown=resume=true headphones=true" "$REPORT"
+          grep -q "settings.maintenanceShown=true" "$REPORT"
           grep -q "equalizer.screen=true" "$REPORT"
           grep -q "equalizer.bands=10" "$REPORT"
           grep -q "equalizer.toneX=4.0" "$REPORT"
@@ -729,11 +735,14 @@ jobs:
           grep -q "POST /Users/AuthenticateByName" /tmp/jellyfin-server.log
           grep -q "GET /Audio/track-one/stream" /tmp/jellyfin-server.log
 
-          for shot in downloads download-progress downloads-saver settings-downloads equalizer \
+          for shot in downloads download-progress downloads-saver settings-downloads \
+                      settings-appearance settings-playback settings-maintenance equalizer \
                       sheet-delete sheet-cancel sheet-download wifi-blocked offline downloads-empty \
                       storage-cap settings-storage library-synced playlist-synced sync-failed \
                       downloads-addon local-music local-songs queue-history radio radio-failed \
-                      lyrics-karaoke artist artist-fallback moods settings-cache song-actions add-to-playlist \
+                      lyrics-karaoke artist artist-empty artist-partial artist-fallback \
+                      artist-discography artist-discography-filtered artist-bio-expanded \
+                      moods settings-cache song-actions add-to-playlist \
                       queue-edit history history-empty replay song-info autoplay \
                       onboarding-welcome onboarding-tour onboarding-library onboarding-ready \
                       onboarding-rerun webdav-tree webdav-playing webdav-error \
@@ -749,7 +758,8 @@ jobs:
                 "$CONTAINER/Documents/shots/background-resumed-done.txt" \
                 "$CONTAINER/Documents/shots/background-killed.txt" \
                 "$CONTAINER/Documents/shots/background-killed-done.txt"
-          xcrun simctl launch "$UDID" "$BUNDLE" -BCBackgroundStart "$CONTAINER/Documents/shots" keep
+          SIMCTL_CHILD_BC_DOWNLOAD_FIXTURE_URL=http://127.0.0.1:8765/slow-media/fixture.m4a \
+            xcrun simctl launch "$UDID" "$BUNDLE" -BCBackgroundStart "$CONTAINER/Documents/shots" keep
           for i in $(seq 1 45); do
             [ -f "$CONTAINER/Documents/shots/background-report.txt" ] && break
             sleep 1
@@ -779,7 +789,8 @@ jobs:
           # consistent either way.
           xcrun simctl terminate "$UDID" "$BUNDLE" || true
           sleep 1
-          xcrun simctl launch "$UDID" "$BUNDLE" -BCBackgroundStart "$CONTAINER/Documents/shots"
+          SIMCTL_CHILD_BC_DOWNLOAD_FIXTURE_URL=http://127.0.0.1:8765/slow-media/fixture.m4a \
+            xcrun simctl launch "$UDID" "$BUNDLE" -BCBackgroundStart "$CONTAINER/Documents/shots"
           for i in $(seq 1 45); do
             [ -f "$CONTAINER/Documents/shots/background-report.txt" ] && break
             sleep 1
@@ -1056,9 +1067,9 @@ jobs:
           PROBE=shots/settings-probe.txt
           test -s "$PROBE" || { echo "::error ::no settings probe report"; exit 1; }
           grep -q "settings.done=true" "$PROBE"
-          grep -q "settings.rows=118" "$PROBE"
+          grep -q "settings.rows=125" "$PROBE"
           grep -q "settings.unavailable=20" "$PROBE"
-          grep -q "settings.roundTrip=75" "$PROBE"
+          grep -q "settings.roundTrip=80" "$PROBE"
           grep -q "settings.roundTripFailures=none" "$PROBE"
           grep -q "settings.themeLight=true" "$PROBE"
           grep -q "settings.themeDark=true" "$PROBE"
@@ -1086,10 +1097,40 @@ jobs:
           grep -q "settings.animatedCover=enabled=true cellularOff=false reduced=false" "$PROBE"
           grep -q "settings.localization=language=Español home=Inicio search=Buscar settings=Ajustes" "$PROBE"
           grep -q "settings.screenTranslation=sections=11 missing=0 equalizer=Ecualizador artist=Populares" "$PROBE"
+          grep -q "settings.newTranslations=keys=30 languages=13 missing=0" "$PROBE"
           grep -q "settings.translation=targets=en,hi,es,fr cache=" "$PROBE"
           grep -q "settings.refreshRate=requested=.* effective=.* running=true" "$PROBE"
           grep -q "settings.refreshModes=auto=60 sixty=60 thirty=30" "$PROBE"
           grep -q "settings.prefetch=enabled=true requests=0 ready=0 failed=0 held=0" "$PROBE"
+          grep -q "settings.accent=name=Coral persisted=true changed=true hex=FF6B6B" "$PROBE"
+          grep -q "settings.textSize=small=15.3 large=18.4 persisted=true scaled=true" "$PROBE"
+          grep -q "settings.density=roomy=58 tight=50 persisted=true changed=true" "$PROBE"
+          grep -q "settings.headphonePause=disconnect=true ignored=true speakerGuard=true" "$PROBE"
+          grep -q "settings.syllableSync=on=true off=true" "$PROBE"
+          grep -q "settings.artistControls=filter=Singles sort=Title trackSort=A–Z kinds=album:1,single:1,compilation:1 bio=expanded first=First Light trackFirst=Afterglow sections=Popular|Singles|About" "$PROBE"
+          grep -q "settings.artistAlbumSort=filter=All sort=Title trackSort=A–Z kinds=album:1,single:1,compilation:1 bio=expanded first=First Light trackFirst=Afterglow sections=Popular|Albums|Singles|Compilations|About" "$PROBE"
+          grep -q "settings.historyActions=search=0 recents=0 queue=0 position=0" "$PROBE"
+          grep -q "settings.resumeStore=queue=1 index=0 position=42" "$PROBE"
+          grep -q "settings.relaunchSeeded=true" "$PROBE"
+
+          # Relaunch: a fresh process must read the five seeded values back and
+          # restore the saved queue at 0:42 through the real launch path.
+          rm -f "$CONTAINER/Documents/shots/settings-relaunch.txt" \
+                "$CONTAINER/Documents/shots/settings-relaunch-done.txt"
+          xcrun simctl terminate "$UDID" "$BUNDLE" || true
+          sleep 1
+          xcrun simctl launch "$UDID" "$BUNDLE" -BCSettingsProbe "$CONTAINER/Documents/shots" > /dev/null
+          for i in $(seq 1 30); do
+            [ -f "$CONTAINER/Documents/shots/settings-relaunch-done.txt" ] && break
+            sleep 1
+          done
+          cp "$CONTAINER/Documents/shots/settings-relaunch.txt" shots/ 2>/dev/null || true
+          echo "### Settings relaunch"
+          cat shots/settings-relaunch.txt 2>/dev/null || echo "(no settings relaunch report)"
+          test -s shots/settings-relaunch.txt || { echo "::error ::no settings relaunch report"; exit 1; }
+          grep -q "settings.relaunch=accent=true text=true density=true resume=true headphones=true artist=true queue=1 track=resume-relaunch position=42" shots/settings-relaunch.txt
+          grep -q "settings.relaunchRestored=true" shots/settings-relaunch.txt
+          grep -q "settings.relaunchPersisted=true" shots/settings-relaunch.txt
 
           kill "$ADDON_PID" 2>/dev/null || true
           kill "$WEBDAV_PID" 2>/dev/null || true

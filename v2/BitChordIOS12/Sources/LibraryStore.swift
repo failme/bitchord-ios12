@@ -240,6 +240,20 @@ final class LibraryStore {
         announce()
     }
 
+    /// The listening-history action clears the rows Home draws and the resume
+    /// position, so a later launch cannot resurrect either one.
+    func clearListeningHistory() {
+        recentTracks.removeAll()
+        lastPlayedAt = nil
+        lastPlaybackPosition = 0
+        lastPlaybackDuration = 0
+        save(recentTracks, key: recentsKey)
+        UserDefaults.standard.removeObject(forKey: lastPlayedKey)
+        UserDefaults.standard.removeObject(forKey: positionKey)
+        UserDefaults.standard.removeObject(forKey: durationKey)
+        announce()
+    }
+
     /// Tracks the user is most likely to want next: liked songs first, then recents.
     var quickPicks: [Track] {
         var seen = Set<String>()

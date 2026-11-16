@@ -22,6 +22,46 @@ enum Theme {
     }
 
     static let modeKey = "BitChord.Appearance.Theme"
+    static let accentKey = "BitChord.Appearance.Accent"
+    static let textSizeKey = "BitChord.Appearance.TextSize"
+    static let densityKey = "BitChord.Appearance.Density"
+
+    /// The colours an explicit accent can draw with. "Theme" is the original
+    /// foreground ink on each palette; the rest are chosen to stay legible on
+    /// both white and black surfaces and are used for controls, not body copy.
+    static let accentChoices = ["Theme", "Coral", "Amber", "Mint", "Sky", "Lilac"]
+
+    static var accentName: String {
+        let raw = UserDefaults.standard.string(forKey: accentKey) ?? "Theme"
+        return accentChoices.contains(raw) ? raw : "Theme"
+    }
+
+    /// Multiplier for every type size the app draws. The Settings choice is
+    /// read at draw time, so a newly opened screen uses the new scale.
+    static var textScale: CGFloat {
+        switch UserDefaults.standard.string(forKey: textSizeKey) ?? "Standard" {
+        case "Small": return 0.90
+        case "Large": return 1.08
+        default: return 1.0
+        }
+    }
+
+    /// Row-height multiplier for list surfaces. Compact is deliberately mild:
+    /// it tightens scanning without clipping the two-line rows.
+    static var densityScale: CGFloat {
+        return UserDefaults.standard.string(forKey: densityKey) == "Compact" ? 0.86 : 1.0
+    }
+
+    static func rowHeight(_ base: CGFloat) -> CGFloat {
+        return (base * densityScale).rounded()
+    }
+
+    static var appearanceFingerprint: String {
+        return "\(mode.rawValue)|\(accentName)|"
+            + "\(UserDefaults.standard.string(forKey: "BitChord.Appearance.Font") ?? "System")|"
+            + "\(UserDefaults.standard.string(forKey: textSizeKey) ?? "Standard")|"
+            + "\(UserDefaults.standard.string(forKey: densityKey) ?? "Comfortable")"
+    }
 
     static var mode: Mode {
         let raw = (UserDefaults.standard.string(forKey: modeKey) ?? Mode.dark.rawValue).uppercased()
@@ -77,9 +117,17 @@ enum Theme {
     }
 
     /// Upstream's primary is the foreground colour — white on Midnight, black
-    /// on Light. The red is Replay's rank badge and nothing else.
+    /// on Light — unless the listener has chosen an explicit accent. The red is
+    /// Replay's rank badge and nothing else.
     static var accent: UIColor {
-        return primaryText
+        switch accentName {
+        case "Coral": return UIColor(red: 0xFF / 255.0, green: 0x6B / 255.0, blue: 0x6B / 255.0, alpha: 1)
+        case "Amber": return UIColor(red: 0xFF / 255.0, green: 0xB3 / 255.0, blue: 0x40 / 255.0, alpha: 1)
+        case "Mint": return UIColor(red: 0x3D / 255.0, green: 0xDC / 255.0, blue: 0x97 / 255.0, alpha: 1)
+        case "Sky": return UIColor(red: 0x4D / 255.0, green: 0xA3 / 255.0, blue: 0xFF / 255.0, alpha: 1)
+        case "Lilac": return UIColor(red: 0xB1 / 255.0, green: 0x8C / 255.0, blue: 0xFF / 255.0, alpha: 1)
+        default: return primaryText
+        }
     }
 
     static let replayRed = UIColor(red: 0xFA / 255.0, green: 0x2D / 255.0, blue: 0x48 / 255.0, alpha: 1)
@@ -182,21 +230,22 @@ enum Theme {
     /// picks it up without a relaunch.
     static func font(_ size: CGFloat, weight: UIFont.Weight = .regular) -> UIFont {
         let choice = UserDefaults.standard.string(forKey: "BitChord.Appearance.Font") ?? "System"
+        let scaledSize = size * textScale
         switch choice {
         case "Rounded":
             if #available(iOS 13.0, *) {
-                let base = UIFont.systemFont(ofSize: size, weight: weight)
+                let base = UIFont.systemFont(ofSize: scaledSize, weight: weight)
                 if let descriptor = base.fontDescriptor.withDesign(.rounded) {
-                    return UIFont(descriptor: descriptor, size: size)
+                    return UIFont(descriptor: descriptor, size: scaledSize)
                 }
             }
-            return UIFont.systemFont(ofSize: size, weight: weight)
+            return UIFont.systemFont(ofSize: scaledSize, weight: weight)
         case "Serif":
             let bold = weight == .semibold || weight == .bold || weight == .heavy || weight == .black
-            return UIFont(name: bold ? "Georgia-Bold" : "Georgia", size: size)
-                ?? UIFont.systemFont(ofSize: size, weight: weight)
+            return UIFont(name: bold ? "Georgia-Bold" : "Georgia", size: scaledSize)
+                ?? UIFont.systemFont(ofSize: scaledSize, weight: weight)
         default:
-            return UIFont.systemFont(ofSize: size, weight: weight)
+            return UIFont.systemFont(ofSize: scaledSize, weight: weight)
         }
     }
 

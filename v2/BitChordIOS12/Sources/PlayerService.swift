@@ -13,6 +13,43 @@ enum RepeatMode: Int {
     case one
 }
 
+/// The last queue and position, written only when the listener has asked for
+/// resume-on-launch. Persisting the queue (not just its first track) is what
+/// lets a restored session keep its next/previous context.
+struct PlaybackSession: Codable {
+    let queue: [Track]
+    let index: Int
+    let position: TimeInterval
+    let updatedAt: Date
+}
+
+final class PlaybackSessionStore {
+    static let shared = PlaybackSessionStore()
+    private let key = "BitChord.Player.LastSession"
+
+    private init() {}
+
+    func save(queue: [Track], index: Int, position: TimeInterval) {
+        guard !queue.isEmpty, index >= 0, index < queue.count else { return }
+        let session = PlaybackSession(queue: queue, index: index,
+                                      position: max(0, position), updatedAt: Date())
+        guard let data = try? JSONEncoder().encode(session) else { return }
+        UserDefaults.standard.set(data, forKey: key)
+    }
+
+    func load() -> PlaybackSession? {
+        guard let data = UserDefaults.standard.data(forKey: key),
+              let session = try? JSONDecoder().decode(PlaybackSession.self, from: data),
+              !session.queue.isEmpty,
+              session.index >= 0, session.index < session.queue.count else { return nil }
+        return session
+    }
+
+    func clear() {
+        UserDefaults.standard.removeObject(forKey: key)
+    }
+}
+
 /// Drives playback through `AudioEngine`, which plays with AVFoundation when a stream URL can be
 /// resolved and falls back to the embedded web player when it cannot. Either way this class owns
 /// the queue and the user-facing state; position reports arrive through the engine's callbacks.
@@ -51,6 +88,8 @@ final class PlayerService: NSObject {
     private var sessionReloads = 0
     private var crossfadeStarted = false
     private(set) var crossfadeCount = 0
+    private var pendingRestorePosition: TimeInterval = 0
+    private var lastSessionWrite = Date.distantPast
 
     var currentTrack: Track? {
         guard currentIndex >= 0, currentIndex < queue.count else { return nil }
@@ -97,6 +136,7 @@ final class PlayerService: NSObject {
                 self.duration = total
                 LibraryStore.shared.updateProgress(position: position, duration: total)
             }
+            self.persistSessionIfNeeded()
             if let track = self.currentTrack {
                 ScrobbleService.shared.trackDidAdvance(position: position,
                                                       duration: total > 0 ? total : (track.durationSeconds ?? 0))
@@ -207,29 +247,94 @@ final class PlayerService: NSObject {
             forName: UIApplication.didEnterBackgroundNotification,
             object: nil,
             queue: .main
-        ) { _ in
+        ) { [weak self] _ in
             // Re-assert the session so the web audio thread is not torn down.
             try? AVAudioSession.sharedInstance().setActive(true)
+            self?.persistSession()
         })
 
         observers.append(NotificationCenter.default.addObserver(
             forName: AVAudioSession.routeChangeNotification,
             object: nil,
             queue: .main
-        ) { [weak self] _ in
+        ) { [weak self] note in
             guard let self = self,
-                  let port = AVAudioSession.sharedInstance().currentRoute.outputs.first?.portType.rawValue,
-                  PlayerService.speakerBlocked(
-                    disabled: SettingsStore.shared.bool("BitChord.Audio.DisableOnPhoneSpeaker", false),
-                    portType: port) else { return }
+                  let raw = note.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt,
+                  let reason = AVAudioSession.RouteChangeReason(rawValue: raw) else { return }
+            let previous = (note.userInfo?[AVAudioSessionRouteChangePreviousRouteKey]
+                as? AVAudioSessionRouteDescription)?.outputs.map { $0.portType } ?? []
+            let current = AVAudioSession.sharedInstance().currentRoute.outputs.first?.portType
+                ?? AVAudioSession.Port.builtInSpeaker
+            let store = SettingsStore.shared
+            guard let reasonText = PlayerService.routePauseReason(
+                reason: reason, previousOutputs: previous, currentOutput: current,
+                pauseOnDisconnect: store.pauseOnHeadphoneDisconnect,
+                disableSpeaker: store.bool("BitChord.Audio.DisableOnPhoneSpeaker", false)) else { return }
             self.pause()
-            self.statusText = "Phone speaker output is disabled in Settings."
+            self.statusText = reasonText
             self.postChange()
         })
     }
 
     static func speakerBlocked(disabled: Bool, portType: String) -> Bool {
         return disabled && portType == AVAudioSession.Port.builtInSpeaker.rawValue
+    }
+
+    /// The route notification decides two independent policies: the explicit
+    /// speaker guard and the newer headphone-disconnect pause. Returning the
+    /// status copy keeps the predicate testable without an audio route.
+    static func routePauseReason(reason: AVAudioSession.RouteChangeReason,
+                                 previousOutputs: [AVAudioSession.Port],
+                                 currentOutput: AVAudioSession.Port,
+                                 pauseOnDisconnect: Bool,
+                                 disableSpeaker: Bool) -> String? {
+        let disconnectPorts: [AVAudioSession.Port] = [
+            .headphones, .headsetMic, .bluetoothA2DP, .bluetoothHFP, .bluetoothLE,
+            .carAudio, .airPlay, .usbAudio
+        ]
+        let disconnected = previousOutputs.contains { disconnectPorts.contains($0) }
+        if pauseOnDisconnect && reason == .oldDeviceUnavailable && disconnected {
+            return "Headphones disconnected. Playback paused."
+        }
+        if speakerBlocked(disabled: disableSpeaker,
+                          portType: currentOutput.rawValue) && reason != .oldDeviceUnavailable {
+            return "Phone speaker output is disabled in Settings."
+        }
+        return nil
+    }
+
+    // MARK: - Resume across launches
+
+    /// Called once at launch before any transport action. It restores the
+    /// queue and position but never starts audio on its own: opening the app
+    /// must not surprise the listener with sound.
+    func restoreLastSessionIfEnabled() {
+        guard SettingsStore.shared.resumeOnLaunch,
+              queue.isEmpty,
+              let session = PlaybackSessionStore.shared.load() else { return }
+        queue = session.queue
+        unshuffledQueue = session.queue
+        currentIndex = session.index
+        currentTime = min(session.position, max(0, session.queue[session.index].durationSeconds ?? session.position))
+        duration = session.queue[session.index].durationSeconds ?? 0
+        pendingRestorePosition = currentTime
+        isPlaying = false
+        isLoading = false
+        updateNowPlaying()
+        postChange()
+    }
+
+    private func persistSessionIfNeeded() {
+        guard SettingsStore.shared.resumeOnLaunch,
+              Date().timeIntervalSince(lastSessionWrite) >= 5 else { return }
+        persistSession()
+    }
+
+    private func persistSession() {
+        guard SettingsStore.shared.resumeOnLaunch, !queue.isEmpty, currentIndex >= 0 else { return }
+        lastSessionWrite = Date()
+        PlaybackSessionStore.shared.save(queue: queue, index: currentIndex,
+                                         position: currentTime)
     }
 
     // MARK: - Settings
@@ -313,6 +418,12 @@ final class PlayerService: NSObject {
 
     func play() {
         guard currentTrack != nil else { return }
+        if pendingRestorePosition > 0 {
+            let position = pendingRestorePosition
+            pendingRestorePosition = 0
+            loadCurrent(at: position)
+            return
+        }
         if PlayerService.speakerBlocked(
             disabled: SettingsStore.shared.bool("BitChord.Audio.DisableOnPhoneSpeaker", false),
             portType: AVAudioSession.sharedInstance().currentRoute.outputs.first?.portType.rawValue ?? "") {
@@ -330,6 +441,7 @@ final class PlayerService: NSObject {
     func pause() {
         AudioEngine.shared.pause()
         isPlaying = false
+        persistSession()
         updateNowPlaying()
         postChange()
     }
@@ -337,6 +449,7 @@ final class PlayerService: NSObject {
     /// Upstream's "Stop when recents close" clears playback with the task, so
     /// nothing resumes from the control centre after the app was swiped away.
     func stopForTermination() {
+        persistSession()
         AudioEngine.shared.pause()
         queue = []
         unshuffledQueue = []
@@ -542,6 +655,7 @@ final class PlayerService: NSObject {
     }
 
     func clearQueue() {
+        PlaybackSessionStore.shared.clear()
         queue = []
         unshuffledQueue = []
         currentIndex = -1
@@ -572,7 +686,7 @@ final class PlayerService: NSObject {
 
     // MARK: - Loading
 
-    private func loadCurrent() {
+    private func loadCurrent(at startPosition: TimeInterval = 0) {
         guard let track = currentTrack else { return }
         isLoading = true
         loadStartedAt = Date()
@@ -580,7 +694,7 @@ final class PlayerService: NSObject {
         isPlaying = false
         crossfadeStarted = false
         statusText = ""
-        currentTime = 0
+        currentTime = max(0, startPosition)
         duration = track.durationSeconds ?? 0
         lyrics = []
         lyricsAreSynced = false
@@ -593,6 +707,14 @@ final class PlayerService: NSObject {
         sessionHistory.insert(track.videoID)
         ScrobbleService.shared.trackDidStart(track)
         AudioEngine.shared.play(track: track)
+        if startPosition > 0 {
+            // The resolver is asynchronous, so the seek is re-applied after the
+            // item is attached; the restored position is already shown meanwhile.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+                self?.AudioEngineSeek(startPosition)
+            }
+        }
+        persistSession()
         if SettingsStore.shared.bool("BitChord.Audio.DirectSourceStream", false),
            repeatMode != .one, currentIndex + 1 < queue.count {
             StreamPrefetcher.shared.prefetch(videoID: queue[currentIndex + 1].videoID)
@@ -629,11 +751,19 @@ final class PlayerService: NSObject {
         LyricsService.shared.fetch(track: track) { [weak self] result, _ in
             guard let self = self else { return }
             guard let current = self.currentTrack, current.videoID == track.videoID else { return }
-            self.lyrics = result?.lines ?? []
+            let preferWords = SettingsStore.shared.prioritizeSyllableSync
+            self.lyrics = result.map {
+                LyricsService.linesForDisplay($0.lines, preferWordTimings: preferWords)
+            } ?? []
             self.lyricsAreSynced = result?.isSynced ?? false
             self.lyricsSource = result?.source ?? ""
             self.postChange()
         }
+    }
+
+    private func AudioEngineSeek(_ position: TimeInterval) {
+        guard currentTrack != nil else { return }
+        AudioEngine.shared.seek(to: position)
     }
 
     // MARK: - Now Playing
