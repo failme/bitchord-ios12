@@ -256,7 +256,7 @@ enum SettingsCatalog {
                         detail: "Fade the last seconds of a track before the next one",
                         kind: .stepper(0, 0, 12, 1, " s")),
             SettingItem(key: "BitChord.Audio.Equalizer", title: "Equalizer",
-                        detail: "Presets, seven manual bands, balance and preamp",
+                        detail: "Presets, ten manual bands, tone pad, balance and preamp",
                         kind: .equalizer),
             SettingItem(key: "BitChord.Audio.BitPerfect", title: "Bit-perfect output",
                         detail: "Bypass OS resampling",
@@ -559,7 +559,9 @@ enum SettingsCatalog {
         return sections.compactMap { section in
             let items = section.items.filter { item in
                 return item.title.lowercased().contains(needle)
+                    || L10n.t(item.title).lowercased().contains(needle)
                     || (item.detail ?? "").lowercased().contains(needle)
+                    || L10n.t(item.detail ?? "").lowercased().contains(needle)
                     || item.key.lowercased().contains(needle)
             }
             return items.isEmpty ? nil : SettingSection(title: section.title, items: items)

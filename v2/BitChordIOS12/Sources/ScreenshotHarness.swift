@@ -913,21 +913,64 @@ enum ScreenshotHarness {
                     capture.shot("settings-downloads")
                     capture.report.append("settings.storage=\(capture.store.storageText())")
                     capture.checkpoint()
-                    // Re-run the flow from the real Settings entry point.
-                    settings.showOnboarding()
-                    after(0.8) {
-                        if let rerun = settings.presentedViewController as? OnboardingViewController {
-                            capture.report.append("onboarding.rerun=true")
-                            capture.report.append("onboarding.rerunTitle=\(rerun.stepTitle)")
-                            capture.shot("onboarding-rerun")
-                            rerun.dismiss(animated: false) {
+                    captureEqualizer(capture, settings: settings) {
+                        // Re-run the flow from the real Settings entry point.
+                        settings.showOnboarding()
+                        after(0.8) {
+                            if let rerun = settings.presentedViewController as? OnboardingViewController {
+                                capture.report.append("onboarding.rerun=true")
+                                capture.report.append("onboarding.rerunTitle=\(rerun.stepTitle)")
+                                capture.shot("onboarding-rerun")
+                                rerun.dismiss(animated: false) {
+                                    settings.dismiss(animated: false) { captureSheets(capture, host: host) }
+                                }
+                            } else {
+                                capture.report.append("onboarding.rerun=false")
                                 settings.dismiss(animated: false) { captureSheets(capture, host: host) }
                             }
-                        } else {
-                            capture.report.append("onboarding.rerun=false")
-                            settings.dismiss(animated: false) { captureSheets(capture, host: host) }
                         }
                     }
+                }
+            }
+        }
+    }
+
+    /// Drives the real equalizer screen with a manual preset and the tone pad
+    /// away from centre, then captures the ten faders and the puck together.
+    private static func captureEqualizer(_ capture: DownloadCapture,
+                                         settings: SettingsViewController,
+                                         completion: @escaping () -> Void) {
+        let store = SettingsStore.shared
+        let keys = ["BitChord.Audio.Equalizer", "BitChord.Audio.EqualizerManual",
+                    "BitChord.Audio.EqBands", "BitChord.Audio.EqToneX",
+                    "BitChord.Audio.EqToneY"]
+        let old = keys.map { UserDefaults.standard.object(forKey: $0) }
+        store.set(true, for: "BitChord.Audio.EqualizerManual")
+        store.set("Manual", for: "BitChord.Audio.Equalizer")
+        store.set([6, 3, 0, -2, 0, 3, 6, 4, 2, 1], for: "BitChord.Audio.EqBands")
+        store.set(4.0, for: "BitChord.Audio.EqToneX")
+        store.set(-3.0, for: "BitChord.Audio.EqToneY")
+
+        let equalizer = EqualizerViewController()
+        let nav = chrome(equalizer)
+        settings.present(nav, animated: false) {
+            after(1.0) {
+                capture.shot("equalizer")
+                capture.report.append("equalizer.screen=true")
+                capture.report.append("equalizer.bands=\(AudioDSP.bandFrequencies.count)")
+                capture.report.append("equalizer.toneX=\(store.double("BitChord.Audio.EqToneX", 0))")
+                capture.report.append("equalizer.toneY=\(store.double("BitChord.Audio.EqToneY", 0))")
+                capture.report.append("equalizer.preset=\(store.string("BitChord.Audio.Equalizer", "Off"))")
+                capture.checkpoint()
+                nav.dismiss(animated: false) {
+                    for (index, key) in keys.enumerated() {
+                        if let value = old[index] {
+                            UserDefaults.standard.set(value, forKey: key)
+                        } else {
+                            UserDefaults.standard.removeObject(forKey: key)
+                        }
+                    }
+                    completion()
                 }
             }
         }
@@ -1508,7 +1551,94 @@ enum ScreenshotHarness {
                         capture.report.append("artist.loaded=\(page.loadedTrackCount)")
                         capture.report.append("artist.summary=\(page.reportSummary)")
                         capture.checkpoint()
-                        page.dismiss(animated: false) { moodsProbe(capture) }
+                        artistRadioProbe(capture, page: page) {
+                            page.dismiss(animated: false) { artistEmptyProbe(capture) }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Starts the artist's own radio action without presenting Now Playing, then
+    /// waits for the normal PlayerService path to own the queue and play.
+    private static func artistRadioProbe(_ capture: DownloadCapture,
+                                         page: ArtistViewController,
+                                         completion: @escaping () -> Void) {
+        var delivered: [Track] = []
+        page.startRadio(presentPlayer: false) { tracks in
+            delivered = tracks ?? []
+        }
+        waitUntil({ !delivered.isEmpty }, timeout: 45) { met in
+            waitUntil({ PlayerService.shared.isPlaying }, timeout: 12) { playing in
+                capture.report.append("artistRadio.tracks=\(delivered.count)")
+                capture.report.append("artistRadio.first=\(delivered.first?.title ?? "")")
+                capture.report.append("artistRadio.queued=\(PlayerService.shared.queue.count)")
+                capture.report.append("artistRadio.playing=\(met && playing)")
+                capture.checkpoint()
+                completion()
+            }
+        }
+    }
+
+    /// Empty and missing-copy pages must go through the same layout without
+    /// sections, empty headers or a crash.
+    private static func artistEmptyProbe(_ capture: DownloadCapture) {
+        let emptyArtist = CatalogueArtist(id: "probe-empty", name: "Empty Artist", artwork: nil)
+        let empty = ArtistViewController(artist: emptyArtist)
+        capture.root.present(chrome(empty), animated: false) {
+            let emptyProfile = ArtistProfile(name: "Empty Artist", artwork: nil, listenerText: nil,
+                                             bio: nil, topSongs: [], albums: [], related: [])
+            empty.applyProfileForProbe(emptyProfile)
+            after(0.5) {
+                capture.report.append("artist.emptySummary=\(empty.reportSummary)")
+                capture.report.append("artist.emptyRendered=\(empty.viewIfLoaded != nil)")
+                let partial = ArtistProfile(name: "Partial Artist", artwork: nil,
+                                            listenerText: nil, bio: nil,
+                                            topSongs: [Track(videoID: "probe-partial",
+                                                             title: "Partial song",
+                                                             artist: "Partial Artist",
+                                                             durationSeconds: 180)],
+                                            albums: [], related: [])
+                empty.applyProfileForProbe(partial)
+                capture.report.append("artist.partialSummary=\(empty.reportSummary)")
+                capture.checkpoint()
+                empty.dismiss(animated: false) { artistFallbackProbe(capture) }
+            }
+        }
+    }
+
+    /// Turn off the primary catalogue and prove the YouTube browse fallback
+    /// still renders a usable artist page with songs and no invented shelves.
+    private static func artistFallbackProbe(_ capture: DownloadCapture) {
+        let store = SettingsStore.shared
+        let old = store.bool("BitChord.Source.JioSaavn", true)
+        store.set(false, for: "BitChord.Source.JioSaavn")
+        InnerTube.shared.searchCollections("The Weeknd", filter: .artists) { items in
+            guard let item = items.first else {
+                store.set(old, for: "BitChord.Source.JioSaavn")
+                capture.report.append("artist.fallback=false")
+                capture.checkpoint()
+                moodsProbe(capture)
+                return
+            }
+            let artist = CatalogueArtist(id: item.browseID, name: item.title,
+                                         artwork: item.artworkURL)
+            CatalogueSearch.shared.artistProfile(id: artist.id, name: artist.name,
+                                                 artwork: artist.artwork) { profile in
+                store.set(old, for: "BitChord.Source.JioSaavn")
+                capture.report.append("artist.fallbackSongs=\(profile.topSongs.count)")
+                capture.report.append("artist.fallbackAlbums=\(profile.albums.count)")
+                capture.report.append("artist.fallbackRelated=\(profile.related.count)")
+                capture.report.append("artist.fallbackBio=\(profile.bio?.isEmpty == false)")
+                let fallback = ArtistViewController(artist: artist)
+                capture.root.present(chrome(fallback), animated: false) {
+                    fallback.applyProfileForProbe(profile)
+                    after(0.6) {
+                        capture.shot("artist-fallback")
+                        capture.report.append("artist.fallbackSummary=\(fallback.reportSummary)")
+                        capture.checkpoint()
+                        fallback.dismiss(animated: false) { moodsProbe(capture) }
                     }
                 }
             }

@@ -620,6 +620,21 @@ jobs:
           test -n "$ARTIST"
           test "$ARTIST" -ge 5
           grep -Eq "artist.summary=loaded=true songs=[1-9][0-9]* albums=[1-9][0-9]* related=[1-9][0-9]* bio=true" "$REPORT"
+          grep -Eq "artistRadio.tracks=[1-9][0-9]*" "$REPORT"
+          grep -Eq "artistRadio.queued=[1-9][0-9]*" "$REPORT"
+          grep -q "artistRadio.playing=true" "$REPORT"
+          grep -q "artist.emptyRendered=true" "$REPORT"
+          grep -q "artist.emptySummary=loaded=true songs=0 albums=0 related=0 bio=false sections=0" "$REPORT"
+          grep -q "artist.partialSummary=loaded=true songs=1 albums=0 related=0 bio=false sections=1" "$REPORT"
+          grep -Eq "artist.fallbackSongs=[1-9][0-9]*" "$REPORT"
+          grep -q "artist.fallbackAlbums=0" "$REPORT"
+          grep -q "artist.fallbackRelated=0" "$REPORT"
+          grep -q "artist.fallbackBio=false" "$REPORT"
+          grep -Eq "artist.fallbackSummary=loaded=true songs=[1-9][0-9]* albums=0 related=0 bio=false sections=1" "$REPORT"
+          grep -q "equalizer.screen=true" "$REPORT"
+          grep -q "equalizer.bands=10" "$REPORT"
+          grep -q "equalizer.toneX=4.0" "$REPORT"
+          grep -q "equalizer.toneY=-3.0" "$REPORT"
           MOODS=$(sed -n 's/^moods.tracks=//p' "$REPORT" | head -1)
           echo "mood tracks: $MOODS"
           test -n "$MOODS"
@@ -714,11 +729,11 @@ jobs:
           grep -q "POST /Users/AuthenticateByName" /tmp/jellyfin-server.log
           grep -q "GET /Audio/track-one/stream" /tmp/jellyfin-server.log
 
-          for shot in downloads download-progress downloads-saver settings-downloads \
+          for shot in downloads download-progress downloads-saver settings-downloads equalizer \
                       sheet-delete sheet-cancel sheet-download wifi-blocked offline downloads-empty \
                       storage-cap settings-storage library-synced playlist-synced sync-failed \
                       downloads-addon local-music local-songs queue-history radio radio-failed \
-                      lyrics-karaoke artist moods settings-cache song-actions add-to-playlist \
+                      lyrics-karaoke artist artist-fallback moods settings-cache song-actions add-to-playlist \
                       queue-edit history history-empty replay song-info autoplay \
                       onboarding-welcome onboarding-tour onboarding-library onboarding-ready \
                       onboarding-rerun webdav-tree webdav-playing webdav-error \
@@ -1059,12 +1074,15 @@ jobs:
           grep -q "settings.searchPage2=[1-9]" "$PROBE"
           grep -q "settings.searchFresh=[1-9]" "$PROBE"
           grep -q "settings.dspProcessed=dry=false wet=true" "$PROBE"
-          grep -q "settings.manualEq=changed=true bands=7 balance=-0.4" "$PROBE"
+          grep -q "settings.equalizerBands=10" "$PROBE"
+          grep -q "settings.manualEq=changed=true bands=10 balance=-0.4" "$PROBE"
+          grep -q "settings.tonePad=bands=10 x=4 y=-3 persisted=true changed=true" "$PROBE"
           grep -q "settings.languages=14" "$PROBE"
           grep -q "settings.search=equalizer=1 empty=0" "$PROBE"
           grep -q "settings.crossfade=explicit=5 offAutomix=0.0 automix=3.0 fast=1.5" "$PROBE"
           grep -q "settings.animatedCover=enabled=true cellularOff=false reduced=false" "$PROBE"
           grep -q "settings.localization=language=Español home=Inicio search=Buscar settings=Ajustes" "$PROBE"
+          grep -q "settings.screenTranslation=sections=11 missing=0 equalizer=Ecualizador artist=Populares" "$PROBE"
           grep -q "settings.translation=targets=en,hi,es,fr cache=" "$PROBE"
           grep -q "settings.refreshRate=requested=.* effective=.* running=true" "$PROBE"
           grep -q "settings.refreshModes=auto=60 sixty=60 thirty=30" "$PROBE"

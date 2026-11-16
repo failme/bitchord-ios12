@@ -302,7 +302,7 @@ extension SettingsViewController: UITableViewDataSource, UITableViewDelegate {
 
     func tableView(_ tableView: UITableView, viewForHeaderInSection section: Int) -> UIView? {
         // The opening card has no label; the real page starts straight at it.
-        let title = sections[section].title
+        let title = L10n.t(sections[section].title)
         guard !title.isEmpty else { return nil }
         let holder = UIView()
         holder.backgroundColor = Theme.background
@@ -561,8 +561,8 @@ final class SettingsCell: UITableViewCell {
             ])
         }
         separator.isHidden = last
-        titleLabel.text = item.title
-        detailLabel.text = item.detail
+        titleLabel.text = L10n.t(item.title)
+        detailLabel.text = L10n.t(item.detail ?? "")
         if let icon = item.icon {
             iconView.image = Icons.image(icon, size: 22)
             iconView.isHidden = false
@@ -577,7 +577,7 @@ final class SettingsCell: UITableViewCell {
         // stays on one line and shrinks slightly to fit, as in the real card.
         detailLabel.numberOfLines = item.key == "BitChord.Audio.DolbyAtmos" ? 2 : 1
         if let badge = item.badge {
-            badgeLabel.text = "  \(badge)  "
+            badgeLabel.text = "  \(L10n.t(badge))  "
             badgeLabel.isHidden = false
         } else {
             badgeLabel.isHidden = true

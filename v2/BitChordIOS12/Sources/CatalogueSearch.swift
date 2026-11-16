@@ -232,13 +232,26 @@ final class CatalogueSearch {
                                       artwork: URL?,
                                       completion: @escaping (ArtistProfile) -> Void) {
         InnerTube.shared.fetchCollection(id) { tracks, _ in
-            completion(ArtistProfile(name: name,
-                                     artwork: artwork,
-                                     listenerText: "Artist",
-                                     bio: nil,
-                                     topSongs: tracks ?? [],
-                                     albums: [],
-                                     related: []))
+            let browsed = tracks ?? []
+            let finish: ([Track]) -> Void = { songs in
+                completion(ArtistProfile(name: name,
+                                         artwork: artwork,
+                                         listenerText: L10n.t("Artist"),
+                                         bio: nil,
+                                         topSongs: songs,
+                                         albums: [],
+                                         related: []))
+            }
+            guard browsed.isEmpty else {
+                finish(browsed)
+                return
+            }
+            // Some artist browse pages expose no playable shelf. The fallback
+            // stays useful by searching the same artist name for its songs;
+            // the page still carries no invented albums or related rows.
+            InnerTube.shared.search(name, filter: .songs) { songs, _ in
+                finish(songs ?? [])
+            }
         }
     }
 

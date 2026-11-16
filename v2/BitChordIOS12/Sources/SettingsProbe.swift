@@ -183,13 +183,38 @@ enum SettingsProbe {
         record("settings.dspWet", wet)
         record("settings.dspProcessed", "dry=\(dry.contains("changed=true")) wet=\(wet.contains("changed=true"))")
         let manual = AudioDSP.shared.selfTest(eq: "Manual", loudness: false, spatial: false,
-                                               manualBands: [6, 3, 0, -2, 0, 3, 6], balance: -0.4)
-        record("settings.manualEq", "changed=\(manual.contains("changed=true")) bands=7 balance=-0.4")
+                                               manualBands: [6, 3, 0, -2, 0, 3, 6, 4, 2, 1],
+                                               toneX: 4, toneY: -3, balance: -0.4)
+        record("settings.equalizerBands", "\(AudioDSP.bandFrequencies.count)")
+        record("settings.manualEq", "changed=\(manual.contains("changed=true")) bands=10 balance=-0.4")
+        let toneOldX = UserDefaults.standard.object(forKey: "BitChord.Audio.EqToneX")
+        let toneOldY = UserDefaults.standard.object(forKey: "BitChord.Audio.EqToneY")
+        SettingsStore.shared.set(4.0, for: "BitChord.Audio.EqToneX")
+        SettingsStore.shared.set(-3.0, for: "BitChord.Audio.EqToneY")
+        let toneX = SettingsStore.shared.double("BitChord.Audio.EqToneX", 0)
+        let toneY = SettingsStore.shared.double("BitChord.Audio.EqToneY", 0)
+        let zeroBands = Array(repeating: 0.0, count: 10)
+        let toneDry = AudioDSP.shared.selfTest(eq: "Manual", loudness: false, spatial: false,
+                                               manualBands: zeroBands, toneX: 0, toneY: 0)
+        let toneWet = AudioDSP.shared.selfTest(eq: "Manual", loudness: false, spatial: false,
+                                               manualBands: zeroBands, toneX: 4, toneY: -3)
+        let persisted = abs(toneX - 4) < 0.001 && abs(toneY + 3) < 0.001
+        record("settings.tonePad", "bands=10 x=\(Int(toneX)) y=\(Int(toneY)) "
+            + "persisted=\(persisted) "
+            + "changed=\(!toneDry.contains("changed=true") && toneWet.contains("changed=true"))")
+        restore(toneOldX, key: "BitChord.Audio.EqToneX")
+        restore(toneOldY, key: "BitChord.Audio.EqToneY")
         record("settings.crossfade", "explicit=5 offAutomix=\(PlayerService.crossfadeSeconds(setting: 0, automix: false, fast: false)) automix=\(PlayerService.crossfadeSeconds(setting: 0, automix: true, fast: false)) fast=\(PlayerService.crossfadeSeconds(setting: 0, automix: true, fast: true))")
         record("settings.animatedCover", "enabled=\(NowPlayingViewController.artworkMotionEnabled(animated: true, cellular: true, reduce: false, onWiFi: true)) cellularOff=\(NowPlayingViewController.artworkMotionEnabled(animated: true, cellular: false, reduce: false, onWiFi: false)) reduced=\(NowPlayingViewController.artworkMotionEnabled(animated: true, cellular: true, reduce: true, onWiFi: true))")
         let savedLanguage = SettingsStore.shared.string("BitChord.Misc.AppLanguage", "English")
         SettingsStore.shared.set("Español", for: "BitChord.Misc.AppLanguage")
         record("settings.localization", L10n.report())
+        let screenSections = ["Audio quality", "Playback", "Lyrics", "Library & downloads",
+                              "Sources & addons", "Integrations", "Appearance", "Misc",
+                              "Performance & advanced", "Account & integrations", "Listen together"]
+        let untranslated = screenSections.filter { L10n.t($0) == $0 }.count
+        record("settings.screenTranslation", "sections=\(screenSections.count) missing=\(untranslated) "
+            + "equalizer=\(L10n.t("Equalizer")) artist=\(L10n.t("Popular"))")
         record("settings.languages", "\(L10n.languageNames.count)")
         let equalizerMatches = SettingsCatalog.filtered(by: "equalizer")
             .flatMap { $0.items }.filter { $0.title == "Equalizer" }.count

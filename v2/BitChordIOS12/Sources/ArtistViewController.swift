@@ -16,6 +16,7 @@ final class ArtistViewController: UIViewController {
 
     private var profile: ArtistProfile?
     private var tracks: [Track] = []
+    private var suppressLiveLoad = false
 
     /// The capture harness waits on this instead of guessing how long the
     /// catalogue takes.
@@ -25,7 +26,8 @@ final class ArtistViewController: UIViewController {
     var reportSummary: String {
         guard let profile = profile else { return "loaded=false" }
         return "loaded=true songs=\(profile.topSongs.count) albums=\(profile.albums.count) "
-            + "related=\(profile.related.count) bio=\(profile.bio?.isEmpty == false)"
+            + "related=\(profile.related.count) bio=\(profile.bio?.isEmpty == false) "
+            + "sections=\(visibleSections.count)"
     }
 
     init(artist: CatalogueArtist) {
@@ -72,9 +74,10 @@ final class ArtistViewController: UIViewController {
             spinner.centerYAnchor.constraint(equalTo: view.centerYAnchor)
         ])
 
-        header.configure(name: artist.name, detail: "Artist", artwork: artist.artwork)
+        header.configure(name: artist.name, detail: L10n.t("Artist"), artwork: artist.artwork)
         header.onPlay = { [weak self] in self?.play(shuffle: false) }
         header.onShuffle = { [weak self] in self?.play(shuffle: true) }
+        header.onRadio = { [weak self] in self?.startRadio() }
         layoutHeader()
         load()
     }
@@ -98,16 +101,28 @@ final class ArtistViewController: UIViewController {
         CatalogueSearch.shared.artistProfile(id: artist.id,
                                              name: artist.name,
                                              artwork: artist.artwork) { [weak self] profile in
-            guard let self = self else { return }
-            self.spinner.stopAnimating()
-            self.profile = profile
-            self.tracks = profile.topSongs
-            self.header.configure(name: profile.name,
-                                  detail: profile.listenerText ?? "Artist",
-                                  artwork: profile.artwork ?? self.artist.artwork)
-            self.header.isPlayEnabled = !profile.topSongs.isEmpty
-            self.tableView.reloadData()
+            guard let self = self, !self.suppressLiveLoad else { return }
+            self.apply(profile: profile)
         }
+    }
+
+    /// Shared by the catalogue completion and the empty/fallback probes, so a
+    /// profile with no songs, releases or copy goes through exactly the same
+    /// layout path as a full one.
+    func applyProfileForProbe(_ profile: ArtistProfile) {
+        suppressLiveLoad = true
+        apply(profile: profile)
+    }
+
+    private func apply(profile: ArtistProfile) {
+        spinner.stopAnimating()
+        self.profile = profile
+        tracks = profile.topSongs
+        header.configure(name: profile.name,
+                         detail: profile.listenerText ?? L10n.t("Artist"),
+                         artwork: profile.artwork ?? artist.artwork)
+        header.isPlayEnabled = !profile.topSongs.isEmpty
+        tableView.reloadData()
     }
 
     private func play(shuffle: Bool) {
@@ -115,6 +130,28 @@ final class ArtistViewController: UIViewController {
         let queue = shuffle ? tracks.shuffled() : tracks
         PlayerService.shared.play(tracks: queue, startingAt: 0)
         presentNowPlayingFromRoot()
+    }
+
+    /// Artist radio uses the profile's first popular song as the seed; with no
+    /// songs it searches the artist name. The normal PlayerService path owns
+    /// the queue and playback.
+    func startRadio(presentPlayer: Bool = true,
+                    completion: (([Track]?) -> Void)? = nil) {
+        ArtistRadio.mix(artistName: profile?.name ?? artist.name, topSongs: tracks) { [weak self] mix in
+            guard let self = self else { return }
+            guard let mix = mix, !mix.isEmpty else {
+                completion?(nil)
+                if presentPlayer {
+                    RadioService.presentFailure("This artist has no radio right now.", on: self)
+                }
+                return
+            }
+            PlayerService.shared.play(tracks: mix, startingAt: 0)
+            completion?(mix)
+            if presentPlayer {
+                self.presentNowPlayingFromRoot()
+            }
+        }
     }
 
     private var visibleSections: [Section] {
@@ -191,10 +228,10 @@ extension ArtistViewController: UITableViewDataSource, UITableViewDelegate {
         label.font = Theme.font(12, weight: .semibold)
         label.textColor = Theme.secondaryText
         switch self.section(at: section) {
-        case .songs: label.text = "POPULAR"
-        case .albums: label.text = "ALBUMS & SINGLES"
-        case .related: label.text = "FANS ALSO LIKE"
-        case .about: label.text = "ABOUT"
+        case .songs: label.text = L10n.t("Popular").uppercased()
+        case .albums: label.text = L10n.t("Albums & singles").uppercased()
+        case .related: label.text = L10n.t("Fans also like").uppercased()
+        case .about: label.text = L10n.t("About").uppercased()
         }
         holder.addSubview(label)
         NSLayoutConstraint.activate([
@@ -230,7 +267,7 @@ extension ArtistViewController: UITableViewDataSource, UITableViewDelegate {
             let cell = tableView.dequeueReusableCell(withIdentifier: ArtistTileCell.reuseIdentifier,
                                                      for: indexPath) as! ArtistTileCell
             if let related = profile?.related[indexPath.row] {
-                cell.configure(title: related.name, subtitle: "Artist", artwork: related.artwork)
+                cell.configure(title: related.name, subtitle: L10n.t("Artist"), artwork: related.artwork)
             }
             return cell
         case .about:
@@ -264,6 +301,7 @@ extension ArtistViewController: UITableViewDataSource, UITableViewDelegate {
 final class ArtistHeaderView: UIView {
     var onPlay: (() -> Void)?
     var onShuffle: (() -> Void)?
+    var onRadio: (() -> Void)?
 
     var isPlayEnabled = false {
         didSet {
@@ -277,6 +315,7 @@ final class ArtistHeaderView: UIView {
     private let detailLabel = UILabel()
     private let playButton = UIButton(type: .system)
     private let shuffleButton = UIButton(type: .system)
+    private let radioButton = UIButton(type: .system)
     private var artworkTask: URLSessionDataTask?
 
     override init(frame: CGRect) {
@@ -306,28 +345,21 @@ final class ArtistHeaderView: UIView {
         detailLabel.numberOfLines = 2
         addSubview(detailLabel)
 
-        playButton.translatesAutoresizingMaskIntoConstraints = false
-        playButton.backgroundColor = Theme.accent
-        playButton.layer.cornerRadius = 21
-        playButton.tintColor = Theme.background
-        playButton.setTitle("  Play  ", for: .normal)
-        playButton.setTitleColor(Theme.background, for: .normal)
-        playButton.titleLabel?.font = Theme.font(15, weight: .semibold)
-        playButton.setImage(Icons.image(.play, size: 14), for: .normal)
+        styleAction(playButton, title: L10n.t("Play"), icon: .play, filled: true)
         playButton.addTarget(self, action: #selector(playTapped), for: .touchUpInside)
-        addSubview(playButton)
 
-        shuffleButton.translatesAutoresizingMaskIntoConstraints = false
-        shuffleButton.layer.cornerRadius = 21
-        shuffleButton.layer.borderWidth = 1
-        shuffleButton.layer.borderColor = Theme.outline.cgColor
-        shuffleButton.tintColor = Theme.primaryText
-        shuffleButton.setTitle("  Shuffle  ", for: .normal)
-        shuffleButton.setTitleColor(Theme.primaryText, for: .normal)
-        shuffleButton.titleLabel?.font = Theme.font(15, weight: .semibold)
-        shuffleButton.setImage(Icons.image(.shuffle, size: 15), for: .normal)
+        styleAction(shuffleButton, title: L10n.t("Shuffle"), icon: .shuffle, filled: false)
         shuffleButton.addTarget(self, action: #selector(shuffleTapped), for: .touchUpInside)
-        addSubview(shuffleButton)
+
+        styleAction(radioButton, title: L10n.t("Radio"), icon: .radio, filled: false)
+        radioButton.addTarget(self, action: #selector(radioTapped), for: .touchUpInside)
+
+        let actions = UIStackView(arrangedSubviews: [playButton, shuffleButton, radioButton])
+        actions.translatesAutoresizingMaskIntoConstraints = false
+        actions.axis = .horizontal
+        actions.distribution = .fillEqually
+        actions.spacing = 8
+        addSubview(actions)
 
         NSLayoutConstraint.activate([
             artworkView.topAnchor.constraint(equalTo: topAnchor, constant: 8),
@@ -343,16 +375,30 @@ final class ArtistHeaderView: UIView {
             detailLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
             detailLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
 
-            playButton.topAnchor.constraint(equalTo: detailLabel.bottomAnchor, constant: 16),
-            playButton.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
-            playButton.heightAnchor.constraint(equalToConstant: 42),
-            playButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 124),
-
-            shuffleButton.topAnchor.constraint(equalTo: playButton.topAnchor),
-            shuffleButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
-            shuffleButton.heightAnchor.constraint(equalToConstant: 42),
-            shuffleButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 124)
+            actions.topAnchor.constraint(equalTo: detailLabel.bottomAnchor, constant: 16),
+            actions.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+            actions.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+            actions.heightAnchor.constraint(equalToConstant: 42)
         ])
+    }
+
+    private func styleAction(_ button: UIButton, title: String, icon: Icons.Kind, filled: Bool) {
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.layer.cornerRadius = 21
+        button.titleLabel?.font = Theme.font(13, weight: .semibold)
+        button.setTitle(title, for: .normal)
+        button.setImage(Icons.image(icon, size: 14), for: .normal)
+        button.imageEdgeInsets = UIEdgeInsets(top: 0, left: 0, bottom: 0, right: 5)
+        if filled {
+            button.backgroundColor = Theme.accent
+            button.tintColor = Theme.background
+            button.setTitleColor(Theme.background, for: .normal)
+        } else {
+            button.layer.borderWidth = 1
+            button.layer.borderColor = Theme.outline.cgColor
+            button.tintColor = Theme.primaryText
+            button.setTitleColor(Theme.primaryText, for: .normal)
+        }
     }
 
     required init?(coder: NSCoder) {
@@ -381,6 +427,10 @@ final class ArtistHeaderView: UIView {
     @objc private func shuffleTapped() {
         guard isPlayEnabled else { return }
         onShuffle?()
+    }
+
+    @objc private func radioTapped() {
+        onRadio?()
     }
 }
 

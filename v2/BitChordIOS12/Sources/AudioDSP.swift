@@ -18,6 +18,8 @@ final class AudioDSP {
         var spatial = false
         var skipSilence = false
         var manualBands: [Double] = []
+        var toneX: Double = 0
+        var toneY: Double = 0
         var balance: Double = 0
         var preamp: Double = 0
 
@@ -26,6 +28,8 @@ final class AudioDSP {
              spatial: Bool = false,
              skipSilence: Bool = false,
              manualBands: [Double] = [],
+             toneX: Double = 0,
+             toneY: Double = 0,
              balance: Double = 0,
              preamp: Double = 0) {
             self.equalizer = equalizer
@@ -33,23 +37,51 @@ final class AudioDSP {
             self.spatial = spatial
             self.skipSilence = skipSilence
             self.manualBands = manualBands
+            self.toneX = toneX
+            self.toneY = toneY
             self.balance = balance
             self.preamp = preamp
         }
 
         var enabled: Bool {
             return equalizer != "Off" || loudness || spatial || skipSilence ||
+                abs(toneX) > 0.001 || abs(toneY) > 0.001 ||
                 abs(balance) > 0.001 || abs(preamp) > 0.001
         }
 
         var gains: [Double] {
+            var values: [Double]
             if equalizer == "Manual" {
-                var values = Array(repeating: 0.0, count: 10)
-                for (index, value) in manualBands.prefix(7).enumerated() {
+                values = Array(repeating: 0.0, count: 10)
+                for (index, value) in manualBands.prefix(10).enumerated() {
                     values[index] = value
                 }
-                return values
+            } else {
+                values = presetGains
             }
+            return toneAdjusted(values)
+        }
+
+        /// The tone pad is a macro over the same ten slots rather than a third
+        /// set of filters: x tilts the ends in opposite directions, y contours
+        /// the middle, and both leave the centre of the mix level.
+        private func toneAdjusted(_ base: [Double]) -> [Double] {
+            guard abs(toneX) > 0.001 || abs(toneY) > 0.001 else { return base }
+            let tilt = max(-5, min(5, toneX)) * 1.2
+            let contour = max(-5, min(5, toneY)) * 1.2
+            var values = base
+            for index in 0..<min(values.count, AudioDSP.bandFrequencies.count) {
+                let frequency = AudioDSP.bandFrequencies[index]
+                let lowWidth = max(0, min(1, log2(250.0 / frequency) / log2(250.0 / 60.0)))
+                let highWidth = max(0, min(1, log2(frequency / 4_000.0) / log2(14_000.0 / 4_000.0)))
+                let octaves = log2(frequency / 1_000.0)
+                let midWidth = exp(-(octaves * octaves) / (2 * 1.15 * 1.15))
+                values[index] += -tilt * lowWidth + tilt * highWidth + contour * midWidth
+            }
+            return values
+        }
+
+        private var presetGains: [Double] {
             switch equalizer {
             case "Acoustic": return [3, 1.5, 0, 1.5, 2.5, 2, 1, 0, 0, 0]
             case "Bass boost": return [6, 4, 1.5, 0, 0, 0, 0, 0, 0, 0]
@@ -198,7 +230,9 @@ final class AudioDSP {
                 || (speakerIsOutput && store.bool("BitChord.Audio.LoudnessSpeaker", false)),
             spatial: store.bool("BitChord.Audio.SpatialAudio", false),
             skipSilence: store.bool("BitChord.Audio.SkipSilence", false),
-            manualBands: store.doubles("BitChord.Audio.EqBands", Array(repeating: 0, count: 7)),
+            manualBands: store.doubles("BitChord.Audio.EqBands", Array(repeating: 0, count: 10)),
+            toneX: store.double("BitChord.Audio.EqToneX", 0),
+            toneY: store.double("BitChord.Audio.EqToneY", 0),
             balance: store.double("BitChord.Audio.EqBalance", 0),
             preamp: store.double("BitChord.Audio.EqPreamp", 0)
         )
@@ -398,13 +432,22 @@ final class AudioDSP {
     /// Deterministic proof for the report harness: feed a known signal through
     /// the same renderer the tap uses, with the current persisted settings.
     func selfTest(eq: String? = nil, loudness: Bool? = nil, spatial: Bool? = nil,
-                  manualBands: [Double]? = nil, balance: Double? = nil) -> String {
+                  manualBands: [Double]? = nil, toneX: Double? = nil,
+                  toneY: Double? = nil, balance: Double? = nil) -> String {
         var config = currentConfig()
         if let eq = eq { config.equalizer = eq }
         if let loudness = loudness { config.loudness = loudness }
         if let spatial = spatial { config.spatial = spatial }
         if let manualBands = manualBands { config.manualBands = manualBands }
+        if let toneX = toneX { config.toneX = toneX }
+        if let toneY = toneY { config.toneY = toneY }
         if let balance = balance { config.balance = balance }
+        if eq == "Off" {
+            config.toneX = 0
+            config.toneY = 0
+            config.balance = 0
+            config.preamp = 0
+        }
         var left = (0..<4096).map { Float(sin(Double($0) * 0.08) * 0.25) }
         var right = left
         let before = sqrt(left.reduce(0) { $0 + $1 * $1 } / Float(left.count))
@@ -432,9 +475,11 @@ final class AudioDSP {
             + " gain=\(String(format: "%.2f", lastGain))"
     }
 
-    /// The frequencies the manual faders label, in the same order as the
-    /// ten biquad slots. Only the first seven are exposed as faders.
-    static let bandFrequencies: [Double] = [60, 150, 400, 1000, 2500, 6000, 14000]
+    /// Ten manual centres spanning the reference filters: its seven manual
+    /// frequencies plus the tone pad's 250 Hz and 4 kHz shelves and a 10 kHz
+    /// top octave. One fader per biquad slot.
+    static let bandFrequencies: [Double] = [60, 150, 250, 400, 1_000, 2_500,
+                                            4_000, 6_000, 10_000, 14_000]
 
     static let presets: [String] = ["Off", "Flat", "Acoustic", "Bass boost", "Bass cut",
                                     "Vocal", "Treble boost", "Treble cut", "Loudness",
@@ -453,8 +498,8 @@ final class AudioDSP {
 }
 
 private enum EqFrequencies {
-    static let values = [60.0, 150.0, 400.0, 1000.0, 2500.0, 6000.0, 14000.0,
-                         250.0, 1000.0, 4000.0]
+    static let values = [60.0, 150.0, 250.0, 400.0, 1_000.0, 2_500.0,
+                         4_000.0, 6_000.0, 10_000.0, 14_000.0]
 }
 
 private struct Biquad {
