@@ -195,9 +195,11 @@ enum SettingsProbe {
         let toneY = SettingsStore.shared.double("BitChord.Audio.EqToneY", 0)
         let zeroBands = Array(repeating: 0.0, count: 10)
         let toneDry = AudioDSP.shared.selfTest(eq: "Manual", loudness: false, spatial: false,
-                                               manualBands: zeroBands, toneX: 0, toneY: 0)
+                                               manualBands: zeroBands, toneX: 0, toneY: 0,
+                                               balance: 0, preamp: 0)
         let toneWet = AudioDSP.shared.selfTest(eq: "Manual", loudness: false, spatial: false,
-                                               manualBands: zeroBands, toneX: 4, toneY: -3)
+                                               manualBands: zeroBands, toneX: 4, toneY: -3,
+                                               balance: 0, preamp: 0)
         let persisted = abs(toneX - 4) < 0.001 && abs(toneY + 3) < 0.001
         record("settings.tonePad", "bands=10 x=\(Int(toneX)) y=\(Int(toneY)) "
             + "persisted=\(persisted) "

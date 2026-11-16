@@ -433,7 +433,8 @@ final class AudioDSP {
     /// the same renderer the tap uses, with the current persisted settings.
     func selfTest(eq: String? = nil, loudness: Bool? = nil, spatial: Bool? = nil,
                   manualBands: [Double]? = nil, toneX: Double? = nil,
-                  toneY: Double? = nil, balance: Double? = nil) -> String {
+                  toneY: Double? = nil, balance: Double? = nil,
+                  preamp: Double? = nil) -> String {
         var config = currentConfig()
         if let eq = eq { config.equalizer = eq }
         if let loudness = loudness { config.loudness = loudness }
@@ -442,6 +443,7 @@ final class AudioDSP {
         if let toneX = toneX { config.toneX = toneX }
         if let toneY = toneY { config.toneY = toneY }
         if let balance = balance { config.balance = balance }
+        if let preamp = preamp { config.preamp = preamp }
         if eq == "Off" {
             config.toneX = 0
             config.toneY = 0

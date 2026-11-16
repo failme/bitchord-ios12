@@ -699,7 +699,19 @@ enum ScreenshotHarness {
                 SettingsStore.shared.set(savedCellular, for: "BitChord.Appearance.AnimatedCoverCellular")
                 SettingsStore.shared.set(savedReduce, for: "BitChord.Appearance.ReduceAnimation")
             }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 9.5) {
+            // The tap installs after the item's tracks load, which can lag the
+            // fixed capture timer on a slow catalogue response. Poll for the
+            // first processed buffer so this file is a live proof rather than
+            // a race against the network; the deterministic renderer proof is
+            // still checked separately in the settings probe.
+            func emitDSP(_ attempt: Int) {
+                let frames = AudioDSP.shared.processedFrames
+                guard frames > 0 || attempt >= 20 else {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                        emitDSP(attempt + 1)
+                    }
+                    return
+                }
                 writeText("dsp.tapAttached=\(AudioDSP.shared.tapAttached)\n"
                             + "dsp.processedFrames=\(AudioDSP.shared.processedFrames)\n"
                             + "dsp.lastRMS=\(AudioDSP.shared.lastRMS)\n"
@@ -707,6 +719,7 @@ enum ScreenshotHarness {
                           name: "dsp-playback.txt", directory: directory)
                 SettingsStore.shared.set(savedEQ, for: "BitChord.Audio.Equalizer")
             }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { emitDSP(0) }
             DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
                 if let player = root.presentedViewController as? NowPlayingViewController {
                     player.showLyricsForScreenshots()
