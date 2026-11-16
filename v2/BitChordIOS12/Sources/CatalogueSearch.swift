@@ -264,15 +264,16 @@ final class CatalogueSearch {
     }
 
     private func listenerText(in json: [String: Any]) -> String? {
-        let subtitle = decode((json["subtitle"] as? String) ?? "")
-        if !subtitle.isEmpty { return subtitle }
         let raw = (json["fan_count"] as? String) ?? (json["follower_count"] as? String) ?? ""
-        guard let count = Int(raw), count > 0 else { return nil }
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        formatter.locale = Locale(identifier: "en_US")
-        let number = formatter.string(from: NSNumber(value: count)) ?? raw
-        return "\(number) listeners"
+        if let count = Int(raw), count > 0 {
+            let formatter = NumberFormatter()
+            formatter.numberStyle = .decimal
+            formatter.locale = Locale(identifier: "en_US")
+            let number = formatter.string(from: NSNumber(value: count)) ?? raw
+            return "\(number) listeners"
+        }
+        let subtitle = decode((json["subtitle"] as? String) ?? "")
+        return subtitle.isEmpty ? nil : subtitle
     }
 
     /// `bio` is either a plain string, a JSON-encoded string, or a list of

@@ -140,15 +140,7 @@ final class SettingsViewController: UIViewController {
             tableView.reloadData()
             return
         }
-        let needle = query.lowercased()
-        sections = catalogSections.compactMap { section in
-            let items = section.items.filter { item in
-                return item.title.lowercased().contains(needle)
-                    || (item.detail ?? "").lowercased().contains(needle)
-                    || item.key.lowercased().contains(needle)
-            }
-            return items.isEmpty ? nil : SettingSection(title: section.title, items: items)
-        }
+        sections = SettingsCatalog.filtered(by: query)
         tableView.reloadData()
     }
 

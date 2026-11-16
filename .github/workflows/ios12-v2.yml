@@ -619,7 +619,7 @@ jobs:
           echo "artist tracks: $ARTIST"
           test -n "$ARTIST"
           test "$ARTIST" -ge 5
-          grep -Eq "artist.summary=loaded=true songs=[1-9][0-9]* albums=[1-9][0-9]* related=[1-9]" "$REPORT"
+          grep -Eq "artist.summary=loaded=true songs=[1-9][0-9]* albums=[1-9][0-9]* related=[1-9][0-9]* bio=true" "$REPORT"
           MOODS=$(sed -n 's/^moods.tracks=//p' "$REPORT" | head -1)
           echo "mood tracks: $MOODS"
           test -n "$MOODS"
@@ -1061,6 +1061,7 @@ jobs:
           grep -q "settings.dspProcessed=dry=false wet=true" "$PROBE"
           grep -q "settings.manualEq=changed=true bands=7 balance=-0.4" "$PROBE"
           grep -q "settings.languages=14" "$PROBE"
+          grep -q "settings.search=equalizer=1 empty=0" "$PROBE"
           grep -q "settings.crossfade=explicit=5 offAutomix=0.0 automix=3.0 fast=1.5" "$PROBE"
           grep -q "settings.animatedCover=enabled=true cellularOff=false reduced=false" "$PROBE"
           grep -q "settings.localization=language=Español home=Inicio search=Buscar settings=Ajustes" "$PROBE"

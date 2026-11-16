@@ -1492,7 +1492,7 @@ enum ScreenshotHarness {
         // Use the same catalogue search the Artists tab uses. JioSaavn's
         // artist page is the one with releases, a biography and related
         // artists; the YouTube browse fallback only has the song list.
-        CatalogueSearch.shared.artists("The Weeknd") { artists in
+        CatalogueSearch.shared.artists("Taylor Swift") { artists in
             guard let item = artists.first else {
                 capture.report.append("artist.tracks=0")
                 capture.checkpoint()

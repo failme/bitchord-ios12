@@ -191,6 +191,10 @@ enum SettingsProbe {
         SettingsStore.shared.set("Español", for: "BitChord.Misc.AppLanguage")
         record("settings.localization", L10n.report())
         record("settings.languages", "\(L10n.languageNames.count)")
+        let equalizerMatches = SettingsCatalog.filtered(by: "equalizer")
+            .flatMap { $0.items }.filter { $0.title == "Equalizer" }.count
+        let emptyMatches = SettingsCatalog.filtered(by: "no such setting").count
+        record("settings.search", "equalizer=\(equalizerMatches) empty=\(emptyMatches)")
         SettingsStore.shared.set(savedLanguage, for: "BitChord.Misc.AppLanguage")
         record("settings.translation", TranslationService.shared.selfTest())
         record("settings.refreshRate", DisplayRefreshController.shared.report)

@@ -550,4 +550,19 @@ enum SettingsCatalog {
     static var keyCount: Int {
         return sections.reduce(0) { $0 + $1.items.count }
     }
+
+    /// The search field's filter, shared with the probe so the UI and the
+    /// assertion cannot disagree about what a query matches.
+    static func filtered(by query: String) -> [SettingSection] {
+        let needle = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !needle.isEmpty else { return sections }
+        return sections.compactMap { section in
+            let items = section.items.filter { item in
+                return item.title.lowercased().contains(needle)
+                    || (item.detail ?? "").lowercased().contains(needle)
+                    || item.key.lowercased().contains(needle)
+            }
+            return items.isEmpty ? nil : SettingSection(title: section.title, items: items)
+        }
+    }
 }
