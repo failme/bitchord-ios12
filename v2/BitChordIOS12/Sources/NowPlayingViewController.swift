@@ -1,5 +1,28 @@
 import AVFoundation
+import QuartzCore
 import UIKit
+
+private struct LyricHeightKey: Hashable {
+    let row: Int
+    let width: Int
+    let pointSizeTenths: Int
+}
+
+/// Breaks the display link's strong-target cycle. The link and the view
+/// controller own the target, while the target only weakly owns both, so the
+/// controller can deallocate even if a link was left running off-screen.
+private final class LyricDisplayLinkTarget: NSObject {
+    weak var owner: NowPlayingViewController?
+    weak var link: CADisplayLink?
+
+    @objc func tick() {
+        guard let owner = owner else {
+            link?.invalidate()
+            return
+        }
+        owner.lyricClockTick()
+    }
+}
 
 /// Port of upstream `NowPlayingView`: artwork or lyrics in the centre, quality badge, scrubber,
 /// full transport with shuffle and repeat, like, and a queue sheet.
@@ -59,7 +82,8 @@ final class NowPlayingViewController: UIViewController {
     private var currentTrackID: String?
     private var lyricsToken = ""
     private var currentLyrics: [WordLyricLine] = []
-    private var lyricHeights: [Int: CGFloat] = [:]
+    private var lyricHeights: [LyricHeightKey: CGFloat] = [:]
+    private var lastLyricsTableWidth: CGFloat = 0
     private var lyricsSynced = false
     private var lyricHighlight = -1
     private var userScrolling = false
@@ -68,6 +92,23 @@ final class NowPlayingViewController: UIViewController {
     private var didAnimateIn = false
     private var toggleUnderTitle: NSLayoutConstraint?
     private var toggleInHeader: NSLayoutConstraint?
+    private var chromeTimer: Timer?
+    private var chromePresentationTimer: Timer?
+    private var chromeVisible = true
+    private var lyricDisplayLink: CADisplayLink?
+    private var lyricLinkTarget: LyricDisplayLinkTarget?
+    private var lyricAnchorPosition: TimeInterval = 0
+    private var lyricAnchorTimestamp: CFTimeInterval = 0
+
+    /// The controls that belong to the player chrome. The lyric rows are not
+    /// here: they stay interactive and visible when the chrome fades.
+    private var chromeViews: [UIView] {
+        return [closeButton, toggleButton, compactHeader, lyricsSourceLabel,
+                slider, elapsedLabel, remainingLabel, previousButton, playButton,
+                nextButton, queueButton, volumeSlider, volumeLow, volumeHigh,
+                outputButton, outputLabel, modeButton, globeButton, translitButton,
+                handle]
+    }
 
     /// The lyrics table is either the full column or the one line that is
     /// being sung, as the Lyrics → Show full lyrics setting asks.
@@ -92,6 +133,9 @@ final class NowPlayingViewController: UIViewController {
         let drag = UISwipeGestureRecognizer(target: self, action: #selector(close))
         drag.direction = .down
         view.addGestureRecognizer(drag)
+        let chromeTap = UITapGestureRecognizer(target: self, action: #selector(chromeTapped))
+        chromeTap.cancelsTouchesInView = false
+        view.addGestureRecognizer(chromeTap)
         applyMode(lyrics: false)
 
         NotificationCenter.default.addObserver(self,
@@ -110,11 +154,39 @@ final class NowPlayingViewController: UIViewController {
                                               selector: #selector(settingsChanged),
                                               name: .settingsDidChange,
                                               object: nil)
+        NotificationCenter.default.addObserver(self,
+                                              selector: #selector(appDidEnterBackground),
+                                              name: UIApplication.didEnterBackgroundNotification,
+                                              object: nil)
+        NotificationCenter.default.addObserver(self,
+                                              selector: #selector(appWillEnterForeground),
+                                              name: UIApplication.willEnterForegroundNotification,
+                                              object: nil)
         refresh()
     }
 
     deinit {
+        chromeTimer?.invalidate()
+        chromePresentationTimer?.invalidate()
+        lyricDisplayLink?.invalidate()
+        lyricLinkTarget = nil
         NotificationCenter.default.removeObserver(self)
+    }
+
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        userScrolling = false
+        stopLyricsClock()
+        invalidateChromeTimer()
+        invalidateChromePresentationTimer()
+    }
+
+    override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        userScrolling = false
+        stopLyricsClock()
+        invalidateChromeTimer()
+        invalidateChromePresentationTimer()
     }
 
     override func viewDidLayoutSubviews() {
@@ -124,6 +196,18 @@ final class NowPlayingViewController: UIViewController {
         glowLayer.cornerRadius = 30
         artworkFadeLayer.frame = artworkFadeView.bounds
         lyricsFade.frame = lyricsTable.bounds
+        let width = lyricsTable.bounds.width
+        if width > 1, abs(width - lastLyricsTableWidth) > 0.5 {
+            // While the table is hidden behind the cover, leave the recorded
+            // width alone; showing the lyrics then reloads once at the new
+            // width and picks up the compact or regular type and gutters.
+            if showingLyrics {
+                lastLyricsTableWidth = width
+                // Width changes are the one time row heights must be queried
+                // again; active-line changes never touch the table.
+                lyricsTable.reloadData()
+            }
+        }
     }
 
     /// The reference panel lets lyrics run under the header and the controls,
@@ -141,6 +225,17 @@ final class NowPlayingViewController: UIViewController {
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
+        if showingLyrics {
+            // Returning from a full-screen menu or another screen should not
+            // strand the lyrics page with invisible controls.
+            applyChromeVisibility(true, animated: false)
+        }
+        if presentedViewController != nil {
+            suspendChromeTimerForPresentation()
+        } else {
+            startLyricsClockIfNeeded()
+            scheduleChromeHideIfNeeded()
+        }
         guard !didAnimateIn else { return }
         didAnimateIn = true
         // The cover grows into place while the controls settle under it, the
@@ -346,7 +441,8 @@ final class NowPlayingViewController: UIViewController {
         volumeSlider.idleHeight = 6
         volumeSlider.activeHeight = 10
         volumeSlider.value = 1
-        volumeSlider.onValueChange = { value in
+        volumeSlider.onValueChange = { [weak self] value in
+            self?.showChromeForInteraction()
             AudioEngine.shared.setVolume(value)
         }
         for speaker in [volumeLow, volumeHigh] {
@@ -439,12 +535,11 @@ final class NowPlayingViewController: UIViewController {
         slider.translatesAutoresizingMaskIntoConstraints = false
         slider.idleHeight = 7
         slider.activeHeight = 12
-        slider.onTrackingBegan = {
-            PlayerService.shared.isScrubbing = true
+        slider.onTrackingBegan = { [weak self] in
+            self?.sliderDown()
         }
-        slider.onValueChangeFinished = { value in
-            PlayerService.shared.isScrubbing = false
-            PlayerService.shared.seek(toFraction: Double(value))
+        slider.onValueChangeFinished = { [weak self] value in
+            self?.sliderUp(value: value)
         }
         view.addSubview(slider)
 
@@ -679,6 +774,8 @@ final class NowPlayingViewController: UIViewController {
 
     private func applyMode(lyrics: Bool) {
         showingLyrics = lyrics
+        userScrolling = false
+        invalidateChromePresentationTimer()
         let fullBleed = SettingsStore.shared.fullBleedArtwork
         let progressive = SettingsStore.shared.bool("BitChord.Appearance.ProgressiveBlur", true)
         let blendOff = SettingsStore.shared.bool("BitChord.Appearance.DisableBlendEffects", false)
@@ -724,7 +821,7 @@ final class NowPlayingViewController: UIViewController {
         handle.isHidden = false
         stationLabel.isHidden = lyrics
         peekLabel.isHidden = lyrics
-        closeButton.isHidden = true
+        closeButton.isHidden = !lyrics
         globeButton.isHidden = !lyrics
         translitButton.isHidden = !lyrics
         // The real panel keeps the volume row and the output footer on screen
@@ -742,7 +839,6 @@ final class NowPlayingViewController: UIViewController {
         // The quote tile is lit only while the lyrics panel is up, the same
         // way `BottomGlyph(highlighted = lyricsOpen)` behaves upstream.
         modeButton.backgroundColor = lyrics ? UIColor(white: 1, alpha: 0.10) : .clear
-        closeButton.isHidden = true
         toggleButton.setTitle(nil, for: .normal)
         toggleButton.backgroundColor = UIColor(white: 1, alpha: 0.10)
         toggleButton.layer.cornerRadius = 20
@@ -759,6 +855,28 @@ final class NowPlayingViewController: UIViewController {
         toggleButton.setTitle(nil, for: .normal)
         if !lyrics {
             lyricsTable.setContentOffset(.zero, animated: false)
+        } else if !showsFullLyrics, !currentLyrics.isEmpty {
+            // A single-line table may have changed its active line while it
+            // was hidden behind the cover; ask for the current row height now
+            // that the table is visible again.
+            lyricsTable.beginUpdates()
+            lyricsTable.endUpdates()
+        }
+
+        if lyrics {
+            chromeVisible = true
+            applyChromeVisibility(true, animated: false)
+            if presentedViewController != nil {
+                suspendChromeTimerForPresentation()
+            } else {
+                startLyricsClockIfNeeded()
+                scheduleChromeHideIfNeeded()
+            }
+        } else {
+            invalidateChromeTimer()
+            stopLyricsClock()
+            chromeVisible = true
+            applyChromeVisibility(true, animated: false)
         }
     }
 
@@ -783,6 +901,20 @@ final class NowPlayingViewController: UIViewController {
 
     @objc private func playerChanged() {
         refresh()
+        guard showingLyrics else { return }
+        if PlayerService.shared.isPlaying, !PlayerService.shared.isScrubbing {
+            if presentedViewController != nil {
+                suspendChromeTimerForPresentation()
+            } else {
+                startLyricsClockIfNeeded()
+                scheduleChromeHideIfNeeded()
+            }
+        } else {
+            stopLyricsClock()
+            invalidateChromeTimer()
+            invalidateChromePresentationTimer()
+            applyChromeVisibility(true, animated: true)
+        }
     }
 
     @objc private func tick() {
@@ -801,6 +933,9 @@ final class NowPlayingViewController: UIViewController {
     private func refresh() {
         let service = PlayerService.shared
         guard let track = service.currentTrack else {
+            stopLyricsClock()
+            invalidateChromeTimer()
+            invalidateChromePresentationTimer()
             dismiss(animated: true, completion: nil)
             return
         }
@@ -860,7 +995,7 @@ final class NowPlayingViewController: UIViewController {
         let syncedSetting = SettingsStore.shared.syncedLyrics
         let bilingual = SettingsStore.shared.bool("BitChord.Lyrics.ShowBilingual", false)
         let translationLanguage = SettingsStore.shared.string("BitChord.Lyrics.TranslationLanguage", "Off")
-        let token = "\(track.videoID)-\(service.lyrics.count)-\(syncedSetting)-\(bilingual)-\(translationLanguage)"
+        let token = "\(track.videoID)-\(service.lyrics.count)-\(service.lyricsAreSynced)-\(syncedSetting)-\(bilingual)-\(translationLanguage)"
         if token != lyricsToken {
             lyricsToken = token
             currentLyrics = service.lyrics
@@ -898,6 +1033,17 @@ final class NowPlayingViewController: UIViewController {
             }
         }
         updateTime()
+        if showingLyrics, lyricsSynced, PlayerService.shared.isPlaying,
+           !PlayerService.shared.isScrubbing {
+            if presentedViewController != nil {
+                suspendChromeTimerForPresentation()
+            } else {
+                startLyricsClockIfNeeded()
+                scheduleChromeHideIfNeeded()
+            }
+        } else {
+            stopLyricsClock()
+        }
     }
 
     private func loadArtwork(_ track: Track) {
@@ -1012,7 +1158,8 @@ final class NowPlayingViewController: UIViewController {
             : nil
         elapsedLabel.text = Theme.format(position)
         remainingLabel.text = total > 0 ? "-" + Theme.format(max(0, total - position)) : ""
-        updateHighlight(at: position)
+        updateLyricHighlight(at: position)
+        anchorLyricsClock()
     }
 
     /// Performance knobs have to show up somewhere visible on this target:
@@ -1023,53 +1170,90 @@ final class NowPlayingViewController: UIViewController {
         return reduceBlur || highPerformance || renderQuality == "Low" ? 12 : 42
     }
 
-    private func updateHighlight(at position: TimeInterval) {
+    private func updateLyricHighlight(at position: TimeInterval) {
         let index = NowPlayingViewController.lyricIndex(lines: currentLyrics,
                                                         position: position,
                                                         offsetMilliseconds: SettingsStore.shared.lyricsOffsetMilliseconds,
                                                         synced: lyricsSynced)
         guard index != -2 else { return }
-        let position = position - SettingsStore.shared.lyricsOffsetMilliseconds / 1000
-        if index >= 0, index < currentLyrics.count {
-            // The strip's chevron is a 14pt glyph at half alpha, not a text
-            // character sharing the lyric's 16pt white: upstream draws an
-            // icon after a 6dp spacer.
-            let line = currentLyrics[index].text
-            let mark = "  ›"
-            let strip = NSMutableAttributedString(
-                string: line + mark,
-                attributes: [.font: Theme.font(16, weight: .medium),
-                             .foregroundColor: UIColor(white: 1, alpha: 0.78)])
-            let markRange = NSRange(location: (line as NSString).length,
-                                    length: (mark as NSString).length)
-            strip.addAttribute(.font, value: Theme.font(14), range: markRange)
-            strip.addAttribute(.foregroundColor,
-                               value: UIColor(white: 1, alpha: 0.50),
-                               range: markRange)
-            peekLabel.attributedText = strip
-        } else {
-            peekLabel.attributedText = nil
-        }
+        let shifted = position - SettingsStore.shared.lyricsOffsetMilliseconds / 1000
+
         if index != lyricHighlight {
+            let previous = lyricHighlight
             lyricHighlight = index
-            // The active line is set larger, so its measured height is stale.
-            lyricHeights.removeAll()
-            lyricsTable.reloadData()
+            if index >= 0, index < currentLyrics.count {
+                // The strip's chevron is a 14pt glyph at half alpha, not a text
+                // character sharing the lyric's 16pt white: upstream draws an
+                // icon after a 6dp spacer.
+                let line = currentLyrics[index].text
+                let mark = "  ›"
+                let strip = NSMutableAttributedString(
+                    string: line + mark,
+                    attributes: [.font: Theme.font(16, weight: .medium),
+                                 .foregroundColor: UIColor(white: 1, alpha: 0.78)])
+                let markRange = NSRange(location: (line as NSString).length,
+                                        length: (mark as NSString).length)
+                strip.addAttribute(.font, value: Theme.font(14), range: markRange)
+                strip.addAttribute(.foregroundColor,
+                                   value: UIColor(white: 1, alpha: 0.50),
+                                   range: markRange)
+                peekLabel.attributedText = strip
+            } else {
+                peekLabel.attributedText = nil
+            }
+
+            // Only the row that stopped being active and the row that became
+            // active need their line view updated. The table's data and cached
+            // heights stay untouched, so the scroll animation does not fight a
+            // reload on the same frame.
+            applyLyricCell(lineIndex: previous, position: -1, active: false)
+            applyLyricCell(lineIndex: index, position: shifted, active: true)
+            if !showsFullLyrics, !lyricsTable.isHidden {
+                // The whole table is the one live line in this mode, so its
+                // height may change with the new line. Ask for the new height
+                // without reloading data or dropping cached measurements.
+                lyricsTable.beginUpdates()
+                lyricsTable.endUpdates()
+            }
             // With "Show full lyrics" off the table is a single live line, so
             // there is no column to keep scrolled under the active row.
-            if index >= 0, !userScrolling, showsFullLyrics {
+            if index >= 0, index < currentLyrics.count,
+               !userScrolling, showsFullLyrics {
                 lyricsTable.scrollToRow(at: IndexPath(row: index, section: 0), at: .middle, animated: true)
             }
             return
         }
 
         // The karaoke view works out what is sung from the provider's own word
-        // and syllable timings; this only hands it the clock.
-        for cell in lyricsTable.visibleCells {
-            guard let lyricCell = cell as? KaraokeLyricCell,
-                  let path = lyricsTable.indexPath(for: cell) else { continue }
-            lyricCell.setPosition(path.row == lyricHighlight ? position : -1)
-        }
+        // and syllable timings; this only hands it the clock. The row is
+        // already configured, so this is a position-only update.
+        applyLyricPosition(lineIndex: index, position: shifted)
+    }
+
+    private func applyLyricPosition(lineIndex: Int, position: TimeInterval) {
+        guard lineIndex >= 0, lineIndex < currentLyrics.count else { return }
+        let displayRow = showsFullLyrics ? lineIndex : 0
+        guard let cell = lyricsTable.cellForRow(at: IndexPath(row: displayRow, section: 0))
+            as? KaraokeLyricCell else { return }
+        cell.setPosition(position)
+    }
+
+    /// Updates one visible lyric row. This deliberately never reloads the
+    /// table and never invalidates the height cache; those are content/width
+    /// changes, not an active-line change.
+    private func applyLyricCell(lineIndex: Int, position: TimeInterval, active: Bool) {
+        guard lineIndex >= 0, lineIndex < currentLyrics.count else { return }
+        let displayRow = showsFullLyrics ? lineIndex : 0
+        guard let cell = lyricsTable.cellForRow(at: IndexPath(row: displayRow, section: 0))
+            as? KaraokeLyricCell else { return }
+        let width = max(1, lyricsTable.bounds.width)
+        let font = NowPlayingViewController.lyricFont(synced: lyricsSynced, width: width)
+        let gutter = NowPlayingViewController.lyricGutter(width: width)
+        let blurUnfocused = SettingsStore.shared.bool("BitChord.Lyrics.BlurUnfocused", true)
+        let alpha: CGFloat = active ? 0.55 : (blurUnfocused ? 0.28 : 0.45)
+        cell.configure(line: currentLyrics[lineIndex], font: font,
+                       position: position, gutter: gutter,
+                       dimmed: UIColor(white: 1, alpha: alpha))
     }
 
     /// -2 means the panel is not in synced mode (nothing to highlight), -1
@@ -1085,11 +1269,190 @@ final class NowPlayingViewController: UIViewController {
         return index
     }
 
+    // MARK: - Lyrics clock and chrome
+
+    /// The player's published time is intentionally coarse (0.5s) so the
+    /// labels are cheap. The karaoke sweep interpolates from the last real
+    /// sample with a display link, but only while the lyrics page is actually
+    /// on screen and playing.
+    private func anchorLyricsClock() {
+        lyricAnchorPosition = PlayerService.shared.currentTime
+        lyricAnchorTimestamp = CACurrentMediaTime()
+    }
+
+    private func startLyricsClockIfNeeded() {
+        guard showingLyrics, lyricsSynced, !currentLyrics.isEmpty,
+              view.window != nil, presentedViewController == nil,
+              PlayerService.shared.isPlaying,
+              !PlayerService.shared.isScrubbing,
+              lyricDisplayLink == nil else { return }
+        anchorLyricsClock()
+        let target = LyricDisplayLinkTarget()
+        target.owner = self
+        let link = CADisplayLink(target: target,
+                                 selector: #selector(LyricDisplayLinkTarget.tick))
+        target.link = link
+        link.preferredFramesPerSecond = 60
+        link.add(to: .main, forMode: .common)
+        lyricLinkTarget = target
+        lyricDisplayLink = link
+    }
+
+    private func stopLyricsClock() {
+        lyricDisplayLink?.invalidate()
+        lyricDisplayLink = nil
+        lyricLinkTarget = nil
+    }
+
+    fileprivate func lyricClockTick() {
+        guard showingLyrics, !currentLyrics.isEmpty,
+              view.window != nil, presentedViewController == nil,
+              lyricsSynced, PlayerService.shared.isPlaying,
+              !PlayerService.shared.isScrubbing else {
+            stopLyricsClock()
+            return
+        }
+        let elapsed = CACurrentMediaTime() - lyricAnchorTimestamp
+        let projected = lyricAnchorPosition + elapsed * SettingsStore.shared.playbackRate
+        let duration = PlayerService.shared.duration
+        let position = duration > 0 ? min(projected, duration) : projected
+        updateLyricHighlight(at: max(0, position))
+    }
+
+    /// When the chrome is hidden, the whole page is still interactive: the
+    /// table scrolls, the scrubber can be found again, and a tap brings the
+    /// controls back. Paused playback and an open menu are never masked.
+    private func scheduleChromeHideIfNeeded() {
+        invalidateChromeTimer()
+        guard showingLyrics, view.window != nil, presentedViewController == nil,
+              PlayerService.shared.isPlaying,
+              !PlayerService.shared.isScrubbing,
+              !userScrolling else { return }
+        let timer = Timer.scheduledTimer(withTimeInterval: 4.5, repeats: false) { [weak self] _ in
+            self?.chromeTimerFired()
+        }
+        chromeTimer = timer
+    }
+
+    private func invalidateChromeTimer() {
+        chromeTimer?.invalidate()
+        chromeTimer = nil
+    }
+
+    /// Invalidate the inactivity timer the moment a menu or sheet is opened.
+    /// A separate, weak watcher resumes it once the presented controller is
+    /// gone, so the controls stay visible for the whole presentation without
+    /// leaving the hide timer armed while it is covered.
+    private func suspendChromeTimerForPresentation() {
+        invalidateChromeTimer()
+        // The karaoke sweep is not visible under a menu or sheet; stop it here
+        // and let the watcher restart it when the presentation is gone.
+        stopLyricsClock()
+        invalidateChromePresentationTimer()
+        let timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+            self?.chromePresentationTick()
+        }
+        chromePresentationTimer = timer
+    }
+
+    private func invalidateChromePresentationTimer() {
+        chromePresentationTimer?.invalidate()
+        chromePresentationTimer = nil
+    }
+
+    @objc private func chromePresentationTick() {
+        guard showingLyrics, view.window != nil else {
+            invalidateChromePresentationTimer()
+            return
+        }
+        guard presentedViewController == nil else { return }
+        invalidateChromePresentationTimer()
+        startLyricsClockIfNeeded()
+        scheduleChromeHideIfNeeded()
+    }
+
+    private func applyChromeVisibility(_ visible: Bool, animated: Bool) {
+        chromeVisible = visible
+        let views = chromeViews
+        for control in views {
+            control.isUserInteractionEnabled = visible
+        }
+        let changes: () -> Void = {
+            for control in views { control.alpha = visible ? 1 : 0 }
+        }
+        if animated, UIView.areAnimationsEnabled, !UIAccessibility.isReduceMotionEnabled {
+            UIView.animate(withDuration: visible ? 0.18 : 0.35,
+                           delay: 0,
+                           options: [.allowUserInteraction, .beginFromCurrentState],
+                           animations: changes)
+        } else {
+            changes()
+        }
+    }
+
+    private func showChromeForInteraction() {
+        invalidateChromeTimer()
+        applyChromeVisibility(true, animated: true)
+        if presentedViewController != nil {
+            suspendChromeTimerForPresentation()
+            return
+        }
+        if PlayerService.shared.isPlaying { startLyricsClockIfNeeded() }
+        scheduleChromeHideIfNeeded()
+    }
+
+    @objc private func chromeTimerFired() {
+        chromeTimer = nil
+        guard showingLyrics, view.window != nil else { return }
+        guard PlayerService.shared.isPlaying,
+              !PlayerService.shared.isScrubbing, !userScrolling else {
+            applyChromeVisibility(true, animated: true)
+            return
+        }
+        guard chromeVisible else { return }
+        guard presentedViewController == nil else {
+            // A presentation slipped in without its own suspension; keep the
+            // controls up and watch for it to go away.
+            suspendChromeTimerForPresentation()
+            return
+        }
+        applyChromeVisibility(false, animated: true)
+    }
+
+    @objc private func chromeTapped() {
+        guard showingLyrics else { return }
+        showChromeForInteraction()
+    }
+
+    @objc private func appDidEnterBackground() {
+        userScrolling = false
+        stopLyricsClock()
+        invalidateChromeTimer()
+        invalidateChromePresentationTimer()
+    }
+
+    @objc private func appWillEnterForeground() {
+        guard showingLyrics else { return }
+        applyChromeVisibility(true, animated: false)
+        if presentedViewController != nil {
+            // A menu or sheet survived the background; keep watching it
+            // instead of running the sweep behind it.
+            suspendChromeTimerForPresentation()
+            return
+        }
+        startLyricsClockIfNeeded()
+        scheduleChromeHideIfNeeded()
+    }
+
     // MARK: - Actions
 
     @objc private func close() {
         // Collapse the whole panel downwards, matching the swipe the real
         // player uses, instead of a stock modal slide.
+        userScrolling = false
+        stopLyricsClock()
+        invalidateChromeTimer()
+        invalidateChromePresentationTimer()
         UIView.animate(withDuration: 0.26, delay: 0,
                        options: [.curveEaseIn, .beginFromCurrentState], animations: {
             self.view.transform = CGAffineTransform(translationX: 0, y: self.view.bounds.height)
@@ -1139,14 +1502,17 @@ final class NowPlayingViewController: UIViewController {
     func showLyricsForScreenshots() {
         loadViewIfNeeded()
         applyMode(lyrics: true)
-        updateHighlight(at: PlayerService.shared.currentTime)
+        updateLyricHighlight(at: PlayerService.shared.currentTime)
     }
 
     @objc private func volumeChanged() {
+        showChromeForInteraction()
         AudioEngine.shared.setVolume(volumeSlider.value)
     }
 
     @objc private func showOutput() {
+        showChromeForInteraction()
+        suspendChromeTimerForPresentation()
         let names = AVAudioSession.sharedInstance().currentRoute.outputs.map { $0.portName }
         let route = names.isEmpty ? "this phone" : names.joined(separator: ", ")
         let alert = UIAlertController(title: "Audio output",
@@ -1162,18 +1528,23 @@ final class NowPlayingViewController: UIViewController {
 
     @objc private func showTrackActions() {
         guard let track = PlayerService.shared.currentTrack else { return }
+        showChromeForInteraction()
+        suspendChromeTimerForPresentation()
         TrackActions.present(for: track, from: self, sourceView: toggleButton)
     }
 
     @objc private func togglePlay() {
+        showChromeForInteraction()
         PlayerService.shared.togglePlayPause()
     }
 
     @objc private func goPrevious() {
+        showChromeForInteraction()
         PlayerService.shared.previous()
     }
 
     @objc private func goNext() {
+        showChromeForInteraction()
         PlayerService.shared.advance()
     }
 
@@ -1192,27 +1563,49 @@ final class NowPlayingViewController: UIViewController {
     }
 
     @objc private func showQueue() {
+        showChromeForInteraction()
+        suspendChromeTimerForPresentation()
         let queue = QueueViewController()
         queue.modalPresentationStyle = .pageSheet
         present(queue, animated: true, completion: nil)
     }
 
-    @objc private func sliderDown() {
+    /// Called by the scrubber's tracking closures, not by a target/action, so
+    /// the display link and the inactivity timer follow a real scrub.
+    private func sliderDown() {
         PlayerService.shared.isScrubbing = true
+        stopLyricsClock()
+        invalidateChromePresentationTimer()
+        showChromeForInteraction()
     }
 
-    @objc private func sliderUp() {
+    private func sliderUp(value: Float) {
         PlayerService.shared.isScrubbing = false
-        PlayerService.shared.seek(toFraction: Double(slider.value))
+        PlayerService.shared.seek(toFraction: Double(value))
+        stopLyricsClock()
+        anchorLyricsClock()
+        showChromeForInteraction()
     }
 }
 
 extension NowPlayingViewController {
     /// Upstream's lyrics are one size for every line: 34sp/41sp extra-bold for
-    /// synced words, 30sp/38sp for plain text. Only the colour changes as the
-    /// sung line moves, never the size or weight.
-    static func lyricFont(synced: Bool) -> UIFont {
-        return Theme.font(synced ? 34 : 30, weight: .heavy)
+    /// synced words, 30sp/38sp for plain text. On a compact phone that size
+    /// pushes a long line into three or four rows, so the base size and the
+    /// gutter both come down while the active line remains the brightest row.
+    static func lyricFont(synced: Bool, width: CGFloat) -> UIFont {
+        let compact = width > 0 && width < 360
+        let base: CGFloat = synced ? (compact ? 26 : 34) : (compact ? 23 : 30)
+        // Keep the user's text-size choice, but stop the accessibility/display
+        // scale from growing a compact lyric back into a wall of text.
+        let maximum: CGFloat = compact ? 30 : 38
+        let font = Theme.font(base, weight: .heavy)
+        return font.pointSize > maximum ? font.withSize(maximum) : font
+    }
+
+    static func lyricGutter(width: CGFloat) -> CGFloat {
+        let compact = width > 0 && width < 360
+        return compact ? 20 : 30
     }
 }
 
@@ -1227,43 +1620,58 @@ extension NowPlayingViewController: UITableViewDataSource, UITableViewDelegate {
                                                  for: indexPath)
         let row = showsFullLyrics ? indexPath.row : max(0, lyricHighlight)
         if let lyricCell = cell as? KaraokeLyricCell, row < currentLyrics.count {
-            let cellPosition = row == lyricHighlight ? PlayerService.shared.currentTime : -1
-            lyricCell.configure(line: currentLyrics[row],
-                                font: NowPlayingViewController.lyricFont(synced: lyricsSynced),
-                                position: cellPosition)
-            // `UNSUNG_ALPHA` upstream is 0.45: every row waits there and the
-            // karaoke overlay turns the words white as they are sung.
+            let width = max(1, tableView.bounds.width)
+            let font = NowPlayingViewController.lyricFont(synced: lyricsSynced, width: width)
+            let cellPosition = row == lyricHighlight
+                ? PlayerService.shared.currentTime - SettingsStore.shared.lyricsOffsetMilliseconds / 1000
+                : -1
             let blurUnfocused = SettingsStore.shared.bool("BitChord.Lyrics.BlurUnfocused", true)
-            lyricCell.dimmed = UIColor(white: 1, alpha: blurUnfocused ? 0.28 : 0.45)
+            let active = row == lyricHighlight
+            let alpha: CGFloat = active ? 0.55 : (blurUnfocused ? 0.28 : 0.45)
+            lyricCell.configure(line: currentLyrics[row],
+                                font: font,
+                                position: cellPosition,
+                                gutter: NowPlayingViewController.lyricGutter(width: width),
+                                dimmed: UIColor(white: 1, alpha: alpha))
         }
         return cell
     }
 
     func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
         let row = showsFullLyrics ? indexPath.row : max(0, lyricHighlight)
-        if let cached = lyricHeights[row] { return cached }
         guard row < currentLyrics.count else { return 34 }
-        let width = max(1, tableView.bounds.width - 60)
+        let width = max(1, tableView.bounds.width)
+        let font = NowPlayingViewController.lyricFont(synced: lyricsSynced, width: width)
+        let key = LyricHeightKey(row: row,
+                                 width: Int(width.rounded()),
+                                 pointSizeTenths: Int((font.pointSize * 10).rounded()))
+        if let cached = lyricHeights[key] { return cached }
+        let gutter = NowPlayingViewController.lyricGutter(width: width)
         let height = KaraokeLineView.height(
             text: currentLyrics[row].text,
-            font: NowPlayingViewController.lyricFont(synced: lyricsSynced),
-            width: width)
-        lyricHeights[row] = height
+            font: font,
+            width: max(1, width - gutter * 2))
+        lyricHeights[key] = height
         return height
     }
 
     func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+        // Mark the scroll before showing chrome: showChromeForInteraction()
+        // refreshes the inactivity timer, and it must not arm one mid-drag.
         userScrolling = true
+        if scrollView === lyricsTable { showChromeForInteraction() }
     }
 
     func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
         if !decelerate {
             userScrolling = false
+            if scrollView === lyricsTable { scheduleChromeHideIfNeeded() }
         }
     }
 
     func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
         userScrolling = false
+        if scrollView === lyricsTable { scheduleChromeHideIfNeeded() }
     }
 }
 
